@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+build/
+dist/
+wheels/
+*.egg-info
+*.egg
+sdist/
+
+# Virtual environments
+.venv
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# Tool caches
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.ty/
+.coverage
+htmlcov/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# MLX / HuggingFace model cache (if copied locally)
+models/
+*.safetensors
