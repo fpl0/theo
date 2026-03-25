@@ -12,7 +12,7 @@ def test_accepts_database_url() -> None:
 def test_rejects_missing_database_url(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("THEO_DATABASE_URL", raising=False)
     with pytest.raises(ValidationError):
-        Settings(_env_file=None)
+        Settings()
 
 
 def test_pool_defaults() -> None:

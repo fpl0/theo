@@ -12,7 +12,6 @@ log = logging.getLogger(__name__)
 
 
 async def _init_connection(conn: asyncpg.Connection) -> None:
-    await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
     await register_vector(conn)
 
 

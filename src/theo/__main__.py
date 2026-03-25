@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import signal
-from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -18,8 +17,8 @@ log = logging.getLogger("theo")
 async def _run() -> None:
     # Load env files into the process so non-THEO_ vars
     # (OTEL_*, PYROSCOPE_*) are visible to their SDKs.
-    load_dotenv(Path(".env"))
-    load_dotenv(Path(".env.local"), override=True)
+    load_dotenv(".env")
+    load_dotenv(".env.local", override=True)
 
     cfg = get_settings()
     logging.basicConfig(
@@ -38,7 +37,7 @@ async def _run() -> None:
         await migrate(db)
         log.info("database ready")
 
-        stop: asyncio.Event = asyncio.Event()
+        stop = asyncio.Event()
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, stop.set)

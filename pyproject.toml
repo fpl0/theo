@@ -14,6 +14,7 @@ dependencies = [
     "tokenizers>=0.22",
     "pydantic>=2.12",
     "pydantic-settings>=2.13",
+    "python-dotenv>=1",
     "opentelemetry-api>=1.40",
     "opentelemetry-sdk>=1.40",
     "opentelemetry-exporter-otlp-proto-http>=1.40",
@@ -72,7 +73,7 @@ rules = { missing-argument = "ignore" }
 # like _env_file that ty cannot model.
 [[tool.ty.overrides]]
 include = ["tests/test_config.py"]
-rules = { invalid-argument-type = "ignore", missing-argument = "ignore", unknown-argument = "ignore" }
+rules = { invalid-argument-type = "ignore", missing-argument = "ignore" }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

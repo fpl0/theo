@@ -18,7 +18,6 @@ from opentelemetry import trace
 from tokenizers import Tokenizer
 
 from theo.config import get_settings
-from theo.errors import EmbeddingLoadError
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -145,13 +144,9 @@ class Embedder:
         with self._lock:
             if self._model is not None and self._tokenizer is not None:
                 return self._model, self._tokenizer
-            self._load()
-            if self._model is None or self._tokenizer is None:
-                msg = "Embedding model failed to load"
-                raise EmbeddingLoadError(msg)
-            return self._model, self._tokenizer
+            return self._load()
 
-    def _load(self) -> None:
+    def _load(self) -> tuple[_BertEmbedding, Tokenizer]:
         cfg = get_settings()
         log.info("downloading %s", cfg.embedding_model)
         model_dir = Path(
@@ -163,7 +158,7 @@ class Embedder:
         with (model_dir / "config.json").open() as f:
             config: dict[str, Any] = json.load(f)
 
-        self._model = _BertEmbedding(config)
+        model = _BertEmbedding(config)
 
         raw = mx.load(str(model_dir / "model.safetensors"))
         if not isinstance(raw, dict):
@@ -174,13 +169,18 @@ class Embedder:
             our_key = _map_hf_key(str(key))
             if our_key is not None and isinstance(val, mx.array):
                 mapped.append((our_key, val))
-        self._model.load_weights(mapped)
-        mx.eval(self._model.parameters())
+        model.load_weights(mapped)
+        mx.eval(model.parameters())
 
-        self._tokenizer = Tokenizer.from_file(str(model_dir / "tokenizer.json"))
-        self._tokenizer.enable_truncation(max_length=512)
-        self._tokenizer.enable_padding()  # pads to longest in batch, not 512
+        tokenizer = Tokenizer.from_file(str(model_dir / "tokenizer.json"))
+        tokenizer.enable_truncation(max_length=512)
+        tokenizer.enable_padding()  # pads to longest in batch, not 512
+
+        # Assign both or neither — avoids partial-load state.
+        self._model = model
+        self._tokenizer = tokenizer
         log.info("model loaded (dim=%d)", cfg.embedding_dim)
+        return model, tokenizer
 
     # -- sync core (called inside worker thread) -----------------------------
 

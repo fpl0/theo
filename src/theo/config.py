@@ -1,7 +1,7 @@
 """Application configuration loaded from environment / .env."""
 
 from functools import cache
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -10,7 +10,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="THEO_",
-        env_file=(".env", ".env.local"),
         extra="ignore",
     )
 
@@ -29,7 +28,7 @@ class Settings(BaseSettings):
     embedding_dim: int = 768
 
     @model_validator(mode="after")
-    def _validate_pool_bounds(self) -> Settings:
+    def _validate_pool_bounds(self) -> Self:
         if self.db_pool_min > self.db_pool_max:
             msg = f"db_pool_min ({self.db_pool_min}) must be <= db_pool_max ({self.db_pool_max})"
             raise ValueError(msg)

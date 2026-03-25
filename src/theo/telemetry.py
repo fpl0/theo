@@ -1,8 +1,5 @@
 """OpenTelemetry SDK bootstrap — traces, metrics, and logs."""
 
-from __future__ import annotations
-
-import importlib
 import logging
 import socket
 
@@ -30,27 +27,22 @@ _tracer_provider: TracerProvider | None = None
 _meter_provider: MeterProvider | None = None
 _logger_provider: LoggerProvider | None = None
 
-# OTLP imports are deferred because they pull in protobuf + requests.
-_OTLP_FACTORIES: dict[str, str] = {
-    "span": "opentelemetry.exporter.otlp.proto.http.trace_exporter",
-    "metric": "opentelemetry.exporter.otlp.proto.http.metric_exporter",
-    "log": "opentelemetry.exporter.otlp.proto.http._log_exporter",
-}
 
-
-def _build_exporters(
-    kind: str,
-) -> tuple[ConsoleSpanExporter, ConsoleMetricExporter, ConsoleLogRecordExporter]:
+def _build_exporters(kind: str):
     """Return (span, metric, log) exporters for the chosen backend."""
     if kind == "otlp":
-        span_mod = importlib.import_module(_OTLP_FACTORIES["span"])
-        metric_mod = importlib.import_module(_OTLP_FACTORIES["metric"])
-        log_mod = importlib.import_module(_OTLP_FACTORIES["log"])
-        return (
-            span_mod.OTLPSpanExporter(),
-            metric_mod.OTLPMetricExporter(),
-            log_mod.OTLPLogExporter(),
+        # Deferred: pulls in protobuf + requests.
+        from opentelemetry.exporter.otlp.proto.http._log_exporter import (  # noqa: PLC0415
+            OTLPLogExporter,
         )
+        from opentelemetry.exporter.otlp.proto.http.metric_exporter import (  # noqa: PLC0415
+            OTLPMetricExporter,
+        )
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (  # noqa: PLC0415
+            OTLPSpanExporter,
+        )
+
+        return OTLPSpanExporter(), OTLPMetricExporter(), OTLPLogExporter()
 
     return ConsoleSpanExporter(), ConsoleMetricExporter(), ConsoleLogRecordExporter()
 
@@ -65,11 +57,13 @@ def init_telemetry() -> None:
         return
 
     cfg = get_settings()
-    resource = Resource.create({
-        "service.name": "theo",
-        "service.version": __version__,
-        "host.name": socket.gethostname(),
-    })
+    resource = Resource.create(
+        {
+            "service.name": "theo",
+            "service.version": __version__,
+            "host.name": socket.gethostname(),
+        }
+    )
 
     span_exporter, metric_exporter, log_exporter = _build_exporters(cfg.otel_exporter)
 
