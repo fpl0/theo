@@ -7,5 +7,3 @@ class TheoError(Exception):
 
 class DatabaseNotConnectedError(TheoError):
     """Raised when the connection pool is accessed before connect()."""
-
-
