@@ -62,7 +62,7 @@ Files: `.env` (shared defaults) → `.env.local` (local overrides, gitignored).
 
 - **Direct asyncpg.** No ORM. Parametrized queries only (`$1`, `$2`).
 - **Pool config**: `command_timeout=60s`, `max_inactive_connection_lifetime=300s`, `application_name="theo"`.
-- **pgvector** extension is created during pool init, before migrations run.
+- **pgvector** codec is registered in the pool `init` callback; the extension itself is created in migration 0001.
 - **Migrations** are `.sql` files named `NNNN_description.sql`. The version number is parsed from the filename prefix. All SQL must pass `sqlfluff lint`.
 
 ### Telemetry
@@ -78,8 +78,15 @@ Files: `.env` (shared defaults) → `.env.local` (local overrides, gitignored).
 ```bash
 uv run pytest                          # run all tests
 uv run ruff check src/                 # lint python
+uv run ruff format --check src/        # check python formatting
 uv run ty check src/                   # type check
 uv run sqlfluff lint src/              # lint sql
+```
+
+Format commands (modify files in-place):
+
+```bash
+uv run ruff format src/                # format python
 uv run sqlfluff fix src/               # format sql
 ```
 
@@ -100,4 +107,4 @@ uv run sqlfluff fix src/               # format sql
 3. Add a tracer if the module does I/O: `tracer = trace.get_tracer(__name__)`
 4. Add custom exceptions to `errors.py` if needed
 5. Write tests in `tests/test_<module>.py`
-6. Run `uv run ruff check src/ && uv run ty check src/ && uv run sqlfluff lint src/ && uv run pytest`
+6. Run `uv run ruff check src/ && uv run ruff format --check src/ && uv run ty check src/ && uv run sqlfluff lint src/ && uv run pytest`

@@ -192,9 +192,7 @@ class Embedder:
 
         log.debug("embedding %d text(s)", len(texts))
 
-        with tracer.start_as_current_span(
-            "embed", attributes={"embed.count": len(texts)}
-        ):
+        with tracer.start_as_current_span("embed", attributes={"embed.count": len(texts)}):
             parts: list[NDArray[np.float32]] = []
             for i in range(0, len(texts), _BATCH_SIZE):
                 chunk = texts[i : i + _BATCH_SIZE]
