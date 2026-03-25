@@ -2,7 +2,6 @@
 --
 -- The agent's "RAM" — persona, goals, active user model, current task
 -- context.  Sub-10 KB total.  Read every turn, written rarely.
--- Maps to MemGPT core tier / five-type working memory + user model.
 
 CREATE TABLE IF NOT EXISTS core_memory (
     label text PRIMARY KEY,

@@ -9,6 +9,8 @@ services:
       -c effective_io_concurrency=200
       -c random_page_cost=1.1
       -c jit=off
+      -c work_mem=16MB
+      -c maintenance_work_mem=256MB
     environment:
       POSTGRES_USER: theo
       POSTGRES_PASSWORD: theo

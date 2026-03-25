@@ -32,12 +32,13 @@ src/theo/
 
 ## Design decisions
 
+- **Built for decades.** Theo is a personal agent designed for 10+ years of continuous use. Every decision — schema design, data model, migration strategy, dependency choices — must prioritize long-term durability. Avoid anything that creates future migration pain: prefer stable formats, keep data portable, and never lock into abstractions that age poorly.
 - **Minimal dependencies.** Every dependency must earn its place. No ORMs, no web frameworks for the sake of it. asyncpg over SQLAlchemy, raw SQL over query builders.
 - **Astral tooling only.** uv for packages, ruff for linting/formatting, ty for type checking. No mypy, no black, no isort.
 - **Zero lint/type tolerance.** `ruff check`, `ty check`, and `sqlfluff lint` must pass with zero errors. `ruff` selects ALL rules. `ty` sets all rules to error. `sqlfluff` targets PostgreSQL dialect.
 - **Async-native.** asyncio throughout. Heavy sync work (MLX inference) runs via `asyncio.to_thread`.
 - **Strict typing.** `Literal` for constrained strings, `SecretStr` for credentials, `model_validator` for relational constraints. No unvalidated config.
-- **OpenTelemetry everywhere.** All three signals (traces, metrics, logs). stdlib logging is bridged to OTEL. asyncpg is auto-instrumented. Add `tracer.start_as_current_span()` to new operations.
+- **Observability is non-negotiable.** Every operation must be traceable. If you can't see it in OpenObserve, it doesn't exist. All three OTEL signals (traces, metrics, logs) are required. Every public function that does I/O must create a span. Every meaningful state change must be logged. Key operations must emit metrics. Code without observability is incomplete code — treat missing spans like missing error handling.
 - **SQL migrations are forward-only.** Numbered files in `db/migrations/`. No down migrations. Each runs in its own transaction.
 - **Module-level singletons.** `db`, `embedder`, `get_settings()` are initialized once. No factory patterns.
 - **Custom exceptions over RuntimeError.** All Theo errors inherit from `TheoError` in `errors.py`.
@@ -71,7 +72,26 @@ Files: `.env` (shared defaults) → `.env.local` (local overrides, gitignored).
 - Exporter is chosen via `THEO_OTEL_EXPORTER`: `"console"` (dev) or `"otlp"` (production).
 - OTLP exports to OpenObserve at `http://localhost:5080/api/default` with Basic auth.
 - asyncpg queries use `sanitize_query=True` to avoid leaking parameters in spans.
-- New modules should create a tracer and add spans to meaningful operations.
+
+**Tracing rules:**
+- Every module gets a tracer: `tracer = trace.get_tracer(__name__)`. No exceptions.
+- Every public function that does I/O (database, network, embedding) must be wrapped in `tracer.start_as_current_span()`. asyncpg auto-instrumentation will nest under application spans automatically.
+- Span names should describe the operation, not the implementation: `"retrieve_nodes"` not `"run_select_query"`.
+- Add semantic attributes to spans: `node.kind`, `session.id`, `embed.count`, etc.
+
+**Metrics rules:**
+- Use histograms for latencies, counters for throughput, gauges for pool/queue sizes.
+- Name metrics with the `theo.` prefix: `theo.retrieval.duration`, `theo.nodes.count`.
+- Pick the right instrument for the job:
+  - **Counter**: monotonically increasing totals (`theo.episodes.created`, `theo.edges.expired`). Never reset.
+  - **Histogram**: latency distributions and value spreads (`theo.retrieval.duration`, `theo.embedding.batch_size`). Use for anything you'd want p50/p95/p99 on.
+  - **UpDownCounter**: values that go up and down (`theo.embedding.queue_depth`). Not a gauge — it tracks deltas.
+  - **Gauge** (via callback): point-in-time snapshots of external state (`theo.db.pool.idle`, `theo.db.pool.size`). Use async gauge callbacks, never set manually in hot paths.
+- Avoid metric explosion: do not create per-node-kind or per-session metrics. Use span attributes for that cardinality — metrics are for aggregate signals, traces are for per-request detail.
+
+**Logging rules:**
+- Structured key-value context over free-form messages: `log.info("stored node", extra={"node_id": id, "kind": kind})`.
+- Log at boundaries: entry/exit of operations, errors, and state transitions.
 
 ### Testing
 
@@ -104,7 +124,9 @@ uv run sqlfluff fix src/               # format sql
 
 1. Create the module in `src/theo/`
 2. Add a logger: `log = logging.getLogger(__name__)`
-3. Add a tracer if the module does I/O: `tracer = trace.get_tracer(__name__)`
-4. Add custom exceptions to `errors.py` if needed
-5. Write tests in `tests/test_<module>.py`
-6. Run `uv run ruff check src/ && uv run ruff format --check src/ && uv run ty check src/ && uv run sqlfluff lint src/ && uv run pytest`
+3. Add a tracer: `tracer = trace.get_tracer(__name__)`
+4. Wrap every public I/O function in `tracer.start_as_current_span()`
+5. Add custom exceptions to `errors.py` if needed
+6. Write tests in `tests/test_<module>.py`
+7. Run `uv run ruff check src/ && uv run ruff format --check src/ && uv run ty check src/ && uv run sqlfluff lint src/ && uv run pytest`
+8. Verify spans appear in OpenObserve (`THEO_OTEL_EXPORTER=otlp`)
