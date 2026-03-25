@@ -25,6 +25,7 @@ dependencies = [
 dev = [
     "ruff>=0.15",
     "ty>=0.0.24",
+    "sqlfluff>=3",
     "pytest>=9",
     "pytest-asyncio>=0.24",
 ]
@@ -74,6 +75,20 @@ rules = { missing-argument = "ignore" }
 [[tool.ty.overrides]]
 include = ["tests/test_config.py"]
 rules = { invalid-argument-type = "ignore", missing-argument = "ignore" }
+
+[tool.sqlfluff.core]
+dialect = "postgres"
+max_line_length = 99
+exclude_rules = [
+    "references.keywords",   # allow unquoted keywords as identifiers (e.g., `label`, `role`)
+]
+
+[tool.sqlfluff.indentation]
+indent_unit = "space"
+tab_space_size = 4
+
+[tool.sqlfluff.layout.type.comma]
+line_position = "trailing"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

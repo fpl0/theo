@@ -34,7 +34,7 @@ src/theo/
 
 - **Minimal dependencies.** Every dependency must earn its place. No ORMs, no web frameworks for the sake of it. asyncpg over SQLAlchemy, raw SQL over query builders.
 - **Astral tooling only.** uv for packages, ruff for linting/formatting, ty for type checking. No mypy, no black, no isort.
-- **Zero lint/type tolerance.** `ruff check` and `ty check` must pass with zero errors. `ruff` selects ALL rules. `ty` sets all rules to error.
+- **Zero lint/type tolerance.** `ruff check`, `ty check`, and `sqlfluff lint` must pass with zero errors. `ruff` selects ALL rules. `ty` sets all rules to error. `sqlfluff` targets PostgreSQL dialect.
 - **Async-native.** asyncio throughout. Heavy sync work (MLX inference) runs via `asyncio.to_thread`.
 - **Strict typing.** `Literal` for constrained strings, `SecretStr` for credentials, `model_validator` for relational constraints. No unvalidated config.
 - **OpenTelemetry everywhere.** All three signals (traces, metrics, logs). stdlib logging is bridged to OTEL. asyncpg is auto-instrumented. Add `tracer.start_as_current_span()` to new operations.
@@ -63,7 +63,7 @@ Files: `.env` (shared defaults) → `.env.local` (local overrides, gitignored).
 - **Direct asyncpg.** No ORM. Parametrized queries only (`$1`, `$2`).
 - **Pool config**: `command_timeout=60s`, `max_inactive_connection_lifetime=300s`, `application_name="theo"`.
 - **pgvector** extension is created during pool init, before migrations run.
-- **Migrations** are `.sql` files named `NNNN_description.sql`. The version number is parsed from the filename prefix.
+- **Migrations** are `.sql` files named `NNNN_description.sql`. The version number is parsed from the filename prefix. All SQL must pass `sqlfluff lint`.
 
 ### Telemetry
 
@@ -76,9 +76,11 @@ Files: `.env` (shared defaults) → `.env.local` (local overrides, gitignored).
 ### Testing
 
 ```bash
-uv run pytest           # run all tests
-uv run ruff check src/  # lint
-uv run ty check src/    # type check
+uv run pytest                          # run all tests
+uv run ruff check src/                 # lint python
+uv run ty check src/                   # type check
+uv run sqlfluff lint src/              # lint sql
+uv run sqlfluff fix src/               # format sql
 ```
 
 - pytest-asyncio in auto mode. All async tests just work.
@@ -98,4 +100,4 @@ uv run ty check src/    # type check
 3. Add a tracer if the module does I/O: `tracer = trace.get_tracer(__name__)`
 4. Add custom exceptions to `errors.py` if needed
 5. Write tests in `tests/test_<module>.py`
-6. Run `uv run ruff check src/ && uv run ty check src/ && uv run pytest`
+6. Run `uv run ruff check src/ && uv run ty check src/ && uv run sqlfluff lint src/ && uv run pytest`
