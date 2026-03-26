@@ -381,6 +381,39 @@ class TestStateManagement:
         await eng.resume()  # running → resume is a no-op
         assert eng.state == "running"
 
+    async def test_kill_sets_stopped(self, mock_bus) -> None:
+        _ = mock_bus
+        eng = ConversationEngine()
+        await eng.start()
+        eng.kill()
+        assert eng.state == "stopped"
+
+    async def test_kill_sets_drained_event(self) -> None:
+        eng = ConversationEngine()
+        eng._drained.clear()
+        eng.kill()
+        assert eng._drained.is_set()
+
+    async def test_kill_from_paused(self, mock_bus) -> None:
+        _ = mock_bus
+        eng = ConversationEngine()
+        await eng.start()
+        eng.pause()
+        eng.kill()
+        assert eng.state == "stopped"
+
+    def test_inflight_property(self) -> None:
+        eng = ConversationEngine()
+        assert eng.inflight == 0
+        eng._inflight = 3
+        assert eng.inflight == 3
+
+    def test_queue_depth_property(self) -> None:
+        eng = ConversationEngine()
+        assert eng.queue_depth == 0
+        eng._paused_queue.put_nowait(object())
+        assert eng.queue_depth == 1
+
 
 # ── Sequential processing tests ──────────────────────────────────────
 
