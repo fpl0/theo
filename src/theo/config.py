@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     otel_enabled: bool = True
     otel_exporter: Literal["console", "otlp"] = "console"
 
+    # LLM
+    anthropic_api_key: SecretStr
+    llm_model_reactive: str = "claude-haiku-4-5-20251001"
+    llm_model_reflective: str = "claude-sonnet-4-6-20250514"
+    llm_model_deliberative: str = "claude-opus-4-6-20250514"
+    llm_max_tokens: int = 4096
+
     # Embeddings
     embedding_model: str = "BAAI/bge-base-en-v1.5"
     embedding_dim: int = 768

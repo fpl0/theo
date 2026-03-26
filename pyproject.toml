@@ -6,6 +6,7 @@ readme = "README.md"
 authors = [{ name = "Filipe Lima", email = "me@fpl0.io" }]
 requires-python = ">=3.14"
 dependencies = [
+    "anthropic>=0.49",
     "asyncpg>=0.31",
     "pgvector>=0.4.2",
     "mlx>=0.31",
@@ -70,10 +71,16 @@ python-platform = "darwin"
 include = ["src/theo/config.py"]
 rules = { missing-argument = "ignore" }
 
+# Anthropic SDK uses discriminated unions (event.type == "text") that ty
+# cannot narrow — it sees the full union and flags attribute access.
+[[tool.ty.overrides]]
+include = ["src/theo/llm.py"]
+rules = { unresolved-attribute = "ignore" }
+
 # pydantic-settings constructors accept str for SecretStr and dynamic kwargs
 # like _env_file that ty cannot model.
 [[tool.ty.overrides]]
-include = ["tests/test_config.py"]
+include = ["tests/test_config.py", "tests/test_llm.py"]
 rules = { invalid-argument-type = "ignore", missing-argument = "ignore" }
 
 [tool.sqlfluff.core]
