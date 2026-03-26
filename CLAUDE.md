@@ -129,7 +129,7 @@ uv run sqlfluff fix src/               # format sql
 
 ### Infrastructure
 
-- **PostgreSQL 17 + pgvector 0.8.2**: knowledge graph with vector + full-text search.
+- **PostgreSQL 18 + pgvector 0.8.2**: knowledge graph with vector + full-text search.
 - **OpenObserve v0.70.0**: lightweight OTEL backend (~250MB RAM). Traces, metrics, logs in one binary.
 - All infrastructure runs via `docker compose`. Data is persisted in named volumes.
 

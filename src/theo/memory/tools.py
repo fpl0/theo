@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 
 from opentelemetry import trace
 
@@ -191,7 +191,7 @@ async def _update_core_memory(tool_input: dict[str, object]) -> str:
     raw_body = tool_input.get("body")
     if not isinstance(raw_body, dict):
         return "Error: 'body' must be a JSON object."
-    body: dict[str, Any] = dict(raw_body)  # type: ignore[arg-type]
+    body: dict[str, Any] = cast("dict[str, Any]", raw_body)
     reason = tool_input.get("reason")
 
     new_version = await core.update(

@@ -16,6 +16,8 @@ from theo.errors import APIUnavailableError, CircuitOpenError
 if TYPE_CHECKING:
     from uuid import UUID
 
+    from theo.bus.events import Channel, TrustTier
+
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 _meter = metrics.get_meter(__name__)
@@ -33,18 +35,18 @@ class RetryProcessor(Protocol):
         self,
         *,
         session_id: UUID,
-        channel: str | None,
+        channel: Channel | None,
         body: str,
-        trust: str,
+        trust: TrustTier,
     ) -> None: ...
 
 
 @dataclass
 class _RetryItem:
     session_id: UUID
-    channel: str | None
+    channel: Channel | None
     body: str
-    trust: str
+    trust: TrustTier
     enqueued_at: float = field(default_factory=time.monotonic)
 
 
@@ -71,9 +73,9 @@ class RetryQueue:
         self,
         *,
         session_id: UUID,
-        channel: str | None,
+        channel: Channel | None,
         body: str,
-        trust: str,
+        trust: TrustTier,
     ) -> None:
         """Add a message to the retry queue."""
         self._items.append(

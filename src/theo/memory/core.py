@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from opentelemetry import trace
 
@@ -94,7 +94,7 @@ def _validate_label(label: str) -> CoreMemoryLabel:
     if label not in _VALID_LABELS:
         msg = f"invalid core memory label {label!r}, must be one of {sorted(_VALID_LABELS)}"
         raise ValueError(msg)
-    return label  # type: ignore[return-value]
+    return cast("CoreMemoryLabel", label)
 
 
 async def read_all() -> dict[CoreMemoryLabel, CoreDocument]:

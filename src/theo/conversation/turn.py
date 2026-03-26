@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from opentelemetry import metrics, trace
 
@@ -19,6 +19,8 @@ from theo.resilience import circuit_breaker, retry_queue
 
 if TYPE_CHECKING:
     from uuid import UUID
+
+    from anthropic.types import MessageParam, ToolParam
 
     from theo.bus.events import MessageReceived
 
@@ -92,10 +94,10 @@ async def execute_turn(  # noqa: C901, PLR0915
                 iteration_chunks: list[str] = []
 
                 raw_stream = stream_response(
-                    messages,  # type: ignore[arg-type]
+                    cast("list[MessageParam]", messages),
                     system=ctx.system_prompt or None,
                     speed=speed,
-                    tools=TOOL_DEFINITIONS,  # type: ignore[arg-type]
+                    tools=cast("list[ToolParam]", TOOL_DEFINITIONS),
                 )
                 async for stream_event in circuit_breaker.call(raw_stream):
                     if isinstance(stream_event, TextDelta):

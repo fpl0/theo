@@ -15,6 +15,8 @@ from theo.resilience import retry_queue
 if TYPE_CHECKING:
     from uuid import UUID
 
+    from theo.bus.events import Channel, TrustTier
+
 type EngineState = Literal["running", "paused", "stopped"]
 
 log = logging.getLogger(__name__)
@@ -144,9 +146,9 @@ class ConversationEngine:
         self,
         *,
         session_id: UUID,
-        channel: str | None,
+        channel: Channel | None,
         body: str,
-        trust: str,
+        trust: TrustTier,
     ) -> None:
         """Re-process a previously failed message (called by the retry queue).
 
@@ -156,7 +158,7 @@ class ConversationEngine:
         event = MessageReceived(
             body=body,
             session_id=session_id,
-            channel=channel,  # type: ignore[arg-type]
-            trust=trust,  # type: ignore[arg-type]
+            channel=channel,
+            trust=trust,
         )
         await execute_turn(event, session_id, persist_user_message=False)

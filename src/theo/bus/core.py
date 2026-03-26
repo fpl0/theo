@@ -68,8 +68,8 @@ class EventBus:
     """
 
     def __init__(self) -> None:
-        self._handlers: dict[type[Event], list[Handler[Event]]] = defaultdict(list)
-        self._queue: asyncio.Queue[tuple[Event, bool]] = asyncio.Queue()
+        self._handlers: dict[type[Event], list[Callable[..., Awaitable[None]]]] = defaultdict(list)
+        self._queue: asyncio.Queue[tuple[Event | None, bool]] = asyncio.Queue()
         self._task: asyncio.Task[None] | None = None
         self._running = False
 
@@ -81,7 +81,7 @@ class EventBus:
         handler: Handler[E],
     ) -> None:
         """Register *handler* for *event_type*. Call before :meth:`start`."""
-        self._handlers[event_type].append(handler)  # type: ignore[arg-type]
+        self._handlers[event_type].append(handler)
         handler_name = getattr(handler, "__qualname__", repr(handler))
         log.info(
             "subscribed handler",
@@ -126,7 +126,7 @@ class EventBus:
         self._running = False
 
         # Sentinel: signals the loop to exit after draining.
-        self._queue.put_nowait((None, False))  # type: ignore[arg-type]
+        self._queue.put_nowait((None, False))
 
         if self._task is not None:
             await self._task

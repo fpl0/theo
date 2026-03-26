@@ -11,7 +11,7 @@ dependencies = [
     "pgvector>=0.4.2",
     "mlx>=0.31",
     "numpy>=2.4",
-    "huggingface-hub>=1.7",
+    "huggingface-hub>=1.8",
     "tokenizers>=0.22",
     "pydantic>=2.12",
     "pydantic-settings>=2.13",
@@ -36,7 +36,7 @@ dev = [
 theo = "theo.__main__:main"
 
 [build-system]
-requires = ["uv_build>=0.10.10,<0.11.0"]
+requires = ["uv_build>=0.11.1,<0.12.0"]
 build-backend = "uv_build"
 
 [tool.ruff]

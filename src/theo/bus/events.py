@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import ClassVar, Literal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 # Channel and role literals mirror the DB CHECK constraints in 0003.
 type Channel = Literal["message", "email", "web", "observe", "cli", "internal"]
@@ -23,16 +23,10 @@ class Event(BaseModel):
 
     durable: ClassVar[bool] = True
 
-    id: UUID = None  # type: ignore[assignment]  # default_factory below
-    timestamp: datetime = None  # type: ignore[assignment]
+    id: UUID = Field(default_factory=uuid4)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     session_id: UUID | None = None
     channel: Channel | None = None
-
-    def model_post_init(self, _context: object) -> None:
-        if self.id is None:
-            object.__setattr__(self, "id", uuid4())
-        if self.timestamp is None:
-            object.__setattr__(self, "timestamp", datetime.now(UTC))
 
 
 # ── Durable events (persisted before dispatch) ──────────────────────
