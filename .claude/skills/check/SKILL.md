@@ -1,3 +1,10 @@
+---
+name: check
+description: Run the full quality gate for Theo. Fix any issues found.
+user-invocable: true
+allowed-tools: Bash, Read, Edit, Grep, Glob
+---
+
 Run the full quality gate for Theo. Fix any issues found.
 
 ## Steps

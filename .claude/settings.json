@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=$(echo \"$TOOL_INPUT\" | python3 -c \"import sys,json; print(json.load(sys.stdin).get('file_path',''))\"); case \"$file\" in *.py) cd \"$CLAUDE_PROJECT_DIR\" && uv run ruff format --quiet \"$file\" && uv run ruff check --fix --quiet \"$file\" 2>/dev/null;; *.sql) cd \"$CLAUDE_PROJECT_DIR\" && uv run sqlfluff fix --dialect postgres --quiet \"$file\" 2>/dev/null;; esac; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}

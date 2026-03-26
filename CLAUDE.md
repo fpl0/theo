@@ -74,35 +74,15 @@ Files: `.env` (shared defaults) → `.env.local` (local overrides, gitignored).
 
 ### Database
 
-- **Direct asyncpg.** No ORM. Parametrized queries only (`$1`, `$2`).
-- **Pool config**: `command_timeout=60s`, `max_inactive_connection_lifetime=300s`, `application_name="theo"`.
-- **pgvector** codec is registered in the pool `init` callback; the extension itself is created in migration 0001.
-- **Migrations** are `.sql` files named `NNNN_description.sql`. The version number is parsed from the filename prefix. All SQL must pass `sqlfluff lint`.
+See `.claude/rules/database.md`.
 
 ### Telemetry
 
-- `init_telemetry()` bootstraps all signals. `shutdown_telemetry()` flushes on exit.
-- Exporter is chosen via `THEO_OTEL_EXPORTER`: `"console"` (dev) or `"otlp"` (production).
-- OTLP exports to OpenObserve at `http://localhost:5080/api/default` with Basic auth.
-- asyncpg queries use `sanitize_query=True` to avoid leaking parameters in spans.
-
-**Tracing rules:**
-- Every module gets a tracer: `tracer = trace.get_tracer(__name__)`. No exceptions.
-- Every public function that does I/O (database, network, embedding) must be wrapped in `tracer.start_as_current_span()`. asyncpg auto-instrumentation will nest under application spans automatically.
-- Span names should describe the operation, not the implementation: `"retrieve_nodes"` not `"run_select_query"`.
-- Add semantic attributes to spans: `node.kind`, `session.id`, `embed.count`, etc.
-
-**Metrics rules:**
-- Use histograms for latencies, counters for throughput, gauges for pool/queue sizes.
-- Name metrics with the `theo.` prefix: `theo.retrieval.duration`, `theo.nodes.count`.
-- Pick the right instrument: **Counter** for monotonic totals, **Histogram** for latency/p99, **UpDownCounter** for values that go up and down, **Gauge** (via async callback) for point-in-time snapshots of external state.
-- Avoid metric explosion: do not create per-node-kind or per-session metrics. Use span attributes for that cardinality — metrics are for aggregate signals, traces are for per-request detail.
-
-**Logging rules:**
-- Structured key-value context over free-form messages: `log.info("stored node", extra={"node_id": id, "kind": kind})`.
-- Log at boundaries: entry/exit of operations, errors, and state transitions.
+See `.claude/rules/telemetry.md`.
 
 ### Testing
+
+See `.claude/rules/testing.md`.
 
 ```bash
 just check                             # full quality gate (fail-fast)
@@ -110,22 +90,6 @@ just lint                              # lint + typecheck only (no tests)
 just test                              # run tests only
 just fmt                               # auto-format python + sql
 ```
-
-Underlying commands (for reference / CI):
-
-```bash
-uv run pytest                          # run all tests
-uv run ruff check src/                 # lint python
-uv run ruff format --check src/        # check python formatting
-uv run ty check src/                   # type check
-uv run sqlfluff lint src/              # lint sql
-uv run ruff format src/                # format python
-uv run sqlfluff fix src/               # format sql
-```
-
-- pytest-asyncio in auto mode. All async tests just work.
-- Tests construct `Settings(...)` directly, never via `get_settings()` (which is cached).
-- Use `_env_file=None` when testing Settings to isolate from `.env.local`.
 
 ### Infrastructure
 
@@ -150,3 +114,13 @@ Any code change that introduces a new module, changes architecture, or makes a n
 7. Add or update the decision record in `docs/decisions/`
 8. Run `just check`
 9. Verify spans appear in OpenObserve (`THEO_OTEL_EXPORTER=otlp`)
+
+## Claude Code configuration
+
+The `.claude/` directory contains all Claude Code tooling for this project:
+
+- **Skills** (`.claude/skills/`): `/check`, `/db-migrate`, `/db-optimize`, `/otel-check`, `/otel-dashboard`
+- **Subagents** (`.claude/agents/`): `code-reviewer` — expert review for agentic AI, async Python, and PostgreSQL
+- **Rules** (`.claude/rules/`): path-specific conventions loaded only when editing relevant files — `telemetry.md`, `database.md`, `testing.md`
+- **Hooks** (`.claude/settings.json`): auto-format Python (`ruff`) and SQL (`sqlfluff`) on every edit
+- **Local overrides** (`.claude/settings.local.json`): machine-specific permissions (gitignored)
