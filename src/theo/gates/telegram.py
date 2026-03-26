@@ -6,12 +6,14 @@ import asyncio
 import contextlib
 import logging
 import re
+import time
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid5
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.filters import Command
 from opentelemetry import metrics, trace
 
 from theo.bus import bus
@@ -21,6 +23,8 @@ from theo.errors import GateConfigError
 
 if TYPE_CHECKING:
     from aiogram.types import Message
+
+    from theo.conversation import ConversationEngine
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -37,6 +41,10 @@ _messages_sent_counter = meter.create_counter(
 _messages_ignored_counter = meter.create_counter(
     "theo.telegram.messages_ignored",
     description="Total messages ignored (non-owner)",
+)
+_commands_counter = meter.create_counter(
+    "theo.telegram.commands",
+    description="Total slash commands received",
 )
 
 # Namespace for deriving stable session UUIDs from chat IDs.
@@ -93,7 +101,7 @@ class TelegramGate:
     delivered back as Telegram messages (streamed via edit).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, engine: ConversationEngine | None = None) -> None:
         cfg = get_settings()
         if cfg.telegram_bot_token is None:
             msg = "THEO_TELEGRAM_BOT_TOKEN is required"
@@ -103,16 +111,26 @@ class TelegramGate:
             raise GateConfigError(msg)
 
         self._owner_chat_id: int = cfg.telegram_owner_chat_id
+        self._engine = engine
         self._bot = Bot(
             token=cfg.telegram_bot_token.get_secret_value(),
             default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN_V2),
         )
         self._dp = Dispatcher()
+
+        # Register command handlers before the catch-all message handler.
+        self._dp.message.register(self._on_cmd_start, Command("start"))
+        self._dp.message.register(self._on_cmd_pause, Command("pause"))
+        self._dp.message.register(self._on_cmd_resume, Command("resume"))
+        self._dp.message.register(self._on_cmd_stop, Command("stop"))
+        self._dp.message.register(self._on_cmd_kill, Command("kill"))
+        self._dp.message.register(self._on_cmd_status, Command("status"))
         self._dp.message.register(self._on_message)
 
         # Track the in-flight streamed message per session so chunks can edit it.
         self._streaming: dict[UUID, int] = {}  # session_id → telegram message_id
         self._polling_task: asyncio.Task[None] | None = None
+        self._start_time: float | None = None
 
     # ── lifecycle ────────────────────────────────────────────────────
 
@@ -120,6 +138,7 @@ class TelegramGate:
         """Subscribe to bus events and start polling Telegram."""
         bus.subscribe(ResponseChunk, self._on_response_chunk)
         bus.subscribe(ResponseComplete, self._on_response_complete)
+        self._start_time = time.monotonic()
         log.info("telegram gate starting")
         self._polling_task = asyncio.create_task(
             self._dp.start_polling(self._bot, handle_signals=False),
@@ -136,6 +155,91 @@ class TelegramGate:
             self._polling_task = None
         await self._bot.session.close()
         log.info("telegram gate stopped")
+
+    # ── commands ──────────────────────────────────────────────────────
+
+    def _is_owner(self, message: Message) -> bool:
+        return message.chat.id == self._owner_chat_id
+
+    async def _on_cmd_start(self, message: Message) -> None:
+        """Handle /start — welcome message."""
+        if not self._is_owner(message):
+            return
+        with tracer.start_as_current_span("telegram.command", attributes={"command": "start"}):
+            _commands_counter.add(1, {"command": "start"})
+            await message.answer(
+                "I'm Theo, your personal AI agent. Send me a message to start a conversation.",
+                parse_mode=None,
+            )
+
+    async def _on_cmd_pause(self, message: Message) -> None:
+        """Handle /pause — pause processing, queue incoming messages."""
+        if not self._is_owner(message):
+            return
+        with tracer.start_as_current_span("telegram.command", attributes={"command": "pause"}):
+            _commands_counter.add(1, {"command": "pause"})
+            if self._engine is not None:
+                self._engine.pause()
+            await message.answer("Paused. Messages will be queued.", parse_mode=None)
+            log.info("owner issued /pause")
+
+    async def _on_cmd_resume(self, message: Message) -> None:
+        """Handle /resume — resume processing and drain queue."""
+        if not self._is_owner(message):
+            return
+        with tracer.start_as_current_span("telegram.command", attributes={"command": "resume"}):
+            _commands_counter.add(1, {"command": "resume"})
+            if self._engine is not None:
+                await self._engine.resume()
+            await message.answer("Resumed.", parse_mode=None)
+            log.info("owner issued /resume")
+
+    async def _on_cmd_stop(self, message: Message) -> None:
+        """Handle /stop — finish current turn then idle."""
+        if not self._is_owner(message):
+            return
+        with tracer.start_as_current_span("telegram.command", attributes={"command": "stop"}):
+            _commands_counter.add(1, {"command": "stop"})
+            if self._engine is not None:
+                await message.answer(
+                    "Stopping \u2014 waiting for current turn to finish.",
+                    parse_mode=None,
+                )
+                await self._engine.stop()
+            else:
+                await message.answer("Stopped.", parse_mode=None)
+            log.info("owner issued /stop")
+
+    async def _on_cmd_kill(self, message: Message) -> None:
+        """Handle /kill — immediately halt all processing."""
+        if not self._is_owner(message):
+            return
+        with tracer.start_as_current_span("telegram.command", attributes={"command": "kill"}):
+            _commands_counter.add(1, {"command": "kill"})
+            if self._engine is not None:
+                self._engine.kill()
+            await message.answer("Killed. All processing halted immediately.", parse_mode=None)
+            log.info("owner issued /kill")
+
+    async def _on_cmd_status(self, message: Message) -> None:
+        """Handle /status — report engine state, uptime, queue depth."""
+        if not self._is_owner(message):
+            return
+        with tracer.start_as_current_span("telegram.command", attributes={"command": "status"}):
+            _commands_counter.add(1, {"command": "status"})
+            lines: list[str] = []
+            if self._engine is not None:
+                lines.append(f"Engine: {self._engine.state}")
+                lines.append(f"In-flight: {self._engine.inflight}")
+                lines.append(f"Queue: {self._engine.queue_depth}")
+            if self._start_time is not None:
+                uptime_s = int(time.monotonic() - self._start_time)
+                hours, remainder = divmod(uptime_s, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                lines.append(f"Uptime: {hours}h {minutes}m {seconds}s")
+            text = "\n".join(lines) if lines else "No status available."
+            await message.answer(text, parse_mode=None)
+            log.info("owner issued /status")
 
     # ── inbound: Telegram → bus ──────────────────────────────────────
 

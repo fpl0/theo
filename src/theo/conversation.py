@@ -105,9 +105,25 @@ class ConversationEngine:
         await self._drained.wait()
         log.info("conversation engine stopped")
 
+    def kill(self) -> None:
+        """Immediately halt without waiting for in-flight turns."""
+        self._state = "stopped"
+        self._drained.set()
+        log.info("conversation engine killed")
+
     @property
     def state(self) -> EngineState:
         return self._state
+
+    @property
+    def inflight(self) -> int:
+        """Number of turns currently being processed."""
+        return self._inflight
+
+    @property
+    def queue_depth(self) -> int:
+        """Number of messages queued while paused."""
+        return self._paused_queue.qsize()
 
     # ── event handler ─────────────────────────────────────────────────
 
