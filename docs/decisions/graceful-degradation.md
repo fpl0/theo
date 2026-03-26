@@ -31,7 +31,7 @@ Instead of making a real API call (which costs tokens and adds latency), the hea
 
 ### Module-level singletons with test isolation
 
-`circuit_breaker` and `retry_queue` are module-level singletons, consistent with Theo's pattern for `db`, `bus`, and `embedder`. Tests isolate by patching `theo.conversation.circuit_breaker` and `theo.conversation.retry_queue` per test.
+`circuit_breaker` and `retry_queue` are module-level singletons in `theo.resilience`, consistent with Theo's pattern for `db`, `bus`, and `embedder`. Tests reset the circuit breaker directly and replace the retry queue on the `resilience` module while patching the imported references in `theo.conversation.turn` and `theo.conversation.engine`.
 
 ### Retry queue wakeup via explicit signal
 
@@ -45,7 +45,8 @@ The retry queue's drain loop sleeps until woken by `wake()`. Two triggers: (1) n
 ## Files changed
 
 - `src/theo/errors.py` — added `CircuitOpenError`
-- `src/theo/resilience.py` — new module: `CircuitBreaker`, `RetryQueue`, `HealthStatus`, `health_check()`
-- `src/theo/conversation.py` — integrated circuit breaker around `stream_response`, added API failure handling with acknowledgment and retry enqueue
+- `src/theo/resilience/` — package: `circuit.py` (CircuitBreaker), `retry.py` (RetryQueue), `health.py` (HealthStatus, health_check), `__init__.py` (singletons, OTEL gauge)
+- `src/theo/conversation/engine.py` — integrated circuit breaker around `stream_response`, API failure handling with acknowledgment and retry enqueue
+- `src/theo/conversation/turn.py` — retry queue integration for failed turns
 - `tests/test_resilience.py` — 24 tests covering circuit transitions, queue FIFO, health check, and conversation engine integration
-- `tests/test_conversation.py` — added test isolation fixture for resilience singletons
+- `tests/test_conversation.py` — test isolation fixture for resilience singletons
