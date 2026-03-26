@@ -20,15 +20,18 @@ from opentelemetry import metrics, trace
 from theo.bus import bus
 from theo.bus.events import MessageReceived, ResponseChunk, ResponseComplete
 from theo.context import assemble
-from theo.errors import ConversationNotRunningError
+from theo.errors import APIUnavailableError, CircuitOpenError, ConversationNotRunningError
 from theo.llm import StreamDone, TextDelta, ToolUseRequest, classify_speed, stream_response
 from theo.memory.episodes import store_episode
 from theo.memory.tools import TOOL_DEFINITIONS, execute_tool
+from theo.resilience import circuit_breaker, retry_queue
 
 if TYPE_CHECKING:
     from uuid import UUID
 
 type EngineState = Literal["running", "paused", "stopped"]
+
+_API_DOWN_ACK = "Got your message \u2014 having trouble reaching Claude. I'll get back to you."
 
 _MAX_TOOL_ITERATIONS = 10
 
@@ -79,6 +82,7 @@ class ConversationEngine:
             return
         self._state = "running"
         bus.subscribe(MessageReceived, self._on_message)
+        retry_queue.start(self._retry_message)
         log.info("conversation engine started")
 
     def pause(self) -> None:
@@ -101,6 +105,7 @@ class ConversationEngine:
         if self._state == "stopped":
             return
         self._state = "stopped"
+        await retry_queue.stop()
         # Wait for any in-flight turns to complete.
         await self._drained.wait()
         log.info("conversation engine stopped")
@@ -169,7 +174,37 @@ class ConversationEngine:
         if lock is not None and not lock.locked():
             self._session_locks.pop(session_id, None)
 
-    async def _execute_turn(self, event: MessageReceived, session_id: UUID) -> None:
+    async def _retry_message(
+        self,
+        *,
+        session_id: object,
+        channel: str | None,
+        body: str,
+        trust: str,
+    ) -> None:
+        """Re-process a previously failed message (called by the retry queue).
+
+        The user message was already persisted as an episode on the original
+        attempt, so we skip persistence and go straight to the LLM call.
+        """
+        from uuid import UUID  # noqa: PLC0415
+
+        sid = session_id if isinstance(session_id, UUID) else UUID(str(session_id))
+        event = MessageReceived(
+            body=body,
+            session_id=sid,
+            channel=channel,  # type: ignore[arg-type]
+            trust=trust,  # type: ignore[arg-type]
+        )
+        await self._execute_turn(event, sid, persist_user_message=False)
+
+    async def _execute_turn(  # noqa: C901, PLR0915
+        self,
+        event: MessageReceived,
+        session_id: UUID,
+        *,
+        persist_user_message: bool = True,
+    ) -> None:
         t0 = time.monotonic()
         speed = classify_speed(event.body)
         tool_call_count = 0
@@ -181,96 +216,105 @@ class ConversationEngine:
                 "llm.speed": speed,
             },
         ) as span:
-            # 1. Persist incoming message as episode.
-            await store_episode(
-                session_id=session_id,
-                channel=event.channel or "message",
-                role="user",
-                body=event.body,
-                trust=event.trust,
-            )
+            try:
+                # 1. Persist incoming message as episode (skip on retry).
+                if persist_user_message:
+                    await store_episode(
+                        session_id=session_id,
+                        channel=event.channel or "message",
+                        role="user",
+                        body=event.body,
+                        trust=event.trust,
+                    )
 
-            # 2. Assemble context window.
-            ctx = await assemble(
-                session_id=session_id,
-                latest_message=event.body,
-            )
+                # 2. Assemble context window.
+                ctx = await assemble(
+                    session_id=session_id,
+                    latest_message=event.body,
+                )
 
-            # 3. Build message list: history + current message.
-            messages: list[dict[str, object]] = [dict(m) for m in ctx.messages]
-            messages.append({"role": "user", "content": event.body})
+                # 3. Build message list: history + current message.
+                messages: list[dict[str, object]] = [dict(m) for m in ctx.messages]
+                messages.append({"role": "user", "content": event.body})
 
-            # 4. Stream response from Claude with tool loop.
-            chunks: list[str] = []
+                # 4. Stream response from Claude with tool loop.
+                chunks: list[str] = []
 
-            for _iteration in range(_MAX_TOOL_ITERATIONS):
-                tool_requests: list[ToolUseRequest] = []
-                iteration_chunks: list[str] = []
+                for _iteration in range(_MAX_TOOL_ITERATIONS):
+                    tool_requests: list[ToolUseRequest] = []
+                    iteration_chunks: list[str] = []
 
-                async for stream_event in stream_response(
-                    messages,  # type: ignore[arg-type]
-                    system=ctx.system_prompt or None,
-                    speed=speed,
-                    tools=TOOL_DEFINITIONS,  # type: ignore[arg-type]
-                ):
-                    if isinstance(stream_event, TextDelta):
-                        iteration_chunks.append(stream_event.text)
-                        await bus.publish(
-                            ResponseChunk(
-                                session_id=session_id,
-                                channel=event.channel,
-                                body=stream_event.text,
+                    raw_stream = stream_response(
+                        messages,  # type: ignore[arg-type]
+                        system=ctx.system_prompt or None,
+                        speed=speed,
+                        tools=TOOL_DEFINITIONS,  # type: ignore[arg-type]
+                    )
+                    async for stream_event in circuit_breaker.call(raw_stream):
+                        if isinstance(stream_event, TextDelta):
+                            iteration_chunks.append(stream_event.text)
+                            await bus.publish(
+                                ResponseChunk(
+                                    session_id=session_id,
+                                    channel=event.channel,
+                                    body=stream_event.text,
+                                )
                             )
+                        elif isinstance(stream_event, ToolUseRequest):
+                            tool_requests.append(stream_event)
+                        elif isinstance(stream_event, StreamDone):
+                            span.set_attribute("llm.model", "resolved")
+                            span.set_attribute("llm.input_tokens", stream_event.input_tokens)
+                            span.set_attribute("llm.output_tokens", stream_event.output_tokens)
+
+                    chunks.extend(iteration_chunks)
+
+                    if not tool_requests:
+                        break
+
+                    # Build assistant message with text + tool_use content blocks.
+                    assistant_content: list[dict[str, object]] = []
+                    if iteration_chunks:
+                        assistant_content.append(
+                            {"type": "text", "text": "".join(iteration_chunks)}
                         )
-                    elif isinstance(stream_event, ToolUseRequest):
-                        tool_requests.append(stream_event)
-                    elif isinstance(stream_event, StreamDone):
-                        span.set_attribute("llm.model", "resolved")
-                        span.set_attribute("llm.input_tokens", stream_event.input_tokens)
-                        span.set_attribute("llm.output_tokens", stream_event.output_tokens)
-
-                chunks.extend(iteration_chunks)
-
-                if not tool_requests:
-                    break
-
-                # Build assistant message with text + tool_use content blocks.
-                assistant_content: list[dict[str, object]] = []
-                if iteration_chunks:
-                    assistant_content.append({"type": "text", "text": "".join(iteration_chunks)})
-                tool_blocks: list[dict[str, object]] = [
-                    {
-                        "type": "tool_use",
-                        "id": req.id,
-                        "name": req.name,
-                        "input": req.input,
-                    }
-                    for req in tool_requests
-                ]
-                assistant_content.extend(tool_blocks)
-                messages.append({"role": "assistant", "content": assistant_content})
-
-                # Execute each tool and build tool result messages.
-                tool_results: list[dict[str, object]] = []
-                for req in tool_requests:
-                    tool_call_count += 1
-                    _tool_call_counter.add(1, {"tool.name": req.name})
-                    result = await execute_tool(req.name, req.input)
-                    tool_results.append(
+                    tool_blocks: list[dict[str, object]] = [
                         {
-                            "type": "tool_result",
-                            "tool_use_id": req.id,
-                            "content": result,
+                            "type": "tool_use",
+                            "id": req.id,
+                            "name": req.name,
+                            "input": req.input,
                         }
-                    )
-                    log.debug(
-                        "tool executed",
-                        extra={"tool": req.name, "tool_use_id": req.id},
-                    )
+                        for req in tool_requests
+                    ]
+                    assistant_content.extend(tool_blocks)
+                    messages.append({"role": "assistant", "content": assistant_content})
 
-                messages.append({"role": "user", "content": tool_results})
+                    # Execute each tool and build tool result messages.
+                    tool_results: list[dict[str, object]] = []
+                    for req in tool_requests:
+                        tool_call_count += 1
+                        _tool_call_counter.add(1, {"tool.name": req.name})
+                        result = await execute_tool(req.name, req.input)
+                        tool_results.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": req.id,
+                                "content": result,
+                            }
+                        )
+                        log.debug(
+                            "tool executed",
+                            extra={"tool": req.name, "tool_use_id": req.id},
+                        )
 
-            span.set_attribute("turn.tool_calls", tool_call_count)
+                    messages.append({"role": "user", "content": tool_results})
+
+                span.set_attribute("turn.tool_calls", tool_call_count)
+
+            except APIUnavailableError, CircuitOpenError:
+                await self._handle_api_failure(event, session_id)
+                return
 
             # 5. Persist assistant response as episode.
             full_response = "".join(chunks)
@@ -295,6 +339,11 @@ class ConversationEngine:
             _turn_duration.record(elapsed, {"llm.speed": speed})
             _turn_counter.add(1, {"llm.speed": speed})
 
+            # Successful turn — wake the retry queue so queued messages
+            # get processed now that the API is reachable again.
+            if retry_queue.depth > 0:
+                retry_queue.wake()
+
             log.info(
                 "turn complete",
                 extra={
@@ -305,3 +354,29 @@ class ConversationEngine:
                     "tool_calls": tool_call_count,
                 },
             )
+
+    async def _handle_api_failure(
+        self,
+        event: MessageReceived,
+        session_id: UUID,
+    ) -> None:
+        """Acknowledge the user and enqueue the message for retry."""
+        log.warning(
+            "api unavailable, acknowledging and queuing",
+            extra={"session_id": str(session_id)},
+        )
+
+        await bus.publish(
+            ResponseComplete(
+                session_id=session_id,
+                channel=event.channel,
+                body=_API_DOWN_ACK,
+            )
+        )
+
+        retry_queue.enqueue(
+            session_id=session_id,
+            channel=event.channel,
+            body=event.body,
+            trust=event.trust,
+        )

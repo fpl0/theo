@@ -21,5 +21,9 @@ class ConversationNotRunningError(TheoError):
     """Raised when a message is received by a stopped conversation engine."""
 
 
+class CircuitOpenError(TheoError):
+    """Raised when the circuit breaker is open and rejecting calls."""
+
+
 class GateConfigError(TheoError):
     """Raised when a gate is missing required configuration."""

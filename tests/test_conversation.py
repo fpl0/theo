@@ -14,6 +14,7 @@ from theo.context import AssembledContext
 from theo.conversation import _MAX_TOOL_ITERATIONS, ConversationEngine
 from theo.errors import ConversationNotRunningError
 from theo.llm import StreamDone, TextDelta, ToolUseRequest
+from theo.resilience import CircuitBreaker, RetryQueue
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -38,6 +39,18 @@ async def _fake_stream(_messages, *, system=None, speed="reflective", tools=None
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────
+
+
+@pytest.fixture(autouse=True)
+def _isolate_resilience():
+    """Provide fresh circuit breaker and retry queue per test."""
+    fresh_cb = CircuitBreaker()
+    fresh_rq = RetryQueue()
+    with (
+        patch("theo.conversation.circuit_breaker", fresh_cb),
+        patch("theo.conversation.retry_queue", fresh_rq),
+    ):
+        yield
 
 
 @pytest.fixture
