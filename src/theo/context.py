@@ -15,9 +15,10 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import time
 from typing import TYPE_CHECKING
 
-from opentelemetry import trace
+from opentelemetry import metrics, trace
 
 from theo.memory import core
 from theo.memory.episodes import list_episodes
@@ -31,6 +32,13 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+_meter = metrics.get_meter(__name__)
+
+_duration = _meter.create_histogram(
+    "theo.context.duration",
+    unit="s",
+    description="Context assembly duration",
+)
 
 # ---------------------------------------------------------------------------
 # Token estimation
@@ -191,6 +199,8 @@ async def assemble(
         "assemble_context",
         attributes={"session.id": str(session_id)},
     ) as span:
+        t0 = time.monotonic()
+
         # 1. Core memory — always included, never truncated
         core_docs = await core.read_all()
         core_section = _format_core_memory(core_docs)
@@ -232,6 +242,8 @@ async def assemble(
                 "message_count": len(messages),
             },
         )
+
+        _duration.record(time.monotonic() - t0)
 
         return AssembledContext(
             system_prompt=system_prompt,
