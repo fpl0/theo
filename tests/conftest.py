@@ -14,6 +14,26 @@ def _patched_eval_type(*args: object, **kwargs: object) -> object:
 
 typing._eval_type = _patched_eval_type  # type: ignore[attr-defined]  # noqa: SLF001
 
+# Stub out mlx if not available (Apple Silicon only) so modules that
+# import theo.embeddings can be collected on any platform.
+try:
+    import mlx.core  # noqa: F401
+except (ImportError, OSError):  # fmt: skip
+    import sys
+    import types
+    from unittest.mock import MagicMock
+
+    _mlx = types.ModuleType("mlx")
+    _mlx_core = MagicMock()
+    _mlx_nn = MagicMock()
+    _mlx_linalg = MagicMock()
+    _mlx.core = _mlx_core  # type: ignore[attr-defined]
+    _mlx.nn = _mlx_nn  # type: ignore[attr-defined]
+    _mlx_core.linalg = _mlx_linalg
+    sys.modules["mlx"] = _mlx
+    sys.modules["mlx.core"] = _mlx_core
+    sys.modules["mlx.nn"] = _mlx_nn
+
 # Provide a default so get_settings() doesn't fail during test collection.
 # Tests that construct Settings explicitly pass their own values.
 os.environ.setdefault("THEO_DATABASE_URL", "postgresql://theo:test@localhost:5432/theo")
