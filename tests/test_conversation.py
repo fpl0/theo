@@ -10,7 +10,7 @@ import pytest
 
 from theo.bus import EventBus
 from theo.bus.events import MessageReceived, ResponseChunk, ResponseComplete
-from theo.context import AssembledContext
+from theo.conversation.context import AssembledContext
 from theo.conversation import _MAX_TOOL_ITERATIONS, ConversationEngine
 from theo.errors import ConversationNotRunningError
 from theo.llm import StreamDone, TextDelta, ToolUseRequest
@@ -47,8 +47,9 @@ def _isolate_resilience():
     fresh_cb = CircuitBreaker()
     fresh_rq = RetryQueue()
     with (
-        patch("theo.conversation.circuit_breaker", fresh_cb),
-        patch("theo.conversation.retry_queue", fresh_rq),
+        patch("theo.conversation.turn.circuit_breaker", fresh_cb),
+        patch("theo.conversation.turn.retry_queue", fresh_rq),
+        patch("theo.conversation.engine.retry_queue", fresh_rq),
     ):
         yield
 
@@ -69,7 +70,10 @@ def mock_bus():
     event_bus.publish = AsyncMock(side_effect=fake_publish)
     event_bus.subscribe = lambda _et, _h: None
 
-    with patch("theo.conversation.bus", event_bus):
+    with (
+        patch("theo.conversation.turn.bus", event_bus),
+        patch("theo.conversation.engine.bus", event_bus),
+    ):
         yield event_bus, published
 
 
@@ -82,19 +86,19 @@ def mock_store_episode():
         episode_id += 1
         return episode_id
 
-    with patch("theo.conversation.store_episode", AsyncMock(side_effect=_store)) as mock:
+    with patch("theo.conversation.turn.store_episode", AsyncMock(side_effect=_store)) as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_assemble():
-    with patch("theo.conversation.assemble", AsyncMock(return_value=_EMPTY_CONTEXT)) as mock:
+    with patch("theo.conversation.turn.assemble", AsyncMock(return_value=_EMPTY_CONTEXT)) as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_stream():
-    with patch("theo.conversation.stream_response", _fake_stream):
+    with patch("theo.conversation.turn.stream_response", _fake_stream):
         yield
 
 
@@ -156,7 +160,7 @@ class TestFullLoop:
             yield TextDelta(text="ok")
             yield StreamDone(input_tokens=1, output_tokens=1, stop_reason="end_turn")
 
-        with patch("theo.conversation.stream_response", tracking_stream):
+        with patch("theo.conversation.turn.stream_response", tracking_stream):
             eng = ConversationEngine()
             eng._state = "running"
             await eng._process_message(_make_msg())
@@ -182,7 +186,7 @@ class TestFullLoop:
             yield TextDelta(text="reply")
             yield StreamDone(input_tokens=1, output_tokens=1, stop_reason="end_turn")
 
-        with patch("theo.conversation.stream_response", tracking_stream):
+        with patch("theo.conversation.turn.stream_response", tracking_stream):
             eng = ConversationEngine()
             eng._state = "running"
             await eng._process_message(_make_msg())
@@ -223,7 +227,7 @@ class TestContextAssembly:
             yield TextDelta(text="ok")
             yield StreamDone(input_tokens=1, output_tokens=1, stop_reason="end_turn")
 
-        with patch("theo.conversation.stream_response", capture_stream):
+        with patch("theo.conversation.turn.stream_response", capture_stream):
             eng = ConversationEngine()
             eng._state = "running"
             await eng._process_message(_make_msg())
@@ -241,8 +245,8 @@ class TestContextAssembly:
             yield StreamDone(input_tokens=1, output_tokens=1, stop_reason="end_turn")
 
         with (
-            patch("theo.conversation.assemble", AsyncMock(return_value=empty_ctx)),
-            patch("theo.conversation.stream_response", capture_stream),
+            patch("theo.conversation.turn.assemble", AsyncMock(return_value=empty_ctx)),
+            patch("theo.conversation.turn.stream_response", capture_stream),
         ):
             eng = ConversationEngine()
             eng._state = "running"
@@ -266,7 +270,7 @@ class TestSpeedSelection:
             yield TextDelta(text="hi")
             yield StreamDone(input_tokens=1, output_tokens=1, stop_reason="end_turn")
 
-        with patch("theo.conversation.stream_response", capture_stream):
+        with patch("theo.conversation.turn.stream_response", capture_stream):
             eng = ConversationEngine()
             eng._state = "running"
             await eng._process_message(_make_msg(body="hi"))
@@ -284,7 +288,7 @@ class TestSpeedSelection:
             yield TextDelta(text="ok")
             yield StreamDone(input_tokens=1, output_tokens=1, stop_reason="end_turn")
 
-        with patch("theo.conversation.stream_response", capture_stream):
+        with patch("theo.conversation.turn.stream_response", capture_stream):
             eng = ConversationEngine()
             eng._state = "running"
             await eng._process_message(_make_msg(body="please analyze this data carefully"))
@@ -434,7 +438,7 @@ class TestConcurrency:
             yield TextDelta(text="reply")
             yield StreamDone(input_tokens=1, output_tokens=1, stop_reason="end_turn")
 
-        with patch("theo.conversation.stream_response", slow_stream):
+        with patch("theo.conversation.turn.stream_response", slow_stream):
             eng = ConversationEngine()
             eng._state = "running"
 
@@ -471,7 +475,7 @@ class TestConcurrency:
             yield TextDelta(text="reply")
             yield StreamDone(input_tokens=1, output_tokens=1, stop_reason="end_turn")
 
-        with patch("theo.conversation.stream_response", concurrent_stream):
+        with patch("theo.conversation.turn.stream_response", concurrent_stream):
             eng = ConversationEngine()
             eng._state = "running"
 
@@ -509,7 +513,7 @@ class TestDrain:
             yield TextDelta(text="done")
             yield StreamDone(input_tokens=1, output_tokens=1, stop_reason="end_turn")
 
-        with patch("theo.conversation.stream_response", slow_stream):
+        with patch("theo.conversation.turn.stream_response", slow_stream):
             eng = ConversationEngine()
             eng._state = "running"
 
@@ -548,8 +552,8 @@ class TestToolLoop:
 
         tool_result = '[{"body":"result"}]'
         with (
-            patch("theo.conversation.stream_response", tool_then_text),
-            patch("theo.conversation.execute_tool", AsyncMock(return_value=tool_result)),
+            patch("theo.conversation.turn.stream_response", tool_then_text),
+            patch("theo.conversation.turn.execute_tool", AsyncMock(return_value=tool_result)),
         ):
             eng = ConversationEngine()
             eng._state = "running"
@@ -593,8 +597,8 @@ class TestToolLoop:
             return '{"ok": true}'
 
         with (
-            patch("theo.conversation.stream_response", two_tools_then_text),
-            patch("theo.conversation.execute_tool", AsyncMock(side_effect=tracking_execute)),
+            patch("theo.conversation.turn.stream_response", two_tools_then_text),
+            patch("theo.conversation.turn.execute_tool", AsyncMock(side_effect=tracking_execute)),
         ):
             eng = ConversationEngine()
             eng._state = "running"
@@ -627,9 +631,9 @@ class TestToolLoop:
                 yield StreamDone(input_tokens=15, output_tokens=8, stop_reason="end_turn")
 
         with (
-            patch("theo.conversation.stream_response", tool_then_text),
+            patch("theo.conversation.turn.stream_response", tool_then_text),
             patch(
-                "theo.conversation.execute_tool",
+                "theo.conversation.turn.execute_tool",
                 AsyncMock(return_value="Error executing store_memory: db down"),
             ),
         ):
@@ -656,8 +660,8 @@ class TestToolLoop:
             yield StreamDone(input_tokens=10, output_tokens=5, stop_reason="tool_use")
 
         with (
-            patch("theo.conversation.stream_response", always_tool),
-            patch("theo.conversation.execute_tool", AsyncMock(return_value='{"ok": true}')),
+            patch("theo.conversation.turn.stream_response", always_tool),
+            patch("theo.conversation.turn.execute_tool", AsyncMock(return_value='{"ok": true}')),
         ):
             eng = ConversationEngine()
             eng._state = "running"
@@ -687,8 +691,8 @@ class TestToolLoop:
                 yield StreamDone(input_tokens=15, output_tokens=8, stop_reason="end_turn")
 
         with (
-            patch("theo.conversation.stream_response", text_and_tool),
-            patch("theo.conversation.execute_tool", AsyncMock(return_value='{"results": []}')),
+            patch("theo.conversation.turn.stream_response", text_and_tool),
+            patch("theo.conversation.turn.execute_tool", AsyncMock(return_value='{"results": []}')),
         ):
             eng = ConversationEngine()
             eng._state = "running"

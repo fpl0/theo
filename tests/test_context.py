@@ -9,7 +9,7 @@ from uuid import UUID
 
 import pytest
 
-from theo.context import (
+from theo.conversation.context import (
     AssembledContext,
     _episodes_to_messages,
     _format_core_memory,
@@ -309,9 +309,9 @@ async def test_assemble_full_context() -> None:
     ]
 
     with (
-        patch("theo.context.core.read_all", new_callable=AsyncMock, return_value=core_docs),
-        patch("theo.context.search_nodes", new_callable=AsyncMock, return_value=nodes),
-        patch("theo.context.list_episodes", new_callable=AsyncMock, return_value=eps),
+        patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value=core_docs),
+        patch("theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=nodes),
+        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=eps),
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hello Theo")
 
@@ -327,9 +327,9 @@ async def test_assemble_full_context() -> None:
 
 async def test_assemble_empty_memory() -> None:
     with (
-        patch("theo.context.core.read_all", new_callable=AsyncMock, return_value={}),
-        patch("theo.context.search_nodes", new_callable=AsyncMock, return_value=[]),
-        patch("theo.context.list_episodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value={}),
+        patch("theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hello")
 
@@ -342,9 +342,9 @@ async def test_assemble_no_relevant_memories() -> None:
     core_docs = _all_core_docs()
 
     with (
-        patch("theo.context.core.read_all", new_callable=AsyncMock, return_value=core_docs),
-        patch("theo.context.search_nodes", new_callable=AsyncMock, return_value=[]),
-        patch("theo.context.list_episodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value=core_docs),
+        patch("theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hello")
 
@@ -356,9 +356,9 @@ async def test_assemble_passes_session_to_list_episodes() -> None:
     mock_list = AsyncMock(return_value=[])
 
     with (
-        patch("theo.context.core.read_all", new_callable=AsyncMock, return_value={}),
-        patch("theo.context.search_nodes", new_callable=AsyncMock, return_value=[]),
-        patch("theo.context.list_episodes", mock_list),
+        patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value={}),
+        patch("theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.list_episodes", mock_list),
     ):
         await assemble(session_id=_SESSION, latest_message="Hello")
 
@@ -369,9 +369,9 @@ async def test_assemble_passes_message_to_search() -> None:
     mock_search = AsyncMock(return_value=[])
 
     with (
-        patch("theo.context.core.read_all", new_callable=AsyncMock, return_value={}),
-        patch("theo.context.search_nodes", mock_search),
-        patch("theo.context.list_episodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value={}),
+        patch("theo.conversation.context.search_nodes", mock_search),
+        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
     ):
         await assemble(session_id=_SESSION, latest_message="find me relevant stuff")
 
@@ -383,9 +383,9 @@ async def test_assemble_core_memory_never_truncated() -> None:
     core_docs = {"persona": _core_doc("persona", large_body)}
 
     with (
-        patch("theo.context.core.read_all", new_callable=AsyncMock, return_value=core_docs),
-        patch("theo.context.search_nodes", new_callable=AsyncMock, return_value=[]),
-        patch("theo.context.list_episodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value=core_docs),
+        patch("theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
     ):
         result = await assemble(
             session_id=_SESSION,
@@ -403,9 +403,9 @@ async def test_assemble_token_estimate_sums_sections() -> None:
     eps = [_episode(role="user", body="Hi")]
 
     with (
-        patch("theo.context.core.read_all", new_callable=AsyncMock, return_value=core_docs),
-        patch("theo.context.search_nodes", new_callable=AsyncMock, return_value=nodes),
-        patch("theo.context.list_episodes", new_callable=AsyncMock, return_value=eps),
+        patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value=core_docs),
+        patch("theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=nodes),
+        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=eps),
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hi")
 
@@ -422,9 +422,9 @@ async def test_assemble_respects_history_budget() -> None:
     ]
 
     with (
-        patch("theo.context.core.read_all", new_callable=AsyncMock, return_value=core_docs),
-        patch("theo.context.search_nodes", new_callable=AsyncMock, return_value=[]),
-        patch("theo.context.list_episodes", new_callable=AsyncMock, return_value=eps),
+        patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value=core_docs),
+        patch("theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=eps),
     ):
         result = await assemble(
             session_id=_SESSION,
