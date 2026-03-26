@@ -44,10 +44,10 @@ async def _fake_stream(_messages, *, system=None, speed="reflective", tools=None
 def mock_bus():
     """Provide a mock EventBus that tracks published events."""
     event_bus = EventBus.__new__(EventBus)
-    event_bus._handlers = {}  # noqa: SLF001
-    event_bus._queue = asyncio.Queue()  # noqa: SLF001
-    event_bus._task = None  # noqa: SLF001
-    event_bus._running = True  # noqa: SLF001
+    event_bus._handlers = {}
+    event_bus._queue = asyncio.Queue()
+    event_bus._task = None
+    event_bus._running = True
     published: list = []
 
     async def fake_publish(event):
@@ -89,7 +89,7 @@ def mock_stream():
 def engine(_mock_bus, _mock_store_episode, _mock_assemble, _mock_stream):
     """Fully mocked ConversationEngine."""
     eng = ConversationEngine()
-    eng._state = "running"  # noqa: SLF001
+    eng._state = "running"
     return eng
 
 
@@ -109,7 +109,7 @@ _mock_stream = pytest.fixture(name="_mock_stream")(lambda mock_stream: mock_stre
 class TestFullLoop:
     async def test_message_produces_response_complete(self, engine, mock_bus) -> None:
         _bus, published = mock_bus
-        await engine._process_message(_make_msg())  # noqa: SLF001
+        await engine._process_message(_make_msg())
         complete_events = [e for e in published if isinstance(e, ResponseComplete)]
         assert len(complete_events) == 1
         assert complete_events[0].body == "Hello world"
@@ -117,7 +117,7 @@ class TestFullLoop:
 
     async def test_response_chunks_published_during_streaming(self, engine, mock_bus) -> None:
         _bus, published = mock_bus
-        await engine._process_message(_make_msg())  # noqa: SLF001
+        await engine._process_message(_make_msg())
         chunks = [e for e in published if isinstance(e, ResponseChunk)]
         assert len(chunks) == 2
         assert chunks[0].body == "Hello"
@@ -145,8 +145,8 @@ class TestFullLoop:
 
         with patch("theo.conversation.stream_response", tracking_stream):
             eng = ConversationEngine()
-            eng._state = "running"  # noqa: SLF001
-            await eng._process_message(_make_msg())  # noqa: SLF001
+            eng._state = "running"
+            await eng._process_message(_make_msg())
 
         assert call_order.index("store_user") < call_order.index("stream")
 
@@ -171,14 +171,14 @@ class TestFullLoop:
 
         with patch("theo.conversation.stream_response", tracking_stream):
             eng = ConversationEngine()
-            eng._state = "running"  # noqa: SLF001
-            await eng._process_message(_make_msg())  # noqa: SLF001
+            eng._state = "running"
+            await eng._process_message(_make_msg())
 
         assert call_order == ["store_user", "stream", "store_assistant"]
 
     async def test_episode_id_set_on_response_complete(self, engine, mock_bus) -> None:
         _bus, published = mock_bus
-        await engine._process_message(_make_msg())  # noqa: SLF001
+        await engine._process_message(_make_msg())
         complete = next(e for e in published if isinstance(e, ResponseComplete))
         # store_episode returns incrementing ints: 1 for user, 2 for assistant
         assert complete.episode_id == 2
@@ -193,7 +193,7 @@ class TestContextAssembly:
     ) -> None:
         _ = mock_bus  # activate fixture
         msg = _make_msg(body="what is the weather?")
-        await engine._process_message(msg)  # noqa: SLF001
+        await engine._process_message(msg)
         mock_assemble.assert_awaited_once_with(
             session_id=_SESSION,
             latest_message="what is the weather?",
@@ -212,8 +212,8 @@ class TestContextAssembly:
 
         with patch("theo.conversation.stream_response", capture_stream):
             eng = ConversationEngine()
-            eng._state = "running"  # noqa: SLF001
-            await eng._process_message(_make_msg())  # noqa: SLF001
+            eng._state = "running"
+            await eng._process_message(_make_msg())
 
         assert streamed_kwargs[0]["system"] == "You are Theo."
 
@@ -232,8 +232,8 @@ class TestContextAssembly:
             patch("theo.conversation.stream_response", capture_stream),
         ):
             eng = ConversationEngine()
-            eng._state = "running"  # noqa: SLF001
-            await eng._process_message(_make_msg())  # noqa: SLF001
+            eng._state = "running"
+            await eng._process_message(_make_msg())
 
         assert streamed_kwargs[0]["system"] is None
 
@@ -255,8 +255,8 @@ class TestSpeedSelection:
 
         with patch("theo.conversation.stream_response", capture_stream):
             eng = ConversationEngine()
-            eng._state = "running"  # noqa: SLF001
-            await eng._process_message(_make_msg(body="hi"))  # noqa: SLF001
+            eng._state = "running"
+            await eng._process_message(_make_msg(body="hi"))
 
         assert streamed_kwargs[0]["speed"] == "reactive"
 
@@ -273,10 +273,8 @@ class TestSpeedSelection:
 
         with patch("theo.conversation.stream_response", capture_stream):
             eng = ConversationEngine()
-            eng._state = "running"  # noqa: SLF001
-            await eng._process_message(  # noqa: SLF001
-                _make_msg(body="please analyze this data carefully")
-            )
+            eng._state = "running"
+            await eng._process_message(_make_msg(body="please analyze this data carefully"))
 
         assert streamed_kwargs[0]["speed"] == "deliberative"
 
@@ -320,29 +318,29 @@ class TestStateManagement:
     async def test_stopped_engine_raises_on_message(self, mock_bus) -> None:
         _ = mock_bus
         eng = ConversationEngine()
-        eng._state = "stopped"  # noqa: SLF001
+        eng._state = "stopped"
         with pytest.raises(ConversationNotRunningError):
-            await eng._on_message(_make_msg())  # noqa: SLF001
+            await eng._on_message(_make_msg())
 
     async def test_paused_engine_queues_messages(self, engine, mock_bus) -> None:
         _ = mock_bus
-        engine._state = "paused"  # noqa: SLF001
-        await engine._on_message(_make_msg())  # noqa: SLF001
-        assert engine._paused_queue.qsize() == 1  # noqa: SLF001
+        engine._state = "paused"
+        await engine._on_message(_make_msg())
+        assert engine._paused_queue.qsize() == 1
 
     async def test_resume_drains_paused_queue(self, engine, mock_bus) -> None:
         _bus, published = mock_bus
 
-        engine._state = "paused"  # noqa: SLF001
-        await engine._on_message(_make_msg(body="queued"))  # noqa: SLF001
-        assert engine._paused_queue.qsize() == 1  # noqa: SLF001
+        engine._state = "paused"
+        await engine._on_message(_make_msg(body="queued"))
+        assert engine._paused_queue.qsize() == 1
 
-        engine._state = "paused"  # noqa: SLF001
+        engine._state = "paused"
         await engine.resume()
 
         complete_events = [e for e in published if isinstance(e, ResponseComplete)]
         assert len(complete_events) == 1
-        assert engine._paused_queue.empty()  # noqa: SLF001
+        assert engine._paused_queue.empty()
 
     async def test_stop_is_idempotent(self, mock_bus) -> None:
         _ = mock_bus
@@ -392,15 +390,15 @@ class TestConcurrency:
 
         with patch("theo.conversation.stream_response", slow_stream):
             eng = ConversationEngine()
-            eng._state = "running"  # noqa: SLF001
+            eng._state = "running"
 
             msg1 = _make_msg(body="first")
             msg2 = _make_msg(body="second")
 
             # Launch both concurrently — the lock should serialize them.
             await asyncio.gather(
-                eng._process_message(msg1),  # noqa: SLF001
-                eng._process_message(msg2),  # noqa: SLF001
+                eng._process_message(msg1),
+                eng._process_message(msg2),
             )
 
         # Must complete one fully before starting the next.
@@ -429,14 +427,14 @@ class TestConcurrency:
 
         with patch("theo.conversation.stream_response", concurrent_stream):
             eng = ConversationEngine()
-            eng._state = "running"  # noqa: SLF001
+            eng._state = "running"
 
             msg1 = _make_msg(body="a", session_id=uuid4())
             msg2 = _make_msg(body="b", session_id=uuid4())
 
             await asyncio.gather(
-                eng._process_message(msg1),  # noqa: SLF001
-                eng._process_message(msg2),  # noqa: SLF001
+                eng._process_message(msg1),
+                eng._process_message(msg2),
             )
 
         assert max_concurrent == 2
@@ -444,7 +442,7 @@ class TestConcurrency:
     async def test_message_without_session_id_is_dropped(self, engine, mock_bus) -> None:
         _bus, published = mock_bus
         msg = MessageReceived(body="no session", session_id=None)
-        await engine._process_message(msg)  # noqa: SLF001
+        await engine._process_message(msg)
         assert len(published) == 0
 
 
@@ -467,10 +465,10 @@ class TestDrain:
 
         with patch("theo.conversation.stream_response", slow_stream):
             eng = ConversationEngine()
-            eng._state = "running"  # noqa: SLF001
+            eng._state = "running"
 
             # Start processing in background.
-            task = asyncio.create_task(eng._process_message(_make_msg()))  # noqa: SLF001
+            task = asyncio.create_task(eng._process_message(_make_msg()))
             await asyncio.sleep(0.01)  # let it acquire the lock
 
             # Stop should wait for the in-flight turn.
@@ -508,8 +506,8 @@ class TestToolLoop:
             patch("theo.conversation.execute_tool", AsyncMock(return_value=tool_result)),
         ):
             eng = ConversationEngine()
-            eng._state = "running"  # noqa: SLF001
-            await eng._process_message(_make_msg())  # noqa: SLF001
+            eng._state = "running"
+            await eng._process_message(_make_msg())
 
         complete = [e for e in published if isinstance(e, ResponseComplete)]
         assert len(complete) == 1
@@ -553,8 +551,8 @@ class TestToolLoop:
             patch("theo.conversation.execute_tool", AsyncMock(side_effect=tracking_execute)),
         ):
             eng = ConversationEngine()
-            eng._state = "running"  # noqa: SLF001
-            await eng._process_message(_make_msg())  # noqa: SLF001
+            eng._state = "running"
+            await eng._process_message(_make_msg())
 
         assert tool_calls == ["store_memory", "search_memory"]
         complete = [e for e in published if isinstance(e, ResponseComplete)]
@@ -590,8 +588,8 @@ class TestToolLoop:
             ),
         ):
             eng = ConversationEngine()
-            eng._state = "running"  # noqa: SLF001
-            await eng._process_message(_make_msg())  # noqa: SLF001
+            eng._state = "running"
+            await eng._process_message(_make_msg())
 
         complete = [e for e in published if isinstance(e, ResponseComplete)]
         assert len(complete) == 1
@@ -616,8 +614,8 @@ class TestToolLoop:
             patch("theo.conversation.execute_tool", AsyncMock(return_value='{"ok": true}')),
         ):
             eng = ConversationEngine()
-            eng._state = "running"  # noqa: SLF001
-            await eng._process_message(_make_msg())  # noqa: SLF001
+            eng._state = "running"
+            await eng._process_message(_make_msg())
 
         assert call_count == _MAX_TOOL_ITERATIONS
         complete = [e for e in published if isinstance(e, ResponseComplete)]
@@ -647,8 +645,8 @@ class TestToolLoop:
             patch("theo.conversation.execute_tool", AsyncMock(return_value='{"results": []}')),
         ):
             eng = ConversationEngine()
-            eng._state = "running"  # noqa: SLF001
-            await eng._process_message(_make_msg())  # noqa: SLF001
+            eng._state = "running"
+            await eng._process_message(_make_msg())
 
         complete = [e for e in published if isinstance(e, ResponseComplete)]
         assert complete[0].body == "Let me check... Here's what I found."
