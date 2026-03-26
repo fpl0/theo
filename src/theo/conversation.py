@@ -138,6 +138,11 @@ class ConversationEngine:
                 if self._inflight == 0:
                     self._drained.set()
 
+        # Clean up session lock if no longer in use.
+        lock = self._session_locks.get(session_id)
+        if lock is not None and not lock.locked():
+            self._session_locks.pop(session_id, None)
+
     async def _execute_turn(self, event: MessageReceived, session_id: UUID) -> None:
         t0 = time.monotonic()
         speed = classify_speed(event.body)
