@@ -15,3 +15,7 @@ class BusNotRunningError(TheoError):
 
 class APIUnavailableError(TheoError):
     """Raised when the Anthropic API is unreachable or returns a server error."""
+
+
+class ConversationNotRunningError(TheoError):
+    """Raised when a message is received by a stopped conversation engine."""
