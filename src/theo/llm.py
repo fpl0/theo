@@ -13,6 +13,7 @@ from anthropic import (
     APIConnectionError,
     APITimeoutError,
     AsyncAnthropic,
+    InternalServerError,
     RateLimitError,
 )
 from opentelemetry import metrics, trace
@@ -24,6 +25,8 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
     from anthropic.types import MessageParam, ToolParam
+
+    from theo.config import Settings
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -92,8 +95,7 @@ def classify_speed(text: str) -> Speed:
     return "reflective"
 
 
-def _model_for_speed(speed: Speed) -> str:
-    cfg = get_settings()
+def _model_for_speed(speed: Speed, cfg: Settings) -> str:
     if speed == "reactive":
         return cfg.llm_model_reactive
     if speed == "deliberative":
@@ -121,7 +123,7 @@ async def stream_response(  # noqa: C901
     calls a tool, and a final ``StreamDone`` with token counts.
     """
     cfg = get_settings()
-    model = _model_for_speed(speed)
+    model = _model_for_speed(speed, cfg)
     resolved_max = max_tokens or cfg.llm_max_tokens
 
     client = AsyncAnthropic(
@@ -142,70 +144,73 @@ async def stream_response(  # noqa: C901
     rate_limit_attempts = 0
     timeout_attempts = 0
 
-    while True:
-        t0 = time.monotonic()
-        try:
-            with tracer.start_as_current_span(
-                "llm.stream",
-                attributes={"llm.model": model, "llm.speed": speed},
-            ) as span:
-                async with client.messages.stream(**kwargs) as stream:
-                    async for event in stream:
-                        if event.type == "text":
-                            yield TextDelta(text=event.text)
-                        elif (
-                            event.type == "content_block_stop"
-                            and event.content_block.type == "tool_use"
-                        ):
-                            yield ToolUseRequest(
-                                id=event.content_block.id,
-                                name=event.content_block.name,
-                                input=event.content_block.input,
-                            )
+    try:
+        while True:
+            t0 = time.monotonic()
+            try:
+                with tracer.start_as_current_span(
+                    "llm.stream",
+                    attributes={"llm.model": model, "llm.speed": speed},
+                ) as span:
+                    async with client.messages.stream(**kwargs) as stream:
+                        async for event in stream:
+                            if event.type == "text":
+                                yield TextDelta(text=event.text)
+                            elif (
+                                event.type == "content_block_stop"
+                                and event.content_block.type == "tool_use"
+                            ):
+                                yield ToolUseRequest(
+                                    id=event.content_block.id,
+                                    name=event.content_block.name,
+                                    input=event.content_block.input,
+                                )
 
-                    final = await stream.get_final_message()
-                    elapsed = time.monotonic() - t0
+                        final = await stream.get_final_message()
+                        elapsed = time.monotonic() - t0
 
-                    in_tok = final.usage.input_tokens
-                    out_tok = final.usage.output_tokens
-                    span.set_attribute("llm.input_tokens", in_tok)
-                    span.set_attribute("llm.output_tokens", out_tok)
-                    _duration.record(elapsed, {"llm.model": model, "llm.speed": speed})
+                        in_tok = final.usage.input_tokens
+                        out_tok = final.usage.output_tokens
+                        span.set_attribute("llm.input_tokens", in_tok)
+                        span.set_attribute("llm.output_tokens", out_tok)
+                        _duration.record(elapsed, {"llm.model": model, "llm.speed": speed})
 
-                    log.info(
-                        "llm stream complete",
-                        extra={
-                            "model": model,
-                            "speed": speed,
-                            "input_tokens": in_tok,
-                            "output_tokens": out_tok,
-                            "duration_s": round(elapsed, 3),
-                        },
-                    )
+                        log.info(
+                            "llm stream complete",
+                            extra={
+                                "model": model,
+                                "speed": speed,
+                                "input_tokens": in_tok,
+                                "output_tokens": out_tok,
+                                "duration_s": round(elapsed, 3),
+                            },
+                        )
 
-                    yield StreamDone(
-                        input_tokens=in_tok,
-                        output_tokens=out_tok,
-                        stop_reason=final.stop_reason or "unknown",
-                    )
-                    return
+                        yield StreamDone(
+                            input_tokens=in_tok,
+                            output_tokens=out_tok,
+                            stop_reason=final.stop_reason or "unknown",
+                        )
+                        return
 
-        except RateLimitError:
-            rate_limit_attempts += 1
-            if rate_limit_attempts > _MAX_RATE_LIMIT_RETRIES:
-                raise
-            delay = 2**rate_limit_attempts
-            log.warning(
-                "rate limited, retrying",
-                extra={"delay_s": delay, "attempt": rate_limit_attempts},
-            )
-            await asyncio.sleep(delay)
+            except RateLimitError:
+                rate_limit_attempts += 1
+                if rate_limit_attempts > _MAX_RATE_LIMIT_RETRIES:
+                    raise
+                delay = 2**rate_limit_attempts
+                log.warning(
+                    "rate limited, retrying",
+                    extra={"delay_s": delay, "attempt": rate_limit_attempts},
+                )
+                await asyncio.sleep(delay)
 
-        except APITimeoutError:
-            timeout_attempts += 1
-            if timeout_attempts > _MAX_TIMEOUT_RETRIES:
-                raise
-            log.warning("timeout, retrying", extra={"attempt": timeout_attempts})
+            except APITimeoutError:
+                timeout_attempts += 1
+                if timeout_attempts > _MAX_TIMEOUT_RETRIES:
+                    raise
+                log.warning("timeout, retrying", extra={"attempt": timeout_attempts})
 
-        except APIConnectionError as exc:
-            raise APIUnavailableError(str(exc)) from exc
+            except (APIConnectionError, InternalServerError) as exc:
+                raise APIUnavailableError(str(exc)) from exc
+    finally:
+        await client.close()

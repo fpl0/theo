@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Self
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from anthropic import APIConnectionError, APITimeoutError, RateLimitError
+from anthropic import APIConnectionError, APITimeoutError, InternalServerError, RateLimitError
 
 from theo.config import Settings
 from theo.errors import APIUnavailableError
@@ -173,16 +173,22 @@ class TestStreamResponse:
         with patch("theo.llm.get_settings", return_value=_make_settings()):
             yield
 
+    @pytest.fixture(autouse=True)
+    def _patch_client(self) -> Any:
+        with patch("theo.llm.AsyncAnthropic") as mock_cls:
+            mock_cls.return_value.close = AsyncMock()
+            self.mock_anthropic = mock_cls
+            yield
+
     async def test_yields_text_deltas(self) -> None:
         events = [_make_text_event("Hello"), _make_text_event(" world")]
         final = _make_final_message()
         fake_stream = _FakeStream(events, final)
 
-        with patch("theo.llm.AsyncAnthropic") as mock_cls:
-            mock_cls.return_value.messages.stream = MagicMock(return_value=fake_stream)
-            result = await _collect(
-                stream_response([{"role": "user", "content": "hi"}], speed="reflective")
-            )
+        self.mock_anthropic.return_value.messages.stream = MagicMock(return_value=fake_stream)
+        result = await _collect(
+            stream_response([{"role": "user", "content": "hi"}], speed="reflective")
+        )
 
         assert result[0] == TextDelta(text="Hello")
         assert result[1] == TextDelta(text=" world")
@@ -197,24 +203,23 @@ class TestStreamResponse:
         final = _make_final_message(stop_reason="tool_use")
         fake_stream = _FakeStream(events, final)
 
-        with patch("theo.llm.AsyncAnthropic") as mock_cls:
-            mock_cls.return_value.messages.stream = MagicMock(return_value=fake_stream)
-            result = await _collect(
-                stream_response(
-                    [{"role": "user", "content": "weather?"}],
-                    speed="reflective",
-                    tools=[
-                        {
-                            "name": "get_weather",
-                            "description": "Get weather",
-                            "input_schema": {
-                                "type": "object",
-                                "properties": {"location": {"type": "string"}},
-                            },
-                        }
-                    ],
-                )
+        self.mock_anthropic.return_value.messages.stream = MagicMock(return_value=fake_stream)
+        result = await _collect(
+            stream_response(
+                [{"role": "user", "content": "weather?"}],
+                speed="reflective",
+                tools=[
+                    {
+                        "name": "get_weather",
+                        "description": "Get weather",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"location": {"type": "string"}},
+                        },
+                    }
+                ],
             )
+        )
 
         text_deltas = [e for e in result if isinstance(e, TextDelta)]
         tool_requests = [e for e in result if isinstance(e, ToolUseRequest)]
@@ -233,11 +238,10 @@ class TestStreamResponse:
         final = _make_final_message(input_tokens=15, output_tokens=25)
         fake_stream = _FakeStream(events, final)
 
-        with patch("theo.llm.AsyncAnthropic") as mock_cls:
-            mock_cls.return_value.messages.stream = MagicMock(return_value=fake_stream)
-            result = await _collect(
-                stream_response([{"role": "user", "content": "hi"}], speed="reactive")
-            )
+        self.mock_anthropic.return_value.messages.stream = MagicMock(return_value=fake_stream)
+        result = await _collect(
+            stream_response([{"role": "user", "content": "hi"}], speed="reactive")
+        )
 
         done = result[-1]
         assert isinstance(done, StreamDone)
@@ -249,11 +253,10 @@ class TestStreamResponse:
         final = _make_final_message()
         fake_stream = _FakeStream(events, final)
 
-        with patch("theo.llm.AsyncAnthropic") as mock_cls:
-            mock_cls.return_value.messages.stream = MagicMock(return_value=fake_stream)
-            result = await _collect(
-                stream_response([{"role": "user", "content": "hi"}], speed="reflective")
-            )
+        self.mock_anthropic.return_value.messages.stream = MagicMock(return_value=fake_stream)
+        result = await _collect(
+            stream_response([{"role": "user", "content": "hi"}], speed="reflective")
+        )
 
         assert len(result) == 2
         assert isinstance(result[0], TextDelta)
@@ -264,16 +267,15 @@ class TestStreamResponse:
         final = _make_final_message()
         fake_stream = _FakeStream(events, final)
 
-        with patch("theo.llm.AsyncAnthropic") as mock_cls:
-            mock_stream = MagicMock(return_value=fake_stream)
-            mock_cls.return_value.messages.stream = mock_stream
-            await _collect(
-                stream_response(
-                    [{"role": "user", "content": "hi"}],
-                    system="You are Theo.",
-                    speed="reflective",
-                )
+        mock_stream = MagicMock(return_value=fake_stream)
+        self.mock_anthropic.return_value.messages.stream = mock_stream
+        await _collect(
+            stream_response(
+                [{"role": "user", "content": "hi"}],
+                system="You are Theo.",
+                speed="reflective",
             )
+        )
 
         call_kwargs = mock_stream.call_args[1]
         assert call_kwargs["system"] == "You are Theo."
@@ -283,10 +285,9 @@ class TestStreamResponse:
         final = _make_final_message()
         fake_stream = _FakeStream(events, final)
 
-        with patch("theo.llm.AsyncAnthropic") as mock_cls:
-            mock_stream = MagicMock(return_value=fake_stream)
-            mock_cls.return_value.messages.stream = mock_stream
-            await _collect(stream_response([{"role": "user", "content": "hi"}], speed="reactive"))
+        mock_stream = MagicMock(return_value=fake_stream)
+        self.mock_anthropic.return_value.messages.stream = mock_stream
+        await _collect(stream_response([{"role": "user", "content": "hi"}], speed="reactive"))
 
         call_kwargs = mock_stream.call_args[1]
         assert call_kwargs["model"] == "claude-haiku-4-5-20251001"
@@ -299,6 +300,13 @@ class TestStreamRetries:
     @pytest.fixture(autouse=True)
     def _patch_settings(self) -> Any:
         with patch("theo.llm.get_settings", return_value=_make_settings()):
+            yield
+
+    @pytest.fixture(autouse=True)
+    def _patch_client(self) -> Any:
+        with patch("theo.llm.AsyncAnthropic") as mock_cls:
+            mock_cls.return_value.close = AsyncMock()
+            self.mock_anthropic = mock_cls
             yield
 
     async def test_rate_limit_retries_with_backoff(self) -> None:
@@ -326,11 +334,8 @@ class TestStreamRetries:
                 raise error
             return fake_stream
 
-        with (
-            patch("theo.llm.AsyncAnthropic") as mock_cls,
-            patch("theo.llm.asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
-        ):
-            mock_cls.return_value.messages.stream = MagicMock(side_effect=side_effect)
+        with patch("theo.llm.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            self.mock_anthropic.return_value.messages.stream = MagicMock(side_effect=side_effect)
             result = await _collect(
                 stream_response([{"role": "user", "content": "hi"}], speed="reflective")
             )
@@ -353,11 +358,8 @@ class TestStreamRetries:
             body={"error": {"message": "rate limited"}},
         )
 
-        with (
-            patch("theo.llm.AsyncAnthropic") as mock_cls,
-            patch("theo.llm.asyncio.sleep", new_callable=AsyncMock),
-        ):
-            mock_cls.return_value.messages.stream = MagicMock(side_effect=error)
+        with patch("theo.llm.asyncio.sleep", new_callable=AsyncMock):
+            self.mock_anthropic.return_value.messages.stream = MagicMock(side_effect=error)
             with pytest.raises(RateLimitError):
                 await _collect(
                     stream_response(
@@ -382,11 +384,10 @@ class TestStreamRetries:
                 raise error
             return fake_stream
 
-        with patch("theo.llm.AsyncAnthropic") as mock_cls:
-            mock_cls.return_value.messages.stream = MagicMock(side_effect=side_effect)
-            result = await _collect(
-                stream_response([{"role": "user", "content": "hi"}], speed="reflective")
-            )
+        self.mock_anthropic.return_value.messages.stream = MagicMock(side_effect=side_effect)
+        result = await _collect(
+            stream_response([{"role": "user", "content": "hi"}], speed="reflective")
+        )
 
         assert call_count == 2
         assert isinstance(result[-1], StreamDone)
@@ -394,25 +395,70 @@ class TestStreamRetries:
     async def test_timeout_exhausted_raises(self) -> None:
         error = APITimeoutError(request=MagicMock())
 
-        with patch("theo.llm.AsyncAnthropic") as mock_cls:
-            mock_cls.return_value.messages.stream = MagicMock(side_effect=error)
-            with pytest.raises(APITimeoutError):
-                await _collect(
-                    stream_response(
-                        [{"role": "user", "content": "hi"}],
-                        speed="reflective",
-                    )
+        self.mock_anthropic.return_value.messages.stream = MagicMock(side_effect=error)
+        with pytest.raises(APITimeoutError):
+            await _collect(
+                stream_response(
+                    [{"role": "user", "content": "hi"}],
+                    speed="reflective",
                 )
+            )
 
     async def test_connection_error_raises_api_unavailable(self) -> None:
         error = APIConnectionError(request=MagicMock(), message="connection refused")
 
-        with patch("theo.llm.AsyncAnthropic") as mock_cls:
-            mock_cls.return_value.messages.stream = MagicMock(side_effect=error)
-            with pytest.raises(APIUnavailableError, match="connection refused"):
-                await _collect(
-                    stream_response(
-                        [{"role": "user", "content": "hi"}],
-                        speed="reflective",
-                    )
+        self.mock_anthropic.return_value.messages.stream = MagicMock(side_effect=error)
+        with pytest.raises(APIUnavailableError, match="connection refused"):
+            await _collect(
+                stream_response(
+                    [{"role": "user", "content": "hi"}],
+                    speed="reflective",
                 )
+            )
+
+    async def test_internal_server_error_raises_api_unavailable(self) -> None:
+        response = MagicMock()
+        response.status_code = 500
+        response.headers = {}
+        response.json.return_value = {"error": {"message": "internal error"}}
+
+        error = InternalServerError(
+            message="internal error",
+            response=response,
+            body={"error": {"message": "internal error"}},
+        )
+
+        self.mock_anthropic.return_value.messages.stream = MagicMock(side_effect=error)
+        with pytest.raises(APIUnavailableError, match="internal error"):
+            await _collect(
+                stream_response(
+                    [{"role": "user", "content": "hi"}],
+                    speed="reflective",
+                )
+            )
+
+    async def test_client_closed_on_success(self) -> None:
+        events = [_make_text_event("ok")]
+        final = _make_final_message()
+        fake_stream = _FakeStream(events, final)
+
+        mock_client = self.mock_anthropic.return_value
+        mock_client.messages.stream = MagicMock(return_value=fake_stream)
+        await _collect(stream_response([{"role": "user", "content": "hi"}], speed="reflective"))
+
+        mock_client.close.assert_awaited_once()
+
+    async def test_client_closed_on_error(self) -> None:
+        error = APIConnectionError(request=MagicMock(), message="fail")
+
+        mock_client = self.mock_anthropic.return_value
+        mock_client.messages.stream = MagicMock(side_effect=error)
+        with pytest.raises(APIUnavailableError):
+            await _collect(
+                stream_response(
+                    [{"role": "user", "content": "hi"}],
+                    speed="reflective",
+                )
+            )
+
+        mock_client.close.assert_awaited_once()
