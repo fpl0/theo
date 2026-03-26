@@ -11,7 +11,7 @@ import pytest
 from theo import resilience
 from theo.bus import EventBus
 from theo.bus.events import MessageReceived, ResponseComplete
-from theo.context import AssembledContext
+from theo.conversation.context import AssembledContext
 from theo.conversation import _API_DOWN_ACK, ConversationEngine
 from theo.errors import APIUnavailableError, CircuitOpenError
 from theo.llm import StreamDone, TextDelta
@@ -249,8 +249,8 @@ class TestHealthCheck:
         rq = RetryQueue()
 
         with (
-            patch("theo.resilience._check_db", AsyncMock(return_value=True)),
-            patch("theo.resilience._check_telegram", return_value=True),
+            patch("theo.resilience.health._check_db", AsyncMock(return_value=True)),
+            patch("theo.resilience.health._check_telegram", return_value=True),
         ):
             status = await health_check(circuit=cb, queue=rq)
 
@@ -269,8 +269,8 @@ class TestHealthCheck:
         rq.enqueue(session_id=_SESSION, channel="message", body="hi", trust="owner")
 
         with (
-            patch("theo.resilience._check_db", AsyncMock(return_value=False)),
-            patch("theo.resilience._check_telegram", return_value=False),
+            patch("theo.resilience.health._check_db", AsyncMock(return_value=False)),
+            patch("theo.resilience.health._check_telegram", return_value=False),
         ):
             status = await health_check(circuit=cb, queue=rq)
 
@@ -285,8 +285,8 @@ class TestHealthCheck:
         rq = RetryQueue()
 
         with (
-            patch("theo.resilience._check_db", AsyncMock(return_value=True)),
-            patch("theo.resilience._check_telegram", return_value=True),
+            patch("theo.resilience.health._check_db", AsyncMock(return_value=True)),
+            patch("theo.resilience.health._check_telegram", return_value=True),
         ):
             status = await health_check(circuit=cb, queue=rq)
             assert status.api_reachable is True
@@ -316,7 +316,10 @@ def mock_bus():
     event_bus.publish = AsyncMock(side_effect=fake_publish)
     event_bus.subscribe = lambda _et, _h: None
 
-    with patch("theo.conversation.bus", event_bus):
+    with (
+        patch("theo.conversation.turn.bus", event_bus),
+        patch("theo.conversation.engine.bus", event_bus),
+    ):
         yield event_bus, published
 
 
@@ -330,14 +333,14 @@ def mock_store_episode():
         episode_id += 1
         return episode_id
 
-    with patch("theo.conversation.store_episode", AsyncMock(side_effect=_store)) as mock:
+    with patch("theo.conversation.turn.store_episode", AsyncMock(side_effect=_store)) as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_assemble():
     """Return an empty context for every assemble call."""
-    with patch("theo.conversation.assemble", AsyncMock(return_value=_EMPTY_CONTEXT)) as mock:
+    with patch("theo.conversation.turn.assemble", AsyncMock(return_value=_EMPTY_CONTEXT)) as mock:
         yield mock
 
 
@@ -355,7 +358,10 @@ def fresh_retry_queue():
     original = resilience.retry_queue
     fresh = RetryQueue()
     resilience.retry_queue = fresh
-    with patch("theo.conversation.retry_queue", fresh):
+    with (
+        patch("theo.conversation.turn.retry_queue", fresh),
+        patch("theo.conversation.engine.retry_queue", fresh),
+    ):
         yield fresh
     resilience.retry_queue = original
 
@@ -372,7 +378,7 @@ class TestConversationIntegration:
         _ = mock_store_episode, mock_assemble, fresh_circuit
         _bus, published = mock_bus
 
-        with patch("theo.conversation.stream_response", _failing_stream):
+        with patch("theo.conversation.turn.stream_response", _failing_stream):
             eng = ConversationEngine()
             eng._state = "running"
             await eng._process_message(_make_msg(body="test message"))
@@ -392,7 +398,7 @@ class TestConversationIntegration:
     ) -> None:
         _ = mock_bus, mock_store_episode, mock_assemble, fresh_retry_queue
 
-        with patch("theo.conversation.stream_response", _failing_stream):
+        with patch("theo.conversation.turn.stream_response", _failing_stream):
             eng = ConversationEngine()
             eng._state = "running"
             for _ in range(3):
@@ -417,7 +423,7 @@ class TestConversationIntegration:
             fresh_circuit._on_failure()
         assert fresh_circuit.state == "open"
 
-        with patch("theo.conversation.stream_response", _ok_stream):
+        with patch("theo.conversation.turn.stream_response", _ok_stream):
             eng = ConversationEngine()
             eng._state = "running"
             await eng._process_message(_make_msg())
@@ -438,7 +444,7 @@ class TestConversationIntegration:
         _ = mock_store_episode, mock_assemble, fresh_retry_queue
         _bus, published = mock_bus
 
-        with patch("theo.conversation.stream_response", _ok_stream):
+        with patch("theo.conversation.turn.stream_response", _ok_stream):
             eng = ConversationEngine()
             eng._state = "running"
             await eng._process_message(_make_msg())
@@ -461,7 +467,7 @@ class TestConversationIntegration:
             session_id=_SESSION, channel="message", body="queued", trust="owner"
         )
 
-        with patch("theo.conversation.stream_response", _ok_stream):
+        with patch("theo.conversation.turn.stream_response", _ok_stream):
             eng = ConversationEngine()
             eng._state = "running"
 
