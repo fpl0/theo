@@ -2,7 +2,6 @@
 name: otel-dashboard
 description: Query OpenObserve to show a live status overview of Theo's telemetry.
 user-invocable: true
-allowed-tools: Read, Bash, WebFetch
 ---
 
 Query OpenObserve to show a live status overview of Theo's telemetry.

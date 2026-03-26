@@ -3,7 +3,6 @@ name: db-migrate
 description: Create a new database migration for Theo.
 argument-hint: <description of the migration>
 user-invocable: true
-allowed-tools: Read, Edit, Write, Bash, Grep, Glob
 ---
 
 Create a new database migration for Theo.

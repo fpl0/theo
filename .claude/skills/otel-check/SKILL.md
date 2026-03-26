@@ -2,7 +2,6 @@
 name: otel-check
 description: Audit Theo's OpenTelemetry setup and verify signals are flowing correctly.
 user-invocable: true
-allowed-tools: Read, Bash, Grep, Glob
 ---
 
 Audit Theo's OpenTelemetry setup and verify signals are flowing correctly.

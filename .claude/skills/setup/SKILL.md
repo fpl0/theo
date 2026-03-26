@@ -2,7 +2,6 @@
 name: setup
 description: First-time Theo setup and onboarding. Use when the user wants to install dependencies, configure infrastructure, set up Telegram, or get Theo running for the first time. Triggers on "setup", "install", "onboard", "getting started", or first-time setup requests.
 user-invocable: true
-allowed-tools: Bash, Read, Write, Edit, Grep, Glob, AskUserQuestion, WebFetch
 ---
 
 # Theo Setup
