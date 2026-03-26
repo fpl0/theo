@@ -137,11 +137,10 @@ async def execute_tool(name: str, tool_input: dict[str, object]) -> str:
                 return await _read_core_memory()
             if name == "update_core_memory":
                 return await _update_core_memory(tool_input)
+            return f"Unknown tool: {name}"  # noqa: TRY300
         except Exception as exc:  # noqa: BLE001
             log.warning("tool execution failed", extra={"tool": name, "error": str(exc)})
             return f"Error executing {name}: {exc}"
-        else:
-            return f"Unknown tool: {name}"
 
 
 # ── Tool implementations ─────────────────────────────────────────────
