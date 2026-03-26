@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     embedding_model: str = "BAAI/bge-base-en-v1.5"
     embedding_dim: int = 768
 
+    # Context assembly budgets (approximate token counts)
+    context_memory_budget: int = 2000
+    context_history_budget: int = 4000
+
     @model_validator(mode="after")
     def _validate_pool_bounds(self) -> Self:
         if self.db_pool_min > self.db_pool_max:
