@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal, Protocol
 
@@ -20,6 +21,7 @@ from theo.errors import APIUnavailableError, CircuitOpenError, DatabaseNotConnec
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
+    from uuid import UUID
 
     from theo.llm import StreamEvent
 
@@ -153,7 +155,7 @@ class RetryProcessor(Protocol):
     async def __call__(
         self,
         *,
-        session_id: object,
+        session_id: UUID,
         channel: str | None,
         body: str,
         trust: str,
@@ -162,7 +164,7 @@ class RetryProcessor(Protocol):
 
 @dataclass
 class _RetryItem:
-    session_id: object
+    session_id: UUID
     channel: str | None
     body: str
     trust: str
@@ -178,7 +180,7 @@ class RetryQueue:
     """
 
     def __init__(self) -> None:
-        self._items: list[_RetryItem] = []
+        self._items: deque[_RetryItem] = deque()
         self._task: asyncio.Task[None] | None = None
         self._running = False
         self._wakeup = asyncio.Event()
@@ -191,7 +193,7 @@ class RetryQueue:
     def enqueue(
         self,
         *,
-        session_id: object,
+        session_id: UUID,
         channel: str | None,
         body: str,
         trust: str,
@@ -272,7 +274,7 @@ class RetryQueue:
                         body=item.body,
                         trust=item.trust,
                     )
-                    self._items.pop(0)
+                    self._items.popleft()
                     _queue_depth.add(-1)
                     log.info(
                         "retried message successfully",
