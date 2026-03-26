@@ -53,6 +53,7 @@ _REPLAY_UNPROCESSED = """
     FROM event_queue
     WHERE processed_at IS NULL
     ORDER BY created_at ASC
+    LIMIT 10000
 """
 
 
@@ -150,22 +151,25 @@ class EventBus:
 
     async def _replay(self) -> None:
         """Re-enqueue unprocessed durable events from the database."""
-        rows = await db.pool.fetch(_REPLAY_UNPROCESSED)
-        if not rows:
-            log.info("no events to replay")
-            return
+        with tracer.start_as_current_span("bus.replay"):
+            rows = await db.pool.fetch(_REPLAY_UNPROCESSED)
+            if not rows:
+                log.info("no events to replay")
+                return
 
-        from theo.bus import events as events_mod  # noqa: PLC0415
+            from theo.bus import events as events_mod  # noqa: PLC0415
 
-        for row in rows:
-            event_cls = getattr(events_mod, row["type"], None)
-            if event_cls is None:
-                log.warning("unknown event type during replay", extra={"type": row["type"]})
-                continue
-            event = event_cls.model_validate_json(row["payload"])
-            self._queue.put_nowait((event, True))
+            for row in rows:
+                event_cls = getattr(events_mod, row["type"], None)
+                if event_cls is None or not (
+                    isinstance(event_cls, type) and issubclass(event_cls, Event)
+                ):
+                    log.warning("unknown event type during replay", extra={"type": row["type"]})
+                    continue
+                event = event_cls.model_validate_json(row["payload"])
+                self._queue.put_nowait((event, True))
 
-        log.info("replayed events", extra={"count": len(rows)})
+            log.info("replayed events", extra={"count": len(rows)})
 
     async def _dispatch_loop(self) -> None:
         """Pull events from the queue and fan out to handlers."""
@@ -178,31 +182,38 @@ class EventBus:
                 self._queue.task_done()
                 break
 
-            handlers = self._handlers.get(type(event), [])
-            all_ok = True
+            event_type_name = type(event).__name__
+            with tracer.start_as_current_span(
+                "bus.dispatch",
+                attributes={"event.type": event_type_name, "event.durable": durable},
+            ):
+                handlers = self._handlers.get(type(event), [])
+                all_ok = True
 
-            for handler in handlers:
-                handler_name = getattr(handler, "__qualname__", repr(handler))
-                try:
-                    await handler(event)
-                except Exception:
-                    all_ok = False
-                    _handler_errors_counter.add(
-                        1,
-                        {"event.type": type(event).__name__, "handler": handler_name},
-                    )
-                    log.exception(
-                        "handler failed",
-                        extra={
-                            "event_type": type(event).__name__,
-                            "handler": handler_name,
-                            "event_id": str(event.id),
-                        },
-                    )
+                for handler in handlers:
+                    handler_name = getattr(handler, "__qualname__", repr(handler))
+                    try:
+                        await handler(event)
+                    except Exception:
+                        all_ok = False
+                        _handler_errors_counter.add(
+                            1,
+                            {"event.type": event_type_name, "handler": handler_name},
+                        )
+                        log.exception(
+                            "handler failed",
+                            extra={
+                                "event_type": event_type_name,
+                                "handler": handler_name,
+                                "event_id": str(event.id),
+                            },
+                        )
 
-            if durable and all_ok:
-                await db.pool.execute(_MARK_PROCESSED, event.id)
-                _dispatched_counter.add(1, {"event.type": type(event).__name__})
+                if all_ok:
+                    _dispatched_counter.add(1, {"event.type": event_type_name})
+
+                if durable and all_ok:
+                    await db.pool.execute(_MARK_PROCESSED, event.id)
 
             self._queue.task_done()
 
