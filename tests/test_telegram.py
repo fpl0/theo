@@ -10,6 +10,7 @@ import pytest
 from theo.bus import EventBus, bus
 from theo.bus.events import MessageReceived, ResponseChunk, ResponseComplete
 from theo.config import Settings
+from theo.conversation import ConversationEngine
 from theo.errors import GateConfigError
 from theo.gates.telegram import (
     _MAX_MESSAGE_LENGTH,
@@ -126,11 +127,11 @@ class TestGateConstruction:
 # ── Message handling tests ───────────────────────────────────────────
 
 
-def _make_gate() -> TelegramGate:
+def _make_gate(engine: ConversationEngine | None = None) -> TelegramGate:
     """Create a gate with mocked settings and bot."""
     settings = _settings(telegram_bot_token=_TEST_TOKEN, telegram_owner_chat_id=42)
     with patch("theo.gates.telegram.get_settings", return_value=settings):
-        return TelegramGate()
+        return TelegramGate(engine=engine)
 
 
 def _make_message(chat_id: int, text: str | None = "hello") -> MagicMock:
@@ -357,3 +358,192 @@ class TestBusIntegration:
 
         assert ResponseChunk in subscribed_types
         assert ResponseComplete in subscribed_types
+
+
+# ── Command handler tests ─────────────────────────────────────────────
+
+
+def _make_cmd_message(chat_id: int, text: str) -> MagicMock:
+    """Create a mock aiogram Message for command testing."""
+    msg = MagicMock()
+    msg.chat.id = chat_id
+    msg.text = text
+    msg.answer = AsyncMock()
+    msg.message_id = 100
+    return msg
+
+
+class TestCommandPermissions:
+    """All commands must be owner-only."""
+
+    @pytest.mark.parametrize(
+        "handler",
+        [
+            "_on_cmd_start",
+            "_on_cmd_pause",
+            "_on_cmd_resume",
+            "_on_cmd_stop",
+            "_on_cmd_kill",
+            "_on_cmd_status",
+        ],
+    )
+    async def test_non_owner_gets_no_response(self, handler: str) -> None:
+        gate = _make_gate()
+        msg = _make_cmd_message(chat_id=999, text="/start")
+        await getattr(gate, handler)(msg)
+        msg.answer.assert_not_called()
+
+
+class TestStartCommand:
+    async def test_sends_welcome_message(self) -> None:
+        gate = _make_gate()
+        msg = _make_cmd_message(chat_id=42, text="/start")
+        await gate._on_cmd_start(msg)
+        msg.answer.assert_called_once()
+        text = msg.answer.call_args.args[0]
+        assert "Theo" in text
+
+    async def test_uses_plain_text(self) -> None:
+        gate = _make_gate()
+        msg = _make_cmd_message(chat_id=42, text="/start")
+        await gate._on_cmd_start(msg)
+        assert msg.answer.call_args.kwargs.get("parse_mode") is None
+
+
+class TestPauseCommand:
+    async def test_pauses_engine(self) -> None:
+        engine = ConversationEngine()
+        engine._state = "running"
+        gate = _make_gate(engine=engine)
+        msg = _make_cmd_message(chat_id=42, text="/pause")
+        await gate._on_cmd_pause(msg)
+        assert engine.state == "paused"
+        msg.answer.assert_called_once()
+        assert "Paused" in msg.answer.call_args.args[0]
+
+    async def test_works_without_engine(self) -> None:
+        gate = _make_gate()
+        msg = _make_cmd_message(chat_id=42, text="/pause")
+        await gate._on_cmd_pause(msg)
+        msg.answer.assert_called_once()
+
+
+class TestResumeCommand:
+    async def test_resumes_engine(self) -> None:
+        engine = ConversationEngine()
+        engine._state = "paused"
+        gate = _make_gate(engine=engine)
+        msg = _make_cmd_message(chat_id=42, text="/resume")
+        await gate._on_cmd_resume(msg)
+        assert engine.state == "running"
+        msg.answer.assert_called_once()
+        assert "Resumed" in msg.answer.call_args.args[0]
+
+
+class TestStopCommand:
+    async def test_stops_engine_after_drain(self) -> None:
+        engine = ConversationEngine()
+        engine._state = "running"
+        gate = _make_gate(engine=engine)
+        msg = _make_cmd_message(chat_id=42, text="/stop")
+        await gate._on_cmd_stop(msg)
+        assert engine.state == "stopped"
+        msg.answer.assert_called_once()
+        assert "Stopping" in msg.answer.call_args.args[0]
+
+    async def test_works_without_engine(self) -> None:
+        gate = _make_gate()
+        msg = _make_cmd_message(chat_id=42, text="/stop")
+        await gate._on_cmd_stop(msg)
+        msg.answer.assert_called_once()
+        assert "Stopped" in msg.answer.call_args.args[0]
+
+
+class TestKillCommand:
+    async def test_kills_engine_immediately(self) -> None:
+        engine = ConversationEngine()
+        engine._state = "running"
+        gate = _make_gate(engine=engine)
+        msg = _make_cmd_message(chat_id=42, text="/kill")
+        await gate._on_cmd_kill(msg)
+        assert engine.state == "stopped"
+        msg.answer.assert_called_once()
+        assert "Killed" in msg.answer.call_args.args[0]
+
+    async def test_kill_sets_drained(self) -> None:
+        engine = ConversationEngine()
+        engine._state = "running"
+        engine._drained.clear()
+        gate = _make_gate(engine=engine)
+        msg = _make_cmd_message(chat_id=42, text="/kill")
+        await gate._on_cmd_kill(msg)
+        assert engine._drained.is_set()
+
+
+class TestStatusCommand:
+    async def test_reports_engine_state(self) -> None:
+        engine = ConversationEngine()
+        engine._state = "running"
+        gate = _make_gate(engine=engine)
+        gate._start_time = 0.0  # force a known uptime
+        msg = _make_cmd_message(chat_id=42, text="/status")
+        await gate._on_cmd_status(msg)
+        msg.answer.assert_called_once()
+        text = msg.answer.call_args.args[0]
+        assert "Engine: running" in text
+        assert "In-flight: 0" in text
+        assert "Queue: 0" in text
+        assert "Uptime:" in text
+
+    async def test_reports_queue_depth(self) -> None:
+        engine = ConversationEngine()
+        engine._state = "paused"
+        engine._paused_queue.put_nowait(MagicMock())
+        engine._paused_queue.put_nowait(MagicMock())
+        gate = _make_gate(engine=engine)
+        msg = _make_cmd_message(chat_id=42, text="/status")
+        await gate._on_cmd_status(msg)
+        text = msg.answer.call_args.args[0]
+        assert "Queue: 2" in text
+
+    async def test_no_engine_shows_minimal_status(self) -> None:
+        gate = _make_gate()
+        msg = _make_cmd_message(chat_id=42, text="/status")
+        await gate._on_cmd_status(msg)
+        text = msg.answer.call_args.args[0]
+        assert "No status available" in text
+
+
+class TestCommandStateTransitions:
+    """Verify full state transition sequences via commands."""
+
+    async def test_pause_resume_cycle(self) -> None:
+        engine = ConversationEngine()
+        engine._state = "running"
+        gate = _make_gate(engine=engine)
+
+        msg = _make_cmd_message(chat_id=42, text="/pause")
+        await gate._on_cmd_pause(msg)
+        assert engine.state == "paused"
+
+        msg = _make_cmd_message(chat_id=42, text="/resume")
+        await gate._on_cmd_resume(msg)
+        assert engine.state == "running"
+
+    async def test_stop_from_running(self) -> None:
+        engine = ConversationEngine()
+        engine._state = "running"
+        gate = _make_gate(engine=engine)
+
+        msg = _make_cmd_message(chat_id=42, text="/stop")
+        await gate._on_cmd_stop(msg)
+        assert engine.state == "stopped"
+
+    async def test_kill_from_paused(self) -> None:
+        engine = ConversationEngine()
+        engine._state = "paused"
+        gate = _make_gate(engine=engine)
+
+        msg = _make_cmd_message(chat_id=42, text="/kill")
+        await gate._on_cmd_kill(msg)
+        assert engine.state == "stopped"
