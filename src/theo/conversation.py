@@ -296,7 +296,7 @@ class ConversationEngine:
 
                 span.set_attribute("turn.tool_calls", tool_call_count)
 
-            except APIUnavailableError, CircuitOpenError:
+            except (APIUnavailableError, CircuitOpenError):
                 await self._handle_api_failure(event, session_id)
                 return
 

@@ -281,7 +281,7 @@ class RetryQueue:
                             "queue_depth": self.depth,
                         },
                     )
-                except APIUnavailableError, CircuitOpenError:
+                except (APIUnavailableError, CircuitOpenError):
                     log.warning(
                         "retry failed, will try again later",
                         extra={"queue_depth": self.depth},
