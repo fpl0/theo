@@ -3,6 +3,9 @@
 Subscribes to :class:`MessageReceived` events, assembles context, streams a
 response from Claude, persists both sides as episodes, and publishes
 :class:`ResponseChunk` / :class:`ResponseComplete` events.
+
+When Claude requests memory tools (store, search, read, update), the engine
+executes them and feeds results back in a loop (max 10 iterations).
 """
 
 from __future__ import annotations
@@ -18,13 +21,16 @@ from theo.bus import bus
 from theo.bus.events import MessageReceived, ResponseChunk, ResponseComplete
 from theo.context import assemble
 from theo.errors import ConversationNotRunningError
-from theo.llm import StreamDone, TextDelta, classify_speed, stream_response
+from theo.llm import StreamDone, TextDelta, ToolUseRequest, classify_speed, stream_response
 from theo.memory.episodes import store_episode
+from theo.memory.tools import TOOL_DEFINITIONS, execute_tool
 
 if TYPE_CHECKING:
     from uuid import UUID
 
 type EngineState = Literal["running", "paused", "stopped"]
+
+_MAX_TOOL_ITERATIONS = 10
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -38,6 +44,10 @@ _turn_duration = meter.create_histogram(
 _turn_counter = meter.create_counter(
     "theo.conversation.turns",
     description="Total conversation turns completed",
+)
+_tool_call_counter = meter.create_counter(
+    "theo.conversation.tool_calls",
+    description="Total tool calls executed during conversation turns",
 )
 
 
@@ -146,6 +156,7 @@ class ConversationEngine:
     async def _execute_turn(self, event: MessageReceived, session_id: UUID) -> None:
         t0 = time.monotonic()
         speed = classify_speed(event.body)
+        tool_call_count = 0
 
         with tracer.start_as_current_span(
             "conversation.turn",
@@ -170,28 +181,80 @@ class ConversationEngine:
             )
 
             # 3. Build message list: history + current message.
-            messages = [*ctx.messages, {"role": "user", "content": event.body}]
+            messages: list[dict[str, object]] = [dict(m) for m in ctx.messages]
+            messages.append({"role": "user", "content": event.body})
 
-            # 4. Stream response from Claude.
+            # 4. Stream response from Claude with tool loop.
             chunks: list[str] = []
-            async for stream_event in stream_response(
-                messages,  # type: ignore[arg-type]
-                system=ctx.system_prompt or None,
-                speed=speed,
-            ):
-                if isinstance(stream_event, TextDelta):
-                    chunks.append(stream_event.text)
-                    await bus.publish(
-                        ResponseChunk(
-                            session_id=session_id,
-                            channel=event.channel,
-                            body=stream_event.text,
+
+            for _iteration in range(_MAX_TOOL_ITERATIONS):
+                tool_requests: list[ToolUseRequest] = []
+                iteration_chunks: list[str] = []
+
+                async for stream_event in stream_response(
+                    messages,  # type: ignore[arg-type]
+                    system=ctx.system_prompt or None,
+                    speed=speed,
+                    tools=TOOL_DEFINITIONS,  # type: ignore[arg-type]
+                ):
+                    if isinstance(stream_event, TextDelta):
+                        iteration_chunks.append(stream_event.text)
+                        await bus.publish(
+                            ResponseChunk(
+                                session_id=session_id,
+                                channel=event.channel,
+                                body=stream_event.text,
+                            )
                         )
+                    elif isinstance(stream_event, ToolUseRequest):
+                        tool_requests.append(stream_event)
+                    elif isinstance(stream_event, StreamDone):
+                        span.set_attribute("llm.model", "resolved")
+                        span.set_attribute("llm.input_tokens", stream_event.input_tokens)
+                        span.set_attribute("llm.output_tokens", stream_event.output_tokens)
+
+                chunks.extend(iteration_chunks)
+
+                if not tool_requests:
+                    break
+
+                # Build assistant message with text + tool_use content blocks.
+                assistant_content: list[dict[str, object]] = []
+                if iteration_chunks:
+                    assistant_content.append({"type": "text", "text": "".join(iteration_chunks)})
+                tool_blocks: list[dict[str, object]] = [
+                    {
+                        "type": "tool_use",
+                        "id": req.id,
+                        "name": req.name,
+                        "input": req.input,
+                    }
+                    for req in tool_requests
+                ]
+                assistant_content.extend(tool_blocks)
+                messages.append({"role": "assistant", "content": assistant_content})
+
+                # Execute each tool and build tool result messages.
+                tool_results: list[dict[str, object]] = []
+                for req in tool_requests:
+                    tool_call_count += 1
+                    _tool_call_counter.add(1, {"tool.name": req.name})
+                    result = await execute_tool(req.name, req.input)
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": req.id,
+                            "content": result,
+                        }
                     )
-                elif isinstance(stream_event, StreamDone):
-                    span.set_attribute("llm.model", "resolved")
-                    span.set_attribute("llm.input_tokens", stream_event.input_tokens)
-                    span.set_attribute("llm.output_tokens", stream_event.output_tokens)
+                    log.debug(
+                        "tool executed",
+                        extra={"tool": req.name, "tool_use_id": req.id},
+                    )
+
+                messages.append({"role": "user", "content": tool_results})
+
+            span.set_attribute("turn.tool_calls", tool_call_count)
 
             # 5. Persist assistant response as episode.
             full_response = "".join(chunks)
@@ -223,5 +286,6 @@ class ConversationEngine:
                     "speed": speed,
                     "duration_s": round(elapsed, 3),
                     "response_length": len(full_response),
+                    "tool_calls": tool_call_count,
                 },
             )
