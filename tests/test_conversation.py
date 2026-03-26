@@ -11,9 +11,9 @@ import pytest
 from theo.bus import EventBus
 from theo.bus.events import MessageReceived, ResponseChunk, ResponseComplete
 from theo.context import AssembledContext
-from theo.conversation import ConversationEngine
+from theo.conversation import _MAX_TOOL_ITERATIONS, ConversationEngine
 from theo.errors import ConversationNotRunningError
-from theo.llm import StreamDone, TextDelta
+from theo.llm import StreamDone, TextDelta, ToolUseRequest
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -478,3 +478,179 @@ class TestDrain:
             await task
 
         assert completed is True
+
+
+# ── Tool loop tests ──────────────────────────────────────────────────
+
+
+class TestToolLoop:
+    async def test_single_tool_call_produces_final_response(
+        self, mock_bus, mock_assemble, mock_store_episode
+    ) -> None:
+        """Claude calls one tool, gets result, then produces text."""
+        _ = mock_bus, mock_assemble, mock_store_episode
+        _bus, published = mock_bus
+        call_count = 0
+
+        async def tool_then_text(_messages, **_kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                yield ToolUseRequest(id="t1", name="search_memory", input={"query": "test"})
+                yield StreamDone(input_tokens=10, output_tokens=5, stop_reason="tool_use")
+            else:
+                yield TextDelta(text="Found it!")
+                yield StreamDone(input_tokens=15, output_tokens=8, stop_reason="end_turn")
+
+        tool_result = '[{"body":"result"}]'
+        with (
+            patch("theo.conversation.stream_response", tool_then_text),
+            patch("theo.conversation.execute_tool", AsyncMock(return_value=tool_result)),
+        ):
+            eng = ConversationEngine()
+            eng._state = "running"  # noqa: SLF001
+            await eng._process_message(_make_msg())  # noqa: SLF001
+
+        complete = [e for e in published if isinstance(e, ResponseComplete)]
+        assert len(complete) == 1
+        assert complete[0].body == "Found it!"
+        assert call_count == 2
+
+    async def test_multi_tool_turn(self, mock_bus, mock_assemble, mock_store_episode) -> None:
+        """Claude calls multiple tools in a single response."""
+        _ = mock_bus, mock_assemble, mock_store_episode
+        _bus, published = mock_bus
+        tool_calls: list[str] = []
+
+        async def two_tools_then_text(messages, **_kwargs):
+            has_tool_results = any(
+                isinstance(m.get("content"), list)
+                and any(
+                    isinstance(item, dict) and item.get("type") == "tool_result"
+                    for item in m["content"]
+                )
+                for m in messages
+                if isinstance(m, dict)
+            )
+            if not has_tool_results:
+                yield ToolUseRequest(
+                    id="t1",
+                    name="store_memory",
+                    input={"kind": "fact", "body": "a"},
+                )
+                yield ToolUseRequest(id="t2", name="search_memory", input={"query": "b"})
+                yield StreamDone(input_tokens=10, output_tokens=5, stop_reason="tool_use")
+            else:
+                yield TextDelta(text="Done")
+                yield StreamDone(input_tokens=20, output_tokens=3, stop_reason="end_turn")
+
+        async def tracking_execute(name, _tool_input):
+            tool_calls.append(name)
+            return '{"ok": true}'
+
+        with (
+            patch("theo.conversation.stream_response", two_tools_then_text),
+            patch("theo.conversation.execute_tool", AsyncMock(side_effect=tracking_execute)),
+        ):
+            eng = ConversationEngine()
+            eng._state = "running"  # noqa: SLF001
+            await eng._process_message(_make_msg())  # noqa: SLF001
+
+        assert tool_calls == ["store_memory", "search_memory"]
+        complete = [e for e in published if isinstance(e, ResponseComplete)]
+        assert complete[0].body == "Done"
+
+    async def test_tool_error_returned_to_claude(
+        self, mock_bus, mock_assemble, mock_store_episode
+    ) -> None:
+        """Tool errors are sent back to Claude as results, not raised."""
+        _ = mock_bus, mock_assemble, mock_store_episode
+        _bus, published = mock_bus
+        call_count = 0
+
+        async def tool_then_text(_messages, **_kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                yield ToolUseRequest(
+                    id="t1",
+                    name="store_memory",
+                    input={"kind": "x", "body": "y"},
+                )
+                yield StreamDone(input_tokens=10, output_tokens=5, stop_reason="tool_use")
+            else:
+                yield TextDelta(text="I see there was an error")
+                yield StreamDone(input_tokens=15, output_tokens=8, stop_reason="end_turn")
+
+        with (
+            patch("theo.conversation.stream_response", tool_then_text),
+            patch(
+                "theo.conversation.execute_tool",
+                AsyncMock(return_value="Error executing store_memory: db down"),
+            ),
+        ):
+            eng = ConversationEngine()
+            eng._state = "running"  # noqa: SLF001
+            await eng._process_message(_make_msg())  # noqa: SLF001
+
+        complete = [e for e in published if isinstance(e, ResponseComplete)]
+        assert len(complete) == 1
+        assert complete[0].body == "I see there was an error"
+
+    async def test_max_iterations_enforced(
+        self, mock_bus, mock_assemble, mock_store_episode
+    ) -> None:
+        """Tool loop stops after _MAX_TOOL_ITERATIONS even if tools keep coming."""
+        _ = mock_bus, mock_assemble, mock_store_episode
+        _bus, published = mock_bus
+        call_count = 0
+
+        async def always_tool(_messages, **_kwargs):
+            nonlocal call_count
+            call_count += 1
+            yield ToolUseRequest(id=f"t{call_count}", name="search_memory", input={"query": "x"})
+            yield StreamDone(input_tokens=10, output_tokens=5, stop_reason="tool_use")
+
+        with (
+            patch("theo.conversation.stream_response", always_tool),
+            patch("theo.conversation.execute_tool", AsyncMock(return_value='{"ok": true}')),
+        ):
+            eng = ConversationEngine()
+            eng._state = "running"  # noqa: SLF001
+            await eng._process_message(_make_msg())  # noqa: SLF001
+
+        assert call_count == _MAX_TOOL_ITERATIONS
+        complete = [e for e in published if isinstance(e, ResponseComplete)]
+        assert len(complete) == 1
+
+    async def test_text_and_tool_in_same_response(
+        self, mock_bus, mock_assemble, mock_store_episode
+    ) -> None:
+        """Claude can emit text and tool calls in the same stream."""
+        _ = mock_bus, mock_assemble, mock_store_episode
+        _bus, published = mock_bus
+        call_count = 0
+
+        async def text_and_tool(_messages, **_kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                yield TextDelta(text="Let me check... ")
+                yield ToolUseRequest(id="t1", name="search_memory", input={"query": "weather"})
+                yield StreamDone(input_tokens=10, output_tokens=5, stop_reason="tool_use")
+            else:
+                yield TextDelta(text="Here's what I found.")
+                yield StreamDone(input_tokens=15, output_tokens=8, stop_reason="end_turn")
+
+        with (
+            patch("theo.conversation.stream_response", text_and_tool),
+            patch("theo.conversation.execute_tool", AsyncMock(return_value='{"results": []}')),
+        ):
+            eng = ConversationEngine()
+            eng._state = "running"  # noqa: SLF001
+            await eng._process_message(_make_msg())  # noqa: SLF001
+
+        complete = [e for e in published if isinstance(e, ResponseComplete)]
+        assert complete[0].body == "Let me check... Here's what I found."
+        chunks = [e for e in published if isinstance(e, ResponseChunk)]
+        assert len(chunks) == 2
