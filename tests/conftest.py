@@ -4,7 +4,7 @@ import typing
 # Workaround: pydantic 2.12 passes `prefer_fwd_module` to `typing._eval_type`
 # for Python >= 3.14, but CPython 3.14.0rc2 doesn't have that parameter yet.
 # Patch _eval_type to absorb the unknown kwarg until pydantic ships a fix.
-_original_eval_type = typing._eval_type  # noqa: SLF001
+_original_eval_type = typing._eval_type
 
 
 def _patched_eval_type(*args: object, **kwargs: object) -> object:
@@ -12,8 +12,7 @@ def _patched_eval_type(*args: object, **kwargs: object) -> object:
     return _original_eval_type(*args, **kwargs)
 
 
-typing._eval_type = _patched_eval_type  # type: ignore[attr-defined]  # noqa: SLF001
-
+typing._eval_type = _patched_eval_type  # type: ignore[attr-defined]
 # Stub out mlx if not available (Apple Silicon only) so modules that
 # import theo.embeddings can be collected on any platform.
 try:

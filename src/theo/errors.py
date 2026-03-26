@@ -19,3 +19,7 @@ class APIUnavailableError(TheoError):
 
 class ConversationNotRunningError(TheoError):
     """Raised when a message is received by a stopped conversation engine."""
+
+
+class GateConfigError(TheoError):
+    """Raised when a gate is missing required configuration."""

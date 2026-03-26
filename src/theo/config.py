@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     context_memory_budget: int = 2000
     context_history_budget: int = 4000
 
+    # Telegram gate
+    telegram_bot_token: SecretStr | None = None
+    telegram_owner_chat_id: int | None = None
+
     @model_validator(mode="after")
     def _validate_pool_bounds(self) -> Self:
         if self.db_pool_min > self.db_pool_max:
