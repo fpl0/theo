@@ -7,3 +7,7 @@ class TheoError(Exception):
 
 class DatabaseNotConnectedError(TheoError):
     """Raised when the connection pool is accessed before connect()."""
+
+
+class BusNotRunningError(TheoError):
+    """Raised when publishing to a bus that has not been started."""
