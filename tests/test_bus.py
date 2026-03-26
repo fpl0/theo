@@ -100,7 +100,7 @@ def _mock_pool() -> MagicMock:
 def mock_db():
     """Patch the db singleton to use a mock pool."""
     pool = _mock_pool()
-    with patch("theo.bus.db") as mock:
+    with patch("theo.bus.core.db") as mock:
         mock.pool = pool
         yield pool
 
