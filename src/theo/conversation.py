@@ -177,7 +177,7 @@ class ConversationEngine:
     async def _retry_message(
         self,
         *,
-        session_id: object,
+        session_id: UUID,
         channel: str | None,
         body: str,
         trust: str,
@@ -187,16 +187,13 @@ class ConversationEngine:
         The user message was already persisted as an episode on the original
         attempt, so we skip persistence and go straight to the LLM call.
         """
-        from uuid import UUID  # noqa: PLC0415
-
-        sid = session_id if isinstance(session_id, UUID) else UUID(str(session_id))
         event = MessageReceived(
             body=body,
-            session_id=sid,
+            session_id=session_id,
             channel=channel,  # type: ignore[arg-type]
             trust=trust,  # type: ignore[arg-type]
         )
-        await self._execute_turn(event, sid, persist_user_message=False)
+        await self._execute_turn(event, session_id, persist_user_message=False)
 
     async def _execute_turn(  # noqa: C901, PLR0915
         self,
