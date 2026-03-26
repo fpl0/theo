@@ -1,13 +1,27 @@
 # Theo
 
-Personal AI agent. Apple Silicon, local-first, async Python.
+Autonomous personal agent with persistent episodic and semantic memory.
+Reasons, remembers, and acts through external interfaces — built for decades of continuous use.
+Local-first on Apple Silicon. Async Python. Minimal dependencies, full observability.
 
 ## Quick start
 
+Prerequisites: [just](https://github.com/casey/just) (`brew install just`).
+
 ```bash
-docker compose up -d          # PostgreSQL + OpenObserve
-uv run theo                   # starts the agent
+just dev                      # start infra + agent (one command)
 ```
+
+Or step by step:
+
+```bash
+just up                       # start PostgreSQL + OpenObserve
+just run                      # start the agent
+just down                     # stop containers
+just reset                    # nuke volumes, fresh start
+```
+
+Run `just` with no arguments to see all available targets.
 
 - **OpenObserve UI**: http://localhost:5080 (theo@theo.dev / theo)
 - **PostgreSQL**: localhost:5432 (theo/theo/theo)
@@ -16,19 +30,17 @@ uv run theo                   # starts the agent
 
 Theo is a cohesive application, not a framework. No plugin system, no abstract base classes, no dependency injection. Each module owns one concern and exposes the minimal API needed.
 
-```
-src/theo/
-  __main__.py      # entrypoint — lifecycle, signal handling
-  config.py        # pydantic-settings, env-driven, validated
-  errors.py        # exception hierarchy (TheoError base)
-  telemetry.py     # OTEL bootstrap — traces, metrics, logs
-  embeddings.py    # MLX BERT on Apple Silicon, async API
-  db/
-    __init__.py    # singleton Database instance
-    pool.py        # asyncpg pool lifecycle
-    migrate.py     # versioned SQL migrations
-    migrations/    # numbered .sql files (0001_initial.sql, ...)
-```
+All code lives under `src/theo/`. Key modules by concern:
+
+- **Entrypoint**: `__main__.py` — lifecycle, signal handling
+- **Config**: `config.py` — pydantic-settings, env-driven
+- **LLM**: `llm.py` — Anthropic streaming client, speed classification
+- **Conversation**: `conversation/` — engine lifecycle, turn execution, context assembly
+- **Memory**: `memory/` — knowledge graph (nodes, episodes, core ops, LLM tools)
+- **Database**: `db/` — asyncpg pool, forward-only SQL migrations
+- **Gates**: `gates/` — external interfaces (Telegram via aiogram)
+- **Resilience**: `resilience/` — circuit breaker, retry queue, health check
+- **Infra**: `bus/` (event bus), `telemetry.py` (OTEL), `embeddings.py` (MLX BERT), `errors.py` (exception hierarchy)
 
 ## Design decisions
 
@@ -52,6 +64,7 @@ src/theo/
 - Loggers: `log = logging.getLogger(__name__)`
 - Tracers: `tracer = trace.get_tracer(__name__)`
 - Keep modules focused. If a file exceeds ~200 lines, split it.
+- When ty cannot model a pattern (pydantic-settings constructors, SDK discriminated unions), add a targeted `[[tool.ty.overrides]]` in `pyproject.toml` scoped to the specific file and rule. Never blanket-ignore.
 
 ### Configuration
 
@@ -82,11 +95,7 @@ Files: `.env` (shared defaults) → `.env.local` (local overrides, gitignored).
 **Metrics rules:**
 - Use histograms for latencies, counters for throughput, gauges for pool/queue sizes.
 - Name metrics with the `theo.` prefix: `theo.retrieval.duration`, `theo.nodes.count`.
-- Pick the right instrument for the job:
-  - **Counter**: monotonically increasing totals (`theo.episodes.created`, `theo.edges.expired`). Never reset.
-  - **Histogram**: latency distributions and value spreads (`theo.retrieval.duration`, `theo.embedding.batch_size`). Use for anything you'd want p50/p95/p99 on.
-  - **UpDownCounter**: values that go up and down (`theo.embedding.queue_depth`). Not a gauge — it tracks deltas.
-  - **Gauge** (via callback): point-in-time snapshots of external state (`theo.db.pool.idle`, `theo.db.pool.size`). Use async gauge callbacks, never set manually in hot paths.
+- Pick the right instrument: **Counter** for monotonic totals, **Histogram** for latency/p99, **UpDownCounter** for values that go up and down, **Gauge** (via async callback) for point-in-time snapshots of external state.
 - Avoid metric explosion: do not create per-node-kind or per-session metrics. Use span attributes for that cardinality — metrics are for aggregate signals, traces are for per-request detail.
 
 **Logging rules:**
@@ -96,16 +105,20 @@ Files: `.env` (shared defaults) → `.env.local` (local overrides, gitignored).
 ### Testing
 
 ```bash
+just check                             # full quality gate (fail-fast)
+just lint                              # lint + typecheck only (no tests)
+just test                              # run tests only
+just fmt                               # auto-format python + sql
+```
+
+Underlying commands (for reference / CI):
+
+```bash
 uv run pytest                          # run all tests
 uv run ruff check src/                 # lint python
 uv run ruff format --check src/        # check python formatting
 uv run ty check src/                   # type check
 uv run sqlfluff lint src/              # lint sql
-```
-
-Format commands (modify files in-place):
-
-```bash
 uv run ruff format src/                # format python
 uv run sqlfluff fix src/               # format sql
 ```
@@ -120,6 +133,12 @@ uv run sqlfluff fix src/               # format sql
 - **OpenObserve v0.70.0**: lightweight OTEL backend (~250MB RAM). Traces, metrics, logs in one binary.
 - All infrastructure runs via `docker compose`. Data is persisted in named volumes.
 
+## Decision records
+
+Architectural decisions are documented in `docs/decisions/`. Each file covers one change: context, rationale, and files changed. Check relevant decision docs before modifying a module to understand why it was built the way it was.
+
+Any code change that introduces a new module, changes architecture, or makes a non-obvious design choice **must** include a decision record. When modifying existing modules, update the corresponding decision doc if the rationale or file list changes. Files are named `kebab-case-topic.md` and follow the structure: Context, Decisions (with rationale per choice), Files changed.
+
 ## Adding new modules
 
 1. Create the module in `src/theo/`
@@ -128,5 +147,6 @@ uv run sqlfluff fix src/               # format sql
 4. Wrap every public I/O function in `tracer.start_as_current_span()`
 5. Add custom exceptions to `errors.py` if needed
 6. Write tests in `tests/test_<module>.py`
-7. Run `uv run ruff check src/ && uv run ruff format --check src/ && uv run ty check src/ && uv run sqlfluff lint src/ && uv run pytest`
-8. Verify spans appear in OpenObserve (`THEO_OTEL_EXPORTER=otlp`)
+7. Add or update the decision record in `docs/decisions/`
+8. Run `just check`
+9. Verify spans appear in OpenObserve (`THEO_OTEL_EXPORTER=otlp`)
