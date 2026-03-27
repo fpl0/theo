@@ -51,6 +51,20 @@ class EpisodeResult:
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
+class DimensionResult:
+    """A single dimension from the structured user model."""
+
+    id: int
+    framework: str
+    dimension: str
+    value: dict[str, Any]
+    confidence: float
+    evidence_count: int
+    meta: dict[str, Any]
+    updated_at: datetime
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
 class EdgeResult:
     """An edge retrieved from the knowledge graph."""
 
