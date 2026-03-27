@@ -1,0 +1,30 @@
+{
+  "name": "health-check-degraded",
+  "stream_type": "logs",
+  "stream_name": "default",
+  "is_real_time": false,
+  "query_condition": {
+    "type": "sql",
+    "sql": "SELECT count(*) as cnt FROM \"default\" WHERE body LIKE '%health check%' AND (body LIKE '%database unreachable%' OR body LIKE '%API unreachable%')",
+    "promql": "",
+    "conditions": [],
+    "search_event_type": "derivedstream",
+    "multi_time_range": []
+  },
+  "trigger_condition": {
+    "period": 5,
+    "operator": ">=",
+    "threshold": 1,
+    "frequency": 1,
+    "cron": "",
+    "frequency_type": "minutes",
+    "silence": 30
+  },
+  "destinations": [
+    "silent"
+  ],
+  "enabled": true,
+  "context_attributes": {},
+  "description": "Fires when a health check reports the database or API as unreachable.",
+  "tz_offset": 0
+}

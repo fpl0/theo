@@ -1,0 +1,358 @@
+{
+  "version": 5,
+  "title": "Theo Telegram",
+  "description": "Telegram gate: message throughput, commands, ignored messages.",
+  "tabs": [
+    {
+      "tabId": "default",
+      "name": "Default",
+      "panels": [
+        {
+          "id": "Panel_tg_recv",
+          "type": "metric",
+          "title": "Messages Received",
+          "description": "Total messages received from Telegram",
+          "config": {
+            "show_legends": false,
+            "decimals": 0,
+            "unit": ""
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum(theo_telegram_messages_received_total)",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 12,
+            "h": 5,
+            "i": 1
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_tg_sent",
+          "type": "metric",
+          "title": "Messages Sent",
+          "description": "Total messages sent to Telegram",
+          "config": {
+            "show_legends": false,
+            "decimals": 0,
+            "unit": ""
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum(theo_telegram_messages_sent_total)",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 12,
+            "y": 0,
+            "w": 12,
+            "h": 5,
+            "i": 2
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_tg_ignored",
+          "type": "metric",
+          "title": "Messages Ignored",
+          "description": "Non-owner messages dropped",
+          "config": {
+            "show_legends": false,
+            "decimals": 0,
+            "unit": ""
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum(theo_telegram_messages_ignored_total)",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 24,
+            "y": 0,
+            "w": 12,
+            "h": 5,
+            "i": 3
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_tg_cmds",
+          "type": "metric",
+          "title": "Commands",
+          "description": "Total slash commands received",
+          "config": {
+            "show_legends": false,
+            "decimals": 0,
+            "unit": ""
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum(theo_telegram_commands_total)",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 36,
+            "y": 0,
+            "w": 12,
+            "h": 5,
+            "i": 4
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_tg_throughput",
+          "type": "line",
+          "title": "Message Throughput",
+          "description": "Messages received vs sent per second",
+          "config": {
+            "show_legends": true,
+            "decimals": 2,
+            "unit": ""
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "rate(theo_telegram_messages_received_total[5m])",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "received",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            },
+            {
+              "query": "rate(theo_telegram_messages_sent_total[5m])",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "sent",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 5,
+            "w": 48,
+            "h": 9,
+            "i": 5
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_tg_cmd_usage",
+          "type": "bar",
+          "title": "Command Usage",
+          "description": "Slash command usage by command name",
+          "config": {
+            "show_legends": true,
+            "decimals": 0,
+            "unit": ""
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (command)(theo_telegram_commands_total)",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{command}",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 14,
+            "w": 24,
+            "h": 9,
+            "i": 6
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_tg_ignored_time",
+          "type": "line",
+          "title": "Ignored Messages Over Time",
+          "description": "Non-owner message rate (potential scanning/spam)",
+          "config": {
+            "show_legends": false,
+            "decimals": 2,
+            "unit": ""
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "rate(theo_telegram_messages_ignored_total[5m])",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "ignored/s",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 24,
+            "y": 14,
+            "w": 24,
+            "h": 9,
+            "i": 7
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "list": [],
+    "showDynamicFilters": true
+  },
+  "defaultDatetimeDuration": {
+    "type": "relative",
+    "relativeTimePeriod": "1h"
+  }
+}

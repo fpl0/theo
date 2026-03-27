@@ -9,16 +9,17 @@ Local-first on Apple Silicon. Async Python. Minimal dependencies, full observabi
 Prerequisites: [just](https://github.com/casey/just) (`brew install just`).
 
 ```bash
-just dev                      # start infra + agent (one command)
+just dev                      # start infra + dashboards + agent (one command)
 ```
 
 Or step by step:
 
 ```bash
 just up                       # start PostgreSQL + OpenObserve
+just dashboards               # provision OpenObserve dashboards + alerts
 just run                      # start the agent
 just down                     # stop containers
-just reset                    # nuke volumes, fresh start
+just reset                    # nuke volumes, fresh start + re-provision
 ```
 
 Run `just` with no arguments to see all available targets.
@@ -96,6 +97,8 @@ just fmt                               # auto-format python + sql
 - **PostgreSQL 18 + pgvector 0.8.2**: knowledge graph with vector + full-text search.
 - **OpenObserve v0.70.0**: lightweight OTEL backend (~250MB RAM). Traces, metrics, logs in one binary.
 - All infrastructure runs via `docker compose`. Data is persisted in named volumes.
+- **Dashboards** (`infra/dashboards/`): 6 pre-built OpenObserve dashboards provisioned via `just dashboards` — Overview, Conversation, LLM, Memory, Resilience, Telegram.
+- **Alerts** (`infra/alerts/`): 5 alert definitions (circuit breaker, retry queue, LLM errors, health check, bus failures). Provisioned best-effort after first data arrives.
 
 ## Decision records
 

@@ -1,0 +1,246 @@
+{
+  "version": 5,
+  "title": "Theo Memory",
+  "description": "Knowledge graph and episodic memory operations.",
+  "tabs": [
+    {
+      "tabId": "default",
+      "name": "Default",
+      "panels": [
+        {
+          "id": "Panel_mem_ops_time",
+          "type": "area-stacked",
+          "title": "Memory Operations Over Time",
+          "description": "Node and episode operations by type",
+          "config": {
+            "show_legends": true,
+            "decimals": 0,
+            "unit": ""
+          },
+          "queryType": "sql",
+          "queries": [
+            {
+              "query": "SELECT histogram(_timestamp) as \"x_axis_1\", span_name, count(*) as \"y_axis_1\" FROM \"default\" WHERE service_name = 'theo' AND span_name IN ('store_node', 'search_nodes', 'get_node', 'store_episode', 'list_episodes', 'search_episodes') GROUP BY x_axis_1, span_name ORDER BY x_axis_1",
+              "customQuery": true,
+              "fields": {
+                "stream": "default",
+                "stream_type": "traces",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 48,
+            "h": 10,
+            "i": 1
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_mem_ops_dist",
+          "type": "donut",
+          "title": "Operation Breakdown",
+          "description": "Share of memory operations by type",
+          "config": {
+            "show_legends": true,
+            "decimals": 0,
+            "unit": ""
+          },
+          "queryType": "sql",
+          "queries": [
+            {
+              "query": "SELECT span_name, count(*) as cnt FROM \"default\" WHERE service_name = 'theo' AND span_name IN ('store_node', 'search_nodes', 'get_node', 'store_episode', 'list_episodes', 'search_episodes') GROUP BY span_name ORDER BY cnt DESC",
+              "customQuery": true,
+              "fields": {
+                "stream": "default",
+                "stream_type": "traces",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 10,
+            "w": 16,
+            "h": 9,
+            "i": 2
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_mem_core_updates",
+          "type": "table",
+          "title": "Recent Core Memory Updates",
+          "description": "Latest core memory write operations",
+          "config": {
+            "show_legends": false,
+            "decimals": 0,
+            "unit": ""
+          },
+          "queryType": "sql",
+          "queries": [
+            {
+              "query": "SELECT _timestamp as time, span_attributes_core_memory_label as label, span_attributes_core_memory_operation as operation FROM \"default\" WHERE service_name = 'theo' AND span_name IN ('update_core_memory', 'read_core_memory') ORDER BY _timestamp DESC LIMIT 20",
+              "customQuery": true,
+              "fields": {
+                "stream": "default",
+                "stream_type": "traces",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 16,
+            "y": 10,
+            "w": 32,
+            "h": 9,
+            "i": 3
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_mem_node_kinds",
+          "type": "bar",
+          "title": "Stored Node Kinds",
+          "description": "Count of stored nodes by kind",
+          "config": {
+            "show_legends": true,
+            "decimals": 0,
+            "unit": ""
+          },
+          "queryType": "sql",
+          "queries": [
+            {
+              "query": "SELECT span_attributes_node_kind as kind, count(*) as cnt FROM \"default\" WHERE service_name = 'theo' AND span_name = 'store_node' GROUP BY kind ORDER BY cnt DESC",
+              "customQuery": true,
+              "fields": {
+                "stream": "default",
+                "stream_type": "traces",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 19,
+            "w": 24,
+            "h": 9,
+            "i": 4
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_mem_embed",
+          "type": "line",
+          "title": "Embedding Calls Over Time",
+          "description": "Number of embedding operations",
+          "config": {
+            "show_legends": false,
+            "decimals": 0,
+            "unit": ""
+          },
+          "queryType": "sql",
+          "queries": [
+            {
+              "query": "SELECT histogram(_timestamp) as \"x_axis_1\", count(*) as \"y_axis_1\" FROM \"default\" WHERE service_name = 'theo' AND span_name = 'embed' GROUP BY x_axis_1 ORDER BY x_axis_1",
+              "customQuery": true,
+              "fields": {
+                "stream": "default",
+                "stream_type": "traces",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 24,
+            "y": 19,
+            "w": 24,
+            "h": 9,
+            "i": 5
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "list": [],
+    "showDynamicFilters": true
+  },
+  "defaultDatetimeDuration": {
+    "type": "relative",
+    "relativeTimePeriod": "1h"
+  }
+}

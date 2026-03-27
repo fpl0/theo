@@ -1,0 +1,336 @@
+{
+  "version": 5,
+  "title": "Theo Overview",
+  "description": "Single-glance health status. Is Theo OK?",
+  "tabs": [
+    {
+      "tabId": "default",
+      "name": "Default",
+      "panels": [
+        {
+          "id": "Panel_overview_turns",
+          "type": "metric",
+          "title": "Conversation Turns",
+          "description": "Total conversation turns completed",
+          "config": {
+            "show_legends": false,
+            "decimals": 0,
+            "unit": ""
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum(theo_conversation_turns_total)",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 12,
+            "h": 5,
+            "i": 1
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_overview_msgs_in",
+          "type": "metric",
+          "title": "Messages Received",
+          "description": "Total Telegram messages received",
+          "config": {
+            "show_legends": false,
+            "decimals": 0,
+            "unit": ""
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum(theo_telegram_messages_received_total)",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 12,
+            "y": 0,
+            "w": 12,
+            "h": 5,
+            "i": 2
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_overview_msgs_out",
+          "type": "metric",
+          "title": "Messages Sent",
+          "description": "Total Telegram messages sent",
+          "config": {
+            "show_legends": false,
+            "decimals": 0,
+            "unit": ""
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum(theo_telegram_messages_sent_total)",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 24,
+            "y": 0,
+            "w": 12,
+            "h": 5,
+            "i": 3
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_overview_queue",
+          "type": "metric",
+          "title": "Retry Queue Depth",
+          "description": "Current retry queue size (0 is healthy)",
+          "config": {
+            "show_legends": false,
+            "decimals": 0,
+            "unit": ""
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "theo_resilience_queue_depth",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 36,
+            "y": 0,
+            "w": 12,
+            "h": 5,
+            "i": 4
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_overview_conv_rate",
+          "type": "line",
+          "title": "Conversation Rate",
+          "description": "Turns per second over time",
+          "config": {
+            "show_legends": true,
+            "decimals": 2,
+            "unit": ""
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "rate(theo_conversation_turns_total[5m])",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{llm_speed}",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 5,
+            "w": 24,
+            "h": 9,
+            "i": 5
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_overview_errors",
+          "type": "line",
+          "title": "Bus Handler Error Rate",
+          "description": "Handler errors per second",
+          "config": {
+            "show_legends": true,
+            "decimals": 2,
+            "unit": ""
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "rate(theo_bus_handler_errors_total[5m])",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{event_type}",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 24,
+            "y": 5,
+            "w": 24,
+            "h": 9,
+            "i": 6
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_overview_duration",
+          "type": "line",
+          "title": "Turn Duration (p50)",
+          "description": "Median conversation turn latency",
+          "config": {
+            "show_legends": true,
+            "decimals": 2,
+            "unit": "seconds"
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "histogram_quantile(0.5, rate(theo_conversation_duration_bucket[5m]))",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "p50",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 14,
+            "w": 48,
+            "h": 9,
+            "i": 7
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "list": [],
+    "showDynamicFilters": true
+  },
+  "defaultDatetimeDuration": {
+    "type": "relative",
+    "relativeTimePeriod": "1h"
+  }
+}

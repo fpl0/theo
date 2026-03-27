@@ -1,0 +1,291 @@
+{
+  "version": 5,
+  "title": "Theo Resilience",
+  "description": "Circuit breaker, retry queue, health checks, event bus.",
+  "tabs": [
+    {
+      "tabId": "default",
+      "name": "Default",
+      "panels": [
+        {
+          "id": "Panel_res_queue",
+          "type": "line",
+          "title": "Retry Queue Depth",
+          "description": "Current number of messages waiting for retry",
+          "config": {
+            "show_legends": false,
+            "decimals": 0,
+            "unit": ""
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "theo_resilience_queue_depth",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "queue depth",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "w": 24,
+            "h": 9,
+            "i": 1
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_res_handler_errors",
+          "type": "line",
+          "title": "Bus Handler Errors",
+          "description": "Handler failure rate by event type",
+          "config": {
+            "show_legends": true,
+            "decimals": 2,
+            "unit": ""
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (event_type)(rate(theo_bus_handler_errors_total[5m]))",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{event_type}",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 24,
+            "y": 0,
+            "w": 24,
+            "h": 9,
+            "i": 2
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_res_circuit",
+          "type": "table",
+          "title": "Circuit Breaker State Transitions",
+          "description": "Recent circuit state changes",
+          "config": {
+            "show_legends": false,
+            "decimals": 0,
+            "unit": ""
+          },
+          "queryType": "sql",
+          "queries": [
+            {
+              "query": "SELECT _timestamp as time, body as message FROM \"default\" WHERE body LIKE '%circuit state transition%' ORDER BY _timestamp DESC LIMIT 20",
+              "customQuery": true,
+              "fields": {
+                "stream": "default",
+                "stream_type": "logs",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 9,
+            "w": 48,
+            "h": 8,
+            "i": 3
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_res_health",
+          "type": "table",
+          "title": "Health Check History",
+          "description": "Recent health check results",
+          "config": {
+            "show_legends": false,
+            "decimals": 0,
+            "unit": ""
+          },
+          "queryType": "sql",
+          "queries": [
+            {
+              "query": "SELECT _timestamp as time, body as message FROM \"default\" WHERE body LIKE '%health check%' ORDER BY _timestamp DESC LIMIT 20",
+              "customQuery": true,
+              "fields": {
+                "stream": "default",
+                "stream_type": "logs",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 17,
+            "w": 48,
+            "h": 8,
+            "i": 4
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_res_bus_pub",
+          "type": "line",
+          "title": "Bus Events Published",
+          "description": "Events published per second by type",
+          "config": {
+            "show_legends": true,
+            "decimals": 2,
+            "unit": ""
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (event_type)(rate(theo_bus_events_published_total[5m]))",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{event_type}",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 0,
+            "y": 25,
+            "w": 24,
+            "h": 9,
+            "i": 5
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        },
+        {
+          "id": "Panel_res_bus_disp",
+          "type": "line",
+          "title": "Bus Events Dispatched",
+          "description": "Events dispatched per second by type",
+          "config": {
+            "show_legends": true,
+            "decimals": 2,
+            "unit": ""
+          },
+          "queryType": "promql",
+          "queries": [
+            {
+              "query": "sum by (event_type)(rate(theo_bus_events_dispatched_total[5m]))",
+              "customQuery": true,
+              "fields": {
+                "stream": "",
+                "stream_type": "metrics",
+                "x": [],
+                "y": [],
+                "z": [],
+                "breakdown": [],
+                "filter": {
+                  "filterType": "group",
+                  "logicalOperator": "AND",
+                  "conditions": []
+                }
+              },
+              "config": {
+                "promql_legend": "{event_type}",
+                "layer_type": "scatter",
+                "weight_fixed": 1
+              }
+            }
+          ],
+          "layout": {
+            "x": 24,
+            "y": 25,
+            "w": 24,
+            "h": 9,
+            "i": 6
+          },
+          "htmlContent": "",
+          "markdownContent": ""
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "list": [],
+    "showDynamicFilters": true
+  },
+  "defaultDatetimeDuration": {
+    "type": "relative",
+    "relativeTimePeriod": "1h"
+  }
+}

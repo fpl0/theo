@@ -100,10 +100,16 @@ Wait for health checks (poll `docker compose ps` every 2 seconds, up to 30 secon
 docker compose ps --format json | python3 -c "import sys,json; data=json.loads(sys.stdin.read()); print('healthy' if all(s.get('Health','')=='healthy' or s.get('State','')=='running' for s in (data if isinstance(data,list) else [data])) else 'waiting')"
 ```
 
-After both are healthy:
+After both are healthy, provision dashboards:
+
+```bash
+cd /Users/fpl0/Code/theo && just dashboards
+```
+
+This creates 6 dashboards + 5 alerts in OpenObserve. Alerts may be skipped if no data streams exist yet (they'll be created on the next run).
 
 ```
-[3/7] Infrastructure   OK  (PostgreSQL :5432, OpenObserve :5080)
+[3/7] Infrastructure   OK  (PostgreSQL :5432, OpenObserve :5080, dashboards provisioned)
 ```
 
 ## Phase 4 — Configuration

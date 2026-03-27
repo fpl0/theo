@@ -18,7 +18,8 @@ down:
 reset:
     docker compose down -v
     docker compose up -d
-    @echo "Volumes destroyed — database is empty."
+    just dashboards
+    @echo "Volumes destroyed — database is empty, dashboards provisioned."
 
 # Show container status
 status:
@@ -32,6 +33,10 @@ logs service="":
 psql:
     docker compose exec postgres psql -U theo theo
 
+# Provision OpenObserve dashboards + alerts
+dashboards:
+    infra/provision.sh
+
 # ---------------------------------------------------------------------------
 # Run
 # ---------------------------------------------------------------------------
@@ -40,8 +45,8 @@ psql:
 run:
     uv run theo
 
-# Start infra then run the agent
-dev: up
+# Start infra, provision dashboards, then run the agent
+dev: up dashboards
     uv run theo
 
 # ---------------------------------------------------------------------------

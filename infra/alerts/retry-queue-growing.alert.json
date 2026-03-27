@@ -1,0 +1,30 @@
+{
+  "name": "retry-queue-growing",
+  "stream_type": "logs",
+  "stream_name": "default",
+  "is_real_time": false,
+  "query_condition": {
+    "type": "sql",
+    "sql": "SELECT count(*) as cnt FROM \"default\" WHERE body LIKE '%enqueued message for retry%'",
+    "promql": "",
+    "conditions": [],
+    "search_event_type": "derivedstream",
+    "multi_time_range": []
+  },
+  "trigger_condition": {
+    "period": 5,
+    "operator": ">=",
+    "threshold": 3,
+    "frequency": 2,
+    "cron": "",
+    "frequency_type": "minutes",
+    "silence": 15
+  },
+  "destinations": [
+    "silent"
+  ],
+  "enabled": true,
+  "context_attributes": {},
+  "description": "Fires when multiple messages are being queued for retry, indicating sustained API unavailability.",
+  "tz_offset": 0
+}

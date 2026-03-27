@@ -1,0 +1,30 @@
+{
+  "name": "bus-handler-failure",
+  "stream_type": "logs",
+  "stream_name": "default",
+  "is_real_time": false,
+  "query_condition": {
+    "type": "sql",
+    "sql": "SELECT count(*) as cnt FROM \"default\" WHERE body LIKE '%handler failed%'",
+    "promql": "",
+    "conditions": [],
+    "search_event_type": "derivedstream",
+    "multi_time_range": []
+  },
+  "trigger_condition": {
+    "period": 5,
+    "operator": ">=",
+    "threshold": 1,
+    "frequency": 1,
+    "cron": "",
+    "frequency_type": "minutes",
+    "silence": 15
+  },
+  "destinations": [
+    "silent"
+  ],
+  "enabled": true,
+  "context_attributes": {},
+  "description": "Fires when an event bus handler throws an exception.",
+  "tz_offset": 0
+}
