@@ -679,6 +679,8 @@ class TestVoiceMessageHandling:
         assert unlinked[0].endswith(".ogg")
 
     async def test_temp_file_cleaned_up_on_transcription_error(self) -> None:
+        from theo.errors import TranscriptionError
+
         gate = _make_gate()
 
         file_mock = MagicMock()
@@ -691,16 +693,23 @@ class TestVoiceMessageHandling:
         def tracking_unlink(self: Path, **_kwargs: object) -> None:
             unlinked.append(str(self))
 
+        published: list[object] = []
+
+        async def mock_publish(event: object) -> None:
+            published.append(event)
+
         with (
-            patch.object(bus, "publish", new_callable=AsyncMock),
+            patch.object(bus, "publish", side_effect=mock_publish),
             patch("theo.gates.telegram.transcriber") as mock_transcriber,
             patch.object(Path, "unlink", tracking_unlink),
         ):
-            mock_transcriber.transcribe = AsyncMock(side_effect=RuntimeError("boom"))
-            with pytest.raises(RuntimeError, match="boom"):
-                await gate._on_message(_make_voice_message(chat_id=42))
+            mock_transcriber.transcribe = AsyncMock(
+                side_effect=TranscriptionError("boom"),
+            )
+            await gate._on_message(_make_voice_message(chat_id=42))
 
         assert len(unlinked) == 1
+        assert len(published) == 0
 
     async def test_audio_message_handled_like_voice(self) -> None:
         gate = _make_gate()

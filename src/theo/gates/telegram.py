@@ -21,7 +21,7 @@ from opentelemetry import metrics, trace
 from theo.bus import bus
 from theo.bus.events import MessageReceived, ResponseChunk, ResponseComplete
 from theo.config import get_settings
-from theo.errors import GateConfigError
+from theo.errors import GateConfigError, TranscriptionError
 from theo.transcription import transcriber
 
 if TYPE_CHECKING:
@@ -318,9 +318,19 @@ class TelegramGate:
             try:
                 file = await self._bot.get_file(voice.file_id)
                 if file.file_path is None:
+                    log.warning(
+                        "voice file has no download path",
+                        extra={"file_id": voice.file_id},
+                    )
                     return
                 await self._bot.download_file(file.file_path, destination=tmp)
                 body = await transcriber.transcribe(tmp)
+            except TranscriptionError:
+                log.exception(
+                    "voice transcription failed",
+                    extra={"chat_id": chat_id, "file_id": voice.file_id},
+                )
+                return
             finally:
                 tmp.unlink(missing_ok=True)  # noqa: ASYNC240
 

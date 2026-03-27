@@ -5,6 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+from theo.errors import TranscriptionError
 from theo.transcription import Transcriber
 
 
@@ -36,7 +39,18 @@ class TestTranscriber:
         with patch("theo.transcription.mlx_whisper.transcribe", return_value={"text": "a"}):
             await t.transcribe("/tmp/a.ogg")
             await t.transcribe("/tmp/b.ogg")
-        assert t._loaded
+        assert t._model_name is not None
+
+    async def test_wraps_exception_in_transcription_error(self) -> None:
+        t = Transcriber()
+        with (
+            patch(
+                "theo.transcription.mlx_whisper.transcribe",
+                side_effect=RuntimeError("decode failed"),
+            ),
+            pytest.raises(TranscriptionError, match="decode failed"),
+        ):
+            await t.transcribe("/tmp/bad.ogg")
 
     async def test_singleton_exists(self) -> None:
         from theo.transcription import transcriber

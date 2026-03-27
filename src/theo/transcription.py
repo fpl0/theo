@@ -12,6 +12,7 @@ import mlx_whisper
 from opentelemetry import trace
 
 from theo.config import get_settings
+from theo.errors import TranscriptionError
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -30,45 +31,51 @@ class Transcriber:
     """
 
     def __init__(self) -> None:
-        self._loaded = False
+        self._model_name: str | None = None
         self._lock = threading.Lock()
 
     # -- lazy loading (runs in worker thread) --------------------------------
 
-    def _ensure_loaded(self) -> None:
+    def _ensure_loaded(self) -> str:
         """Double-checked locking: fast path avoids the lock entirely."""
-        if self._loaded:
-            return
+        if self._model_name is not None:
+            return self._model_name
 
         with self._lock:
-            if self._loaded:
-                return
-            self._load()
+            if self._model_name is not None:
+                return self._model_name
+            return self._load()
 
-    def _load(self) -> None:
+    def _load(self) -> str:
         model = get_settings().whisper_model
-        log.info("loading whisper model %s", model)
+        log.info(
+            "whisper model will be fetched on first transcribe call",
+            extra={"model": model},
+        )
         # mlx_whisper lazily downloads and caches the model on first
-        # transcribe() call.  We just record that init has been requested.
-        self._loaded = True
-        log.info("whisper model ready: %s", model)
+        # transcribe() call — no eager loading needed here.
+        self._model_name = model
+        return model
 
     # -- sync core (called inside worker thread) -----------------------------
 
     def _transcribe_sync(self, audio_path: str | Path) -> str:
-        self._ensure_loaded()
-
-        model = get_settings().whisper_model
+        model = self._ensure_loaded()
         start = time.perf_counter()
 
         with tracer.start_as_current_span(
             "transcribe",
-            attributes={"audio.path": str(audio_path)},
+            attributes={"audio.suffix": ".ogg"},
         ) as span:
-            result: Mapping[str, object] = mlx_whisper.transcribe(
-                str(audio_path),
-                path_or_hf_repo=model,
-            )
+            try:
+                result: Mapping[str, object] = mlx_whisper.transcribe(
+                    str(audio_path),
+                    path_or_hf_repo=model,
+                )
+            except Exception as exc:
+                msg = f"transcription failed: {exc}"
+                raise TranscriptionError(msg) from exc
+
             text = str(result.get("text", "")).strip()
             duration_s = time.perf_counter() - start
 
@@ -78,7 +85,6 @@ class Transcriber:
             log.info(
                 "transcribed audio",
                 extra={
-                    "audio_path": str(audio_path),
                     "duration_s": round(duration_s, 2),
                     "text_length": len(text),
                 },
