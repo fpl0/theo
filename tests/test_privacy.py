@@ -427,3 +427,27 @@ async def test_store_episode_escalates_sensitivity() -> None:
     assert result == 99
     args = mock_pool.fetchval.call_args.args
     assert args[8] == "sensitive"  # sensitivity param (position 8 in INSERT)
+
+
+async def test_store_node_caps_sensitivity_for_verified_trust() -> None:
+    settings = _settings(privacy_filter_enabled=True)
+    mock_pool = AsyncMock()
+    mock_pool.fetchval.return_value = 42
+    mock_embedder = AsyncMock()
+    mock_embedder.embed_one.return_value = _fake_vector()
+
+    with (
+        patch("theo.memory.nodes.db", pool=mock_pool),
+        patch("theo.memory.nodes.embedder", mock_embedder),
+        patch("theo.memory.privacy.get_settings", return_value=settings),
+    ):
+        result = await store_node(
+            kind="fact",
+            body="hello world",
+            trust="verified",
+            sensitivity="private",
+        )
+
+    assert result == 42
+    args = mock_pool.fetchval.call_args.args
+    assert args[7] == "sensitive"  # capped from private to sensitive

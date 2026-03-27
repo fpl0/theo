@@ -7,15 +7,21 @@ import logging
 import re
 from typing import TYPE_CHECKING, Literal
 
-from opentelemetry import trace
+from opentelemetry import metrics, trace
 
 from theo.config import get_settings
+from theo.errors import PrivacyViolationError
 
 if TYPE_CHECKING:
     from theo.memory._types import EpisodeChannel, SensitivityLevel, TrustTier
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+meter = metrics.get_meter(__name__)
+_decisions_counter = meter.create_counter(
+    "theo.privacy.decisions",
+    description="Privacy filter decisions",
+)
 
 # ---------------------------------------------------------------------------
 # Types
@@ -55,8 +61,11 @@ _TRUST_RULES: dict[str, tuple[bool, str]] = {
 
 def _check_trust(trust: TrustTier) -> tuple[bool, SensitivityLevel]:
     """Return (allowed, max_sensitivity) for the given trust tier."""
+    if trust not in _TRUST_RULES:
+        msg = f"unknown trust tier: {trust!r}"
+        raise PrivacyViolationError(msg)
     allowed, max_sens = _TRUST_RULES[trust]
-    return allowed, max_sens  # type: ignore[return-value]
+    return allowed, max_sens
 
 
 # ---------------------------------------------------------------------------
@@ -82,7 +91,6 @@ _CATEGORY_PATTERNS: dict[str, re.Pattern[str]] = {
     "identity": re.compile(
         r"\b(?:passport\s*(?:number|#|num)?|"
         r"driver'?s?\s*licen[sc]e|"
-        r"ssn|social\s*security\s*(?:number|#)?|"
         r"national\s*id|birth\s*certificate|"
         r"biometric)\b",
         re.IGNORECASE,
@@ -110,8 +118,8 @@ def _classify_content(body: str) -> ContentCategory:
     """Classify body text into a content category using keyword heuristics."""
     for category, pattern in _CATEGORY_PATTERNS.items():
         if pattern.search(body):
-            return category  # type: ignore[return-value]
-    return "general"  # type: ignore[return-value]
+            return category
+    return "general"
 
 
 # ---------------------------------------------------------------------------
@@ -179,6 +187,14 @@ def evaluate(
                     "privacy.sensitivity": sensitivity,
                 }
             )
+            _decisions_counter.add(
+                1,
+                {
+                    "privacy.trust": trust,
+                    "privacy.category": "unclassified",
+                    "privacy.decision": "allowed",
+                },
+            )
             return PrivacyDecision(
                 allowed=True,
                 sensitivity=sensitivity,
@@ -236,6 +252,11 @@ def evaluate(
         if channel is not None:
             span.set_attribute("privacy.channel", channel)
 
+        _decisions_counter.add(
+            1,
+            {"privacy.trust": trust, "privacy.category": category, "privacy.decision": decision},
+        )
+
         return PrivacyDecision(
             allowed=allowed,
             sensitivity=final_sens,
@@ -247,10 +268,7 @@ def evaluate(
 # Helpers
 # ---------------------------------------------------------------------------
 
-_ORD_TO_SENSITIVITY: dict[int, SensitivityLevel] = {
-    v: k
-    for k, v in _SENSITIVITY_ORDER.items()  # type: ignore[misc]
-}
+_ORD_TO_SENSITIVITY: dict[int, SensitivityLevel] = {v: k for k, v in _SENSITIVITY_ORDER.items()}
 
 
 def _ord_to_sensitivity(ordinal: int) -> SensitivityLevel:
