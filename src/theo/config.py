@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     context_memory_budget: int = 2000
     context_history_budget: int = 4000
 
+    # Retrieval (hybrid search / RRF fusion)
+    retrieval_rrf_k: int = 60
+    retrieval_candidate_limit: int = 50
+    retrieval_graph_seed_count: int = 5
+    retrieval_graph_max_depth: int = 2
+
     # Telegram gate
     telegram_bot_token: SecretStr | None = None
     telegram_owner_chat_id: int | None = None
@@ -46,6 +52,22 @@ class Settings(BaseSettings):
     def _validate_pool_bounds(self) -> Self:
         if self.db_pool_min > self.db_pool_max:
             msg = f"db_pool_min ({self.db_pool_min}) must be <= db_pool_max ({self.db_pool_max})"
+            raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
+    def _validate_retrieval_bounds(self) -> Self:
+        if self.retrieval_candidate_limit < 1:
+            msg = "retrieval_candidate_limit must be >= 1"
+            raise ValueError(msg)
+        if self.retrieval_graph_seed_count < 1:
+            msg = "retrieval_graph_seed_count must be >= 1"
+            raise ValueError(msg)
+        if self.retrieval_graph_max_depth < 1:
+            msg = "retrieval_graph_max_depth must be >= 1"
+            raise ValueError(msg)
+        if self.retrieval_graph_seed_count > self.retrieval_candidate_limit:
+            msg = "retrieval_graph_seed_count must be <= retrieval_candidate_limit"
             raise ValueError(msg)
         return self
 
