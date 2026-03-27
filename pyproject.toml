@@ -81,8 +81,8 @@ rules = { unresolved-attribute = "ignore" }
 # pydantic-settings constructors accept str for SecretStr and dynamic kwargs
 # like _env_file that ty cannot model.
 [[tool.ty.overrides]]
-include = ["tests/test_config.py", "tests/test_llm.py"]
-rules = { invalid-argument-type = "ignore", missing-argument = "ignore" }
+include = ["tests/test_config.py", "tests/test_llm.py", "tests/test_retrieval.py"]
+rules = { invalid-argument-type = "ignore", missing-argument = "ignore", unknown-argument = "ignore" }
 
 [tool.sqlfluff.core]
 dialect = "postgres"

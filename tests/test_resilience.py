@@ -11,8 +11,8 @@ import pytest
 from theo import resilience
 from theo.bus import EventBus
 from theo.bus.events import MessageReceived, ResponseComplete
-from theo.conversation.context import AssembledContext
 from theo.conversation import _API_DOWN_ACK, ConversationEngine
+from theo.conversation.context import AssembledContext
 from theo.errors import APIUnavailableError, CircuitOpenError
 from theo.llm import StreamDone, TextDelta
 from theo.resilience import CircuitBreaker, HealthStatus, RetryQueue, health_check

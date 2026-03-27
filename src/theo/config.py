@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     context_memory_budget: int = 2000
     context_history_budget: int = 4000
 
+    # Retrieval (hybrid search / RRF fusion)
+    retrieval_rrf_k: int = 60
+    retrieval_candidate_limit: int = 50
+    retrieval_graph_seed_count: int = 5
+    retrieval_graph_max_depth: int = 2
+
     # Telegram gate
     telegram_bot_token: SecretStr | None = None
     telegram_owner_chat_id: int | None = None

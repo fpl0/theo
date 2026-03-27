@@ -309,8 +309,14 @@ async def test_assemble_full_context() -> None:
     ]
 
     with (
-        patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value=core_docs),
-        patch("theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=nodes),
+        patch(
+            "theo.conversation.context.core.read_all",
+            new_callable=AsyncMock,
+            return_value=core_docs,
+        ),
+        patch(
+            "theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=nodes
+        ),
         patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=eps),
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hello Theo")
@@ -342,7 +348,11 @@ async def test_assemble_no_relevant_memories() -> None:
     core_docs = _all_core_docs()
 
     with (
-        patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value=core_docs),
+        patch(
+            "theo.conversation.context.core.read_all",
+            new_callable=AsyncMock,
+            return_value=core_docs,
+        ),
         patch("theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=[]),
         patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
     ):
@@ -383,7 +393,11 @@ async def test_assemble_core_memory_never_truncated() -> None:
     core_docs = {"persona": _core_doc("persona", large_body)}
 
     with (
-        patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value=core_docs),
+        patch(
+            "theo.conversation.context.core.read_all",
+            new_callable=AsyncMock,
+            return_value=core_docs,
+        ),
         patch("theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=[]),
         patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
     ):
@@ -403,8 +417,14 @@ async def test_assemble_token_estimate_sums_sections() -> None:
     eps = [_episode(role="user", body="Hi")]
 
     with (
-        patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value=core_docs),
-        patch("theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=nodes),
+        patch(
+            "theo.conversation.context.core.read_all",
+            new_callable=AsyncMock,
+            return_value=core_docs,
+        ),
+        patch(
+            "theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=nodes
+        ),
         patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=eps),
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hi")
@@ -422,7 +442,11 @@ async def test_assemble_respects_history_budget() -> None:
     ]
 
     with (
-        patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value=core_docs),
+        patch(
+            "theo.conversation.context.core.read_all",
+            new_callable=AsyncMock,
+            return_value=core_docs,
+        ),
         patch("theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=[]),
         patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=eps),
     ):
