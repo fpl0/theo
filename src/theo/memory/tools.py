@@ -1,25 +1,29 @@
 """Memory tools exposed to Claude via Anthropic tool-use.
 
-Four tools give Claude autonomous control over Theo's memory:
+Five tools give Claude autonomous control over Theo's memory:
 
 - ``store_memory`` — persist a new observation or fact as a knowledge node.
 - ``search_memory`` — search the knowledge graph by semantic similarity.
 - ``read_core_memory`` — read the always-on core memory documents.
 - ``update_core_memory`` — update a core memory document with changelog.
+- ``update_user_model`` — update a structured user model dimension.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable, Coroutine
 from typing import Any, cast
 
 from opentelemetry import trace
 
-from theo.memory import core, nodes
+from theo.memory import core, nodes, user_model
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+
+type _ToolHandler = Callable[[dict[str, object]], Coroutine[Any, Any, str]]
 
 # ── Anthropic tool schemas ───────────────────────────────────────────
 
@@ -113,9 +117,68 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "required": ["label", "body"],
         },
     },
+    {
+        "name": "update_user_model",
+        "description": (
+            "Update a specific dimension of the structured user model. "
+            "Use this when you learn something about the user's values, "
+            "personality, communication preferences, energy patterns, "
+            "goals, or boundaries."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "framework": {
+                    "type": "string",
+                    "enum": [
+                        "schwartz",
+                        "big_five",
+                        "narrative",
+                        "communication",
+                        "energy",
+                        "goals",
+                        "boundaries",
+                    ],
+                    "description": "Which framework the dimension belongs to.",
+                },
+                "dimension": {
+                    "type": "string",
+                    "description": (
+                        "The specific dimension to update "
+                        "(e.g. 'openness', 'verbosity', 'active_goals', 'identity_themes')."
+                    ),
+                },
+                "value": {
+                    "type": "object",
+                    "description": "The updated value for this dimension.",
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "What evidence supports this update.",
+                },
+            },
+            "required": ["framework", "dimension", "value"],
+        },
+    },
 ]
 
 # ── Tool execution ───────────────────────────────────────────────────
+
+
+_TOOL_DISPATCH: dict[str, _ToolHandler] = {}
+
+
+def _register_dispatch() -> None:
+    """Populate the dispatch table after handler functions are defined."""
+    _TOOL_DISPATCH.update(
+        {
+            "store_memory": _store_memory,
+            "search_memory": _search_memory,
+            "read_core_memory": _read_core_memory_wrapper,
+            "update_core_memory": _update_core_memory,
+            "update_user_model": _update_user_model,
+        }
+    )
 
 
 async def execute_tool(name: str, tool_input: dict[str, object]) -> str:
@@ -129,15 +192,10 @@ async def execute_tool(name: str, tool_input: dict[str, object]) -> str:
         attributes={"tool.name": name},
     ):
         try:
-            if name == "store_memory":
-                return await _store_memory(tool_input)
-            if name == "search_memory":
-                return await _search_memory(tool_input)
-            if name == "read_core_memory":
-                return await _read_core_memory()
-            if name == "update_core_memory":
-                return await _update_core_memory(tool_input)
-            return f"Unknown tool: {name}"  # noqa: TRY300
+            handler = _TOOL_DISPATCH.get(name)
+            if handler is None:
+                return f"Unknown tool: {name}"
+            return await handler(tool_input)
         except Exception as exc:  # noqa: BLE001
             log.warning("tool execution failed", extra={"tool": name, "error": str(exc)})
             return f"Error executing {name}: {exc}"
@@ -179,7 +237,7 @@ async def _search_memory(tool_input: dict[str, object]) -> str:
     )
 
 
-async def _read_core_memory() -> str:
+async def _read_core_memory_wrapper(_tool_input: dict[str, object]) -> str:
     docs = await core.read_all()
     return json.dumps(
         {label: {"body": doc.body, "version": doc.version} for label, doc in docs.items()}
@@ -200,3 +258,34 @@ async def _update_core_memory(tool_input: dict[str, object]) -> str:
         reason=str(reason) if reason is not None else None,
     )
     return json.dumps({"updated": True, "label": label, "version": new_version})
+
+
+async def _update_user_model(tool_input: dict[str, object]) -> str:
+    framework = str(tool_input.get("framework", ""))
+    dimension = str(tool_input.get("dimension", ""))
+    raw_value = tool_input.get("value")
+    if not isinstance(raw_value, dict):
+        return "Error: 'value' must be a JSON object."
+    value: dict[str, Any] = cast("dict[str, Any]", raw_value)
+    reason = tool_input.get("reason")
+
+    result = await user_model.update_dimension(
+        framework,
+        dimension,
+        value=value,
+        reason=str(reason) if reason is not None else None,
+    )
+    return json.dumps(
+        {
+            "updated": True,
+            "framework": result.framework,
+            "dimension": result.dimension,
+            "confidence": result.confidence,
+            "evidence_count": result.evidence_count,
+        }
+    )
+
+
+# ── Bootstrap ─────────────────────────────────────────────────────────
+
+_register_dispatch()

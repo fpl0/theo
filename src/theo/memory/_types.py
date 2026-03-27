@@ -48,3 +48,16 @@ class EpisodeResult:
     meta: dict[str, Any]
     created_at: datetime
     similarity: float | None = None
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class DimensionResult:
+    """A single dimension from the structured user model."""
+
+    id: int
+    framework: str
+    dimension: str
+    value: dict[str, Any]
+    confidence: float
+    evidence_count: int
+    updated_at: datetime
