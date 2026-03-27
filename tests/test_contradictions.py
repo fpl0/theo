@@ -176,8 +176,8 @@ async def test_check_contradiction_handles_invalid_llm_json() -> None:
 
 async def test_resolve_contradiction_reduces_confidence_and_creates_edge() -> None:
     mock_conn = AsyncMock()
-    # fetchval: first two calls return current confidence, third returns edge id
-    mock_conn.fetchval.side_effect = [0.8, 0.9, 1]
+    # fetchval: only the edge insert returns an id now (no confidence lookups)
+    mock_conn.fetchval.return_value = 1
     pool = _make_pool_with_conn(mock_conn)
 
     conflict = ConflictResult(
@@ -192,15 +192,15 @@ async def test_resolve_contradiction_reduces_confidence_and_creates_edge() -> No
     # Two confidence updates + one expire edge = 3 execute calls
     assert mock_conn.execute.await_count == 3
 
-    # First execute: confidence update for new_node_id=100, 0.8-0.3=0.5
+    # First execute: atomic confidence reduction for new_node_id=100
     first_call = mock_conn.execute.call_args_list[0]
     assert first_call.args[1] == 100
-    assert first_call.args[2] == pytest.approx(0.5)
+    assert first_call.args[2] == pytest.approx(0.3)
 
-    # Second execute: confidence update for conflicting_node_id=42, 0.9-0.3=0.6
+    # Second execute: atomic confidence reduction for conflicting_node_id=42
     second_call = mock_conn.execute.call_args_list[1]
     assert second_call.args[1] == 42
-    assert second_call.args[2] == pytest.approx(0.6)
+    assert second_call.args[2] == pytest.approx(0.3)
 
     # Third execute: expire active edge
     third_call = mock_conn.execute.call_args_list[2]
@@ -208,8 +208,8 @@ async def test_resolve_contradiction_reduces_confidence_and_creates_edge() -> No
     assert third_call.args[2] == 42
     assert third_call.args[3] == "contradicts"
 
-    # Edge insert via fetchval (last call after the two confidence fetches)
-    edge_call = mock_conn.fetchval.call_args_list[2]
+    # Edge insert via fetchval
+    edge_call = mock_conn.fetchval.call_args_list[0]
     assert edge_call.args[1] == 100  # source_id
     assert edge_call.args[2] == 42  # target_id
     assert edge_call.args[3] == "contradicts"  # label
@@ -219,9 +219,8 @@ async def test_resolve_contradiction_reduces_confidence_and_creates_edge() -> No
 
 async def test_resolve_contradiction_passes_raw_reduced_value_to_db() -> None:
     mock_conn = AsyncMock()
-    # Return low confidence values that would go below 0.1.
-    # fetchval: two confidence lookups + edge insert id
-    mock_conn.fetchval.side_effect = [0.2, 0.15, 1]
+    # fetchval: only edge insert id (no confidence lookups with atomic SQL)
+    mock_conn.fetchval.return_value = 1
     pool = _make_pool_with_conn(mock_conn)
 
     conflict = ConflictResult(
@@ -233,13 +232,13 @@ async def test_resolve_contradiction_passes_raw_reduced_value_to_db() -> None:
     with patch("theo.memory.contradictions.db", pool=pool):
         await resolve_contradiction(new_node_id=100, conflict=conflict)
 
-    # The SQL uses GREATEST($2, 0.1), so even negative values are floored at DB level.
-    # We pass the raw reduced value and let PostgreSQL handle the floor.
+    # The SQL uses GREATEST(confidence - $2, 0.1), so the reduction amount is
+    # passed directly and PostgreSQL handles the floor atomically.
     first_call = mock_conn.execute.call_args_list[0]
-    assert first_call.args[2] == pytest.approx(-0.1)  # 0.2 - 0.3
+    assert first_call.args[2] == pytest.approx(0.3)
 
     second_call = mock_conn.execute.call_args_list[1]
-    assert second_call.args[2] == pytest.approx(-0.15)  # 0.15 - 0.3
+    assert second_call.args[2] == pytest.approx(0.3)
 
 
 # ---------------------------------------------------------------------------
@@ -279,10 +278,10 @@ async def test_store_node_triggers_contradiction_check_when_enabled(
     ):
         mock_settings.return_value = MagicMock(contradiction_check_enabled=True)
         result = await store_node(kind="fact", body="Earth is round")
-        # Let the fire-and-forget task run
+        # Let the fire-and-forget task run (must be inside patch context)
         await asyncio.sleep(0)
 
-    assert result == 99
+        assert result == 99
     mock_check.assert_awaited_once_with("Earth is round", "fact")
 
 
