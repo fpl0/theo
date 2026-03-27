@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+import dataclasses
+from contextlib import AbstractContextManager, contextmanager
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
 import numpy as np
 import pytest
 
+from theo.config import Settings
 from theo.memory import NodeResult
 from theo.memory.retrieval import hybrid_search
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -24,34 +31,37 @@ def _fake_vector() -> np.ndarray:
     return vec / np.linalg.norm(vec)
 
 
-def _result_row(  # noqa: PLR0913
-    *,
-    node_id: int = 1,
-    kind: str = "fact",
-    body: str = "Python was created by Guido van Rossum",
-    trust: str = "inferred",
-    confidence: float = 0.8,
-    importance: float = 0.7,
-    sensitivity: str = "normal",
-    similarity: float = 0.05,
-    in_vector: bool = True,
-    in_fts: bool = False,
-    in_graph: bool = False,
-) -> dict:
+@dataclasses.dataclass(slots=True)
+class _RowSpec:
+    node_id: int = 1
+    kind: str = "fact"
+    body: str = "Python was created by Guido van Rossum"
+    trust: str = "inferred"
+    confidence: float = 0.8
+    importance: float = 0.7
+    sensitivity: str = "normal"
+    similarity: float = 0.05
+    in_vector: bool = True
+    in_fts: bool = False
+    in_graph: bool = False
+
+
+def _result_row(**kwargs: object) -> dict:
+    spec = _RowSpec(**kwargs)
     return {
-        "id": node_id,
-        "kind": kind,
-        "body": body,
-        "trust": trust,
-        "confidence": confidence,
-        "importance": importance,
-        "sensitivity": sensitivity,
+        "id": spec.node_id,
+        "kind": spec.kind,
+        "body": spec.body,
+        "trust": spec.trust,
+        "confidence": spec.confidence,
+        "importance": spec.importance,
+        "sensitivity": spec.sensitivity,
         "meta": {},
         "created_at": _NOW,
-        "similarity": similarity,
-        "in_vector": in_vector,
-        "in_fts": in_fts,
-        "in_graph": in_graph,
+        "similarity": spec.similarity,
+        "in_vector": spec.in_vector,
+        "in_fts": spec.in_fts,
+        "in_graph": spec.in_graph,
     }
 
 
@@ -67,15 +77,11 @@ def mock_embedder() -> AsyncMock:
     return mock
 
 
-def _patch(mock_pool: AsyncMock, mock_embedder: AsyncMock):
+def _patch(mock_pool: AsyncMock, mock_embedder: AsyncMock) -> AbstractContextManager[None]:
     """Context manager that patches db pool, embedder, and config."""
-    from contextlib import contextmanager  # noqa: PLC0415
-
-    from theo.config import Settings  # noqa: PLC0415
-
     cfg = Settings(
-        database_url="postgresql://theo:test@localhost/theo",  # type: ignore[arg-type]
-        anthropic_api_key="sk-ant-test",  # type: ignore[arg-type]
+        database_url="postgresql://theo:test@localhost/theo",
+        anthropic_api_key="sk-ant-test",
         retrieval_rrf_k=60,
         retrieval_candidate_limit=50,
         retrieval_graph_seed_count=5,
@@ -84,7 +90,7 @@ def _patch(mock_pool: AsyncMock, mock_embedder: AsyncMock):
     )
 
     @contextmanager
-    def _cm():
+    def _cm() -> Iterator[None]:
         with (
             patch("theo.memory.retrieval.db", pool=mock_pool),
             patch("theo.memory.retrieval.embedder", mock_embedder),
@@ -122,7 +128,6 @@ async def test_node_in_all_signals_ranks_higher(
     mock_embedder: AsyncMock,
 ) -> None:
     """A node appearing in all three signals gets a higher RRF score."""
-    # Simulate: node 1 in all signals (higher score), node 2 in vector only
     all_three_score = 1.0 / (60 + 1) + 1.0 / (60 + 1) + 1.0 / (60 + 1)
     vector_only_score = 1.0 / (60 + 2)
     mock_pool.fetch.return_value = [

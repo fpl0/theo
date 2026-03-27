@@ -8,7 +8,7 @@ M1 retrieval was pure vector similarity via `search_nodes()` in `nodes.py` — a
 
 RRF scores each node as `SUM(1/(k + rank_i))` across signals where it appears. This was chosen over learned-weight fusion because it requires no training data, handles missing signals gracefully (a node absent from a signal simply gets zero contribution), and is well-established in information retrieval literature. The constant `k=60` is configurable via `Settings.retrieval_rrf_k`.
 
-The entire fusion runs as a single SQL query with CTEs: `vector_ranked`, `fts_ranked`, `graph_seeds`, `graph_traversal`, `graph_deduped`, `graph_ranked`, and `rrf_fused`. This avoids multiple round-trips and lets PostgreSQL's optimizer see the full plan.
+The entire fusion runs as a single SQL query with seven CTEs: `vector_ranked`, `fts_ranked`, `graph_seeds`, `graph_traversal`, `graph_deduped`, `graph_ranked`, and `rrf_fused`. This avoids multiple round-trips and lets PostgreSQL's optimizer see the full plan.
 
 ## Decision: Graph traversal seeded from top vector hits
 

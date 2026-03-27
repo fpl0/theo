@@ -55,6 +55,22 @@ class Settings(BaseSettings):
             raise ValueError(msg)
         return self
 
+    @model_validator(mode="after")
+    def _validate_retrieval_bounds(self) -> Self:
+        if self.retrieval_candidate_limit < 1:
+            msg = "retrieval_candidate_limit must be >= 1"
+            raise ValueError(msg)
+        if self.retrieval_graph_seed_count < 1:
+            msg = "retrieval_graph_seed_count must be >= 1"
+            raise ValueError(msg)
+        if self.retrieval_graph_max_depth < 1:
+            msg = "retrieval_graph_max_depth must be >= 1"
+            raise ValueError(msg)
+        if self.retrieval_graph_seed_count > self.retrieval_candidate_limit:
+            msg = "retrieval_graph_seed_count must be <= retrieval_candidate_limit"
+            raise ValueError(msg)
+        return self
+
 
 @cache
 def get_settings() -> Settings:

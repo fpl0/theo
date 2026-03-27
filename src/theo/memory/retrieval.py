@@ -30,7 +30,7 @@ _duration_histogram = meter.create_histogram(
 )
 
 # ---------------------------------------------------------------------------
-# SQL — single RRF query with four CTEs
+# SQL — single RRF query with seven CTEs
 # ---------------------------------------------------------------------------
 #
 # Parameters:
@@ -252,62 +252,64 @@ async def hybrid_search(
     cfg = get_settings()
     start = time.monotonic()
 
-    with tracer.start_as_current_span(
-        "hybrid_search",
-        attributes={
-            "search.limit": limit,
-            **({"search.kind": kind} if kind is not None else {}),
-        },
-    ) as span:
-        vec = await embedder.embed_one(query)
+    try:
+        with tracer.start_as_current_span(
+            "hybrid_search",
+            attributes={
+                "search.limit": limit,
+                **({"search.kind": kind} if kind is not None else {}),
+            },
+        ) as span:
+            vec = await embedder.embed_one(query)
 
-        if kind is not None:
-            rows = await db.pool.fetch(
-                _HYBRID_SEARCH_BY_KIND,
-                vec,
-                cfg.retrieval_candidate_limit,
-                query,
-                cfg.retrieval_rrf_k,
-                cfg.retrieval_graph_max_depth,
-                cfg.retrieval_graph_seed_count,
-                limit,
-                kind,
+            if kind is not None:
+                rows = await db.pool.fetch(
+                    _HYBRID_SEARCH_BY_KIND,
+                    vec,
+                    cfg.retrieval_candidate_limit,
+                    query,
+                    cfg.retrieval_rrf_k,
+                    cfg.retrieval_graph_max_depth,
+                    cfg.retrieval_graph_seed_count,
+                    limit,
+                    kind,
+                )
+            else:
+                rows = await db.pool.fetch(
+                    _HYBRID_SEARCH,
+                    vec,
+                    cfg.retrieval_candidate_limit,
+                    query,
+                    cfg.retrieval_rrf_k,
+                    cfg.retrieval_graph_max_depth,
+                    cfg.retrieval_graph_seed_count,
+                    limit,
+                )
+
+            results = [_row_to_result(r) for r in rows]
+
+            vector_hits = sum(1 for r in rows if r["in_vector"])
+            fts_hits = sum(1 for r in rows if r["in_fts"])
+            graph_hits = sum(1 for r in rows if r["in_graph"])
+
+            span.set_attribute("search.vector_hits", vector_hits)
+            span.set_attribute("search.fts_hits", fts_hits)
+            span.set_attribute("search.graph_hits", graph_hits)
+            span.set_attribute("search.result_count", len(results))
+
+            log.info(
+                "hybrid search completed",
+                extra={
+                    "result_count": len(results),
+                    "vector_hits": vector_hits,
+                    "fts_hits": fts_hits,
+                    "graph_hits": graph_hits,
+                },
             )
-        else:
-            rows = await db.pool.fetch(
-                _HYBRID_SEARCH,
-                vec,
-                cfg.retrieval_candidate_limit,
-                query,
-                cfg.retrieval_rrf_k,
-                cfg.retrieval_graph_max_depth,
-                cfg.retrieval_graph_seed_count,
-                limit,
-            )
-
-        results = [_row_to_result(r) for r in rows]
-
-        vector_hits = sum(1 for r in rows if r["in_vector"])
-        fts_hits = sum(1 for r in rows if r["in_fts"])
-        graph_hits = sum(1 for r in rows if r["in_graph"])
-
-        span.set_attribute("search.vector_hits", vector_hits)
-        span.set_attribute("search.fts_hits", fts_hits)
-        span.set_attribute("search.graph_hits", graph_hits)
-
+            return results
+    finally:
         elapsed_ms = (time.monotonic() - start) * 1000
         _duration_histogram.record(elapsed_ms)
-
-        log.info(
-            "hybrid search completed",
-            extra={
-                "result_count": len(results),
-                "vector_hits": vector_hits,
-                "fts_hits": fts_hits,
-                "graph_hits": graph_hits,
-            },
-        )
-        return results
 
 
 # ---------------------------------------------------------------------------
