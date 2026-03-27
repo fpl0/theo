@@ -217,11 +217,18 @@ async def assemble(
         parts: list[str] = []
         onboarding_state = await get_onboarding_state()
         if onboarding_state is not None:
-            phase_prompt = get_phase_system_prompt(onboarding_state.phase)
-            phase_num = onboarding_state.phase_index + 1
-            phase_name = onboarding_state.phase.replace("_", " ").title()
-            parts.append(f"## Onboarding (Phase {phase_num}: {phase_name})\n{phase_prompt}")
-            span.set_attribute("context.onboarding_phase", onboarding_state.phase)
+            try:
+                phase_prompt = get_phase_system_prompt(onboarding_state.phase)
+            except KeyError:
+                log.warning(
+                    "unknown onboarding phase, skipping prompt injection",
+                    extra={"phase": onboarding_state.phase},
+                )
+            else:
+                phase_num = onboarding_state.phase_index + 1
+                phase_name = onboarding_state.phase.replace("_", " ").title()
+                parts.append(f"## Onboarding (Phase {phase_num}: {phase_name})\n{phase_prompt}")
+                span.set_attribute("context.onboarding_phase", onboarding_state.phase)
 
         if core_section:
             parts.append(core_section)

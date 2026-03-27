@@ -34,7 +34,7 @@ _NOW = datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)
 
 def _context_doc(body: dict[str, Any] | None = None) -> CoreDocument:
     return CoreDocument(
-        label="context",  # type: ignore[arg-type]
+        label="context",
         body=body if body is not None else {"current_task": None, "focus": None},
         version=1,
         updated_at=_NOW,
@@ -45,15 +45,13 @@ def _make_state(
     *,
     phase: str = "welcome",
     phase_index: int = 0,
-    completed_phases: list[str] | None = None,
-    paused: bool = False,
+    completed_phases: tuple[str, ...] = (),
 ) -> OnboardingState:
     return OnboardingState(
         phase=phase,
         phase_index=phase_index,
         started_at="2026-01-15T12:00:00+00:00",
-        completed_phases=completed_phases or [],
-        paused=paused,
+        completed_phases=completed_phases,
     )
 
 
@@ -116,24 +114,28 @@ class TestPhases:
 
 class TestStateSerialization:
     def test_round_trip(self) -> None:
-        state = _make_state(phase="values", phase_index=1, completed_phases=["welcome"])
+        state = _make_state(phase="values", phase_index=1, completed_phases=("welcome",))
         serialized = _state_to_dict(state)
         restored = _dict_to_state(serialized)
         assert restored.phase == state.phase
         assert restored.phase_index == state.phase_index
         assert restored.started_at == state.started_at
         assert restored.completed_phases == state.completed_phases
-        assert restored.paused == state.paused
 
-    def test_paused_default_false(self) -> None:
+    def test_serializes_completed_phases_as_list(self) -> None:
+        state = _make_state(completed_phases=("welcome", "values"))
+        serialized = _state_to_dict(state)
+        assert isinstance(serialized["completed_phases"], list)
+
+    def test_deserializes_completed_phases_as_tuple(self) -> None:
         data = {
             "phase": "welcome",
             "phase_index": 0,
             "started_at": "2026-01-15T12:00:00+00:00",
-            "completed_phases": [],
+            "completed_phases": ["welcome"],
         }
         state = _dict_to_state(data)
-        assert state.paused is False
+        assert isinstance(state.completed_phases, tuple)
 
 
 # ---------------------------------------------------------------------------
@@ -201,8 +203,7 @@ class TestStartOnboarding:
 
         assert state.phase == "welcome"
         assert state.phase_index == 0
-        assert state.completed_phases == []
-        assert state.paused is False
+        assert state.completed_phases == ()
 
     async def test_persists_to_context(self) -> None:
         mock_read_one = AsyncMock(return_value=_context_doc())
@@ -219,6 +220,21 @@ class TestStartOnboarding:
         body = call_kwargs.kwargs["body"]
         assert "onboarding" in body
         assert body["onboarding"]["phase"] == "welcome"
+
+    async def test_clears_completed_flag_on_restart(self) -> None:
+        """Starting onboarding must clear a stale onboarding_completed flag."""
+        doc = _context_doc({"current_task": None, "onboarding_completed": True})
+        mock_read_one = AsyncMock(return_value=doc)
+        mock_update = AsyncMock(return_value=2)
+        with (
+            patch("theo.onboarding.flow.core.read_one", mock_read_one),
+            patch("theo.onboarding.flow.core.update", mock_update),
+        ):
+            await start_onboarding()
+
+        body = mock_update.call_args.kwargs["body"]
+        assert "onboarding_completed" not in body
+        assert "onboarding" in body
 
 
 # ---------------------------------------------------------------------------
@@ -246,7 +262,7 @@ class TestAdvancePhase:
         state = _make_state(
             phase="wrap_up",
             phase_index=7,
-            completed_phases=list(PHASES[:-1]),
+            completed_phases=PHASES[:-1],
         )
         mock_read_one = AsyncMock(return_value=_context_doc({"onboarding": {}}))
         mock_update = AsyncMock(return_value=2)
@@ -259,7 +275,7 @@ class TestAdvancePhase:
         assert result is None
 
     async def test_preserves_started_at(self) -> None:
-        state = _make_state(phase="values", phase_index=1, completed_phases=["welcome"])
+        state = _make_state(phase="values", phase_index=1, completed_phases=("welcome",))
         mock_read_one = AsyncMock(return_value=_context_doc())
         mock_update = AsyncMock(return_value=2)
         with (
@@ -375,7 +391,7 @@ class TestAdvanceOnboardingTool:
 
     async def test_returns_next_phase(self) -> None:
         state = _make_state(phase="welcome", phase_index=0)
-        new_state = _make_state(phase="values", phase_index=1, completed_phases=["welcome"])
+        new_state = _make_state(phase="values", phase_index=1, completed_phases=("welcome",))
 
         with (
             patch(
@@ -486,7 +502,7 @@ class TestContextOnboardingIntegration:
 
 def _context_doc_as(label: str, body: dict[str, Any]) -> CoreDocument:
     return CoreDocument(
-        label=label,  # type: ignore[arg-type]
+        label=label,
         body=body,
         version=1,
         updated_at=_NOW,

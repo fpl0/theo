@@ -31,8 +31,7 @@ class OnboardingState:
     phase: str
     phase_index: int
     started_at: str
-    completed_phases: list[str]
-    paused: bool = False
+    completed_phases: tuple[str, ...]
 
 
 def _state_to_dict(state: OnboardingState) -> dict[str, Any]:
@@ -40,8 +39,7 @@ def _state_to_dict(state: OnboardingState) -> dict[str, Any]:
         "phase": state.phase,
         "phase_index": state.phase_index,
         "started_at": state.started_at,
-        "completed_phases": state.completed_phases,
-        "paused": state.paused,
+        "completed_phases": list(state.completed_phases),
     }
 
 
@@ -50,8 +48,7 @@ def _dict_to_state(data: dict[str, Any]) -> OnboardingState:
         phase=data["phase"],
         phase_index=data["phase_index"],
         started_at=data["started_at"],
-        completed_phases=data["completed_phases"],
-        paused=data.get("paused", False),
+        completed_phases=tuple(data["completed_phases"]),
     )
 
 
@@ -75,12 +72,16 @@ async def get_onboarding_state() -> OnboardingState | None:
 
 async def is_onboarding_completed() -> bool:
     """Check whether onboarding was previously completed."""
-    doc = await core.read_one("context")
-    return bool(doc.body.get(_COMPLETED_KEY))
+    with tracer.start_as_current_span("is_onboarding_completed"):
+        doc = await core.read_one("context")
+        return bool(doc.body.get(_COMPLETED_KEY))
 
 
 async def start_onboarding() -> OnboardingState:
-    """Initialize onboarding at phase 0 (welcome) and persist to core_memory."""
+    """Initialize onboarding at phase 0 (welcome) and persist to core_memory.
+
+    Clears any previous ``onboarding_completed`` flag so a reset works cleanly.
+    """
     with tracer.start_as_current_span(
         "start_onboarding",
         attributes={"onboarding.phase": PHASES[0]},
@@ -89,9 +90,12 @@ async def start_onboarding() -> OnboardingState:
             phase=PHASES[0],
             phase_index=0,
             started_at=datetime.now(UTC).isoformat(),
-            completed_phases=[],
+            completed_phases=(),
         )
-        await _write_state(state, reason="onboarding started")
+        doc = await core.read_one("context")
+        body = {k: v for k, v in doc.body.items() if k != _COMPLETED_KEY}
+        body[_CONTEXT_KEY] = _state_to_dict(state)
+        await core.update("context", body=body, reason="onboarding started")
         log.info("onboarding started", extra={"phase": state.phase})
         return state
 
@@ -99,7 +103,7 @@ async def start_onboarding() -> OnboardingState:
 async def advance_phase(current_state: OnboardingState) -> OnboardingState | None:
     """Move to the next phase. Returns ``None`` if onboarding is now complete."""
     next_index = current_state.phase_index + 1
-    completed = [*current_state.completed_phases, current_state.phase]
+    completed = (*current_state.completed_phases, current_state.phase)
 
     if next_index >= len(PHASES):
         # All phases done — complete onboarding.
