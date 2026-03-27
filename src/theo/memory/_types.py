@@ -51,6 +51,20 @@ class EpisodeResult:
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
+class DimensionResult:
+    """A single dimension from the structured user model."""
+
+    id: int
+    framework: str
+    dimension: str
+    value: dict[str, Any]
+    confidence: float
+    evidence_count: int
+    meta: dict[str, Any]
+    updated_at: datetime
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
 class DomainResult:
     """A self-model domain with accuracy tracking."""
 
@@ -61,3 +75,28 @@ class DomainResult:
     correct_predictions: int
     last_evaluated_at: datetime | None
     created_at: datetime
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class EdgeResult:
+    """An edge retrieved from the knowledge graph."""
+
+    id: int
+    source_id: int
+    target_id: int
+    label: str
+    weight: float
+    meta: dict[str, Any]
+    valid_from: datetime
+    valid_to: datetime | None
+    created_at: datetime
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class TraversalResult:
+    """A node reached by graph traversal from a starting node."""
+
+    node_id: int
+    depth: int
+    path: tuple[int, ...]
+    cumulative_weight: float
