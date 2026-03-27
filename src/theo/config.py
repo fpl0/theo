@@ -34,7 +34,11 @@ class Settings(BaseSettings):
     embedding_model: str = "BAAI/bge-base-en-v1.5"
     embedding_dim: int = 768
 
-    # Context assembly budgets (approximate token counts)
+    # Context assembly budgets (approximate token counts).
+    # Persona and goals are never truncated — no budget field needed.
+    # User model and current task are capped at their budget when they exceed it.
+    context_user_model_budget: int = 400
+    context_current_task_budget: int = 300
     context_memory_budget: int = 2000
     context_history_budget: int = 4000
 
@@ -53,6 +57,19 @@ class Settings(BaseSettings):
         if self.db_pool_min > self.db_pool_max:
             msg = f"db_pool_min ({self.db_pool_min}) must be <= db_pool_max ({self.db_pool_max})"
             raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
+    def _validate_context_budgets(self) -> Self:
+        for name in (
+            "context_user_model_budget",
+            "context_current_task_budget",
+            "context_memory_budget",
+            "context_history_budget",
+        ):
+            if getattr(self, name) <= 0:
+                msg = f"{name} must be > 0"
+                raise ValueError(msg)
         return self
 
     @model_validator(mode="after")
