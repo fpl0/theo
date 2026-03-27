@@ -324,7 +324,7 @@ class TelegramGate:
                     )
                     return
                 suffix = Path(file.file_path).suffix or ".ogg"
-                tmp = Path(tempfile.mkstemp(suffix=suffix)[1])  # noqa: ASYNC230
+                tmp = Path(tempfile.mkstemp(suffix=suffix)[1])
                 await self._bot.download_file(file.file_path, destination=tmp)
                 body = await transcriber.transcribe(tmp)
             except TranscriptionError:
@@ -341,7 +341,7 @@ class TelegramGate:
                 return
             finally:
                 if tmp is not None:
-                    tmp.unlink(missing_ok=True)  # noqa: ASYNC240
+                    tmp.unlink(missing_ok=True)
 
             if not body:
                 return
