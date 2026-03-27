@@ -114,9 +114,7 @@ async def test_check_contradiction_finds_conflict() -> None:
     with (
         patch("theo.memory.contradictions.search_nodes", mock_search),
         patch("theo.memory.contradictions.stream_response", _fake_stream_contradicts),
-        patch("theo.memory.contradictions.get_settings") as mock_settings,
     ):
-        mock_settings.return_value = MagicMock(llm_max_tokens=1024)
         result = await check_contradiction("Alice works at Meta", kind="fact")
 
     assert result is not None
@@ -133,9 +131,7 @@ async def test_check_contradiction_returns_none_when_no_conflict() -> None:
     with (
         patch("theo.memory.contradictions.search_nodes", mock_search),
         patch("theo.memory.contradictions.stream_response", _fake_stream_no_contradiction),
-        patch("theo.memory.contradictions.get_settings") as mock_settings,
     ):
-        mock_settings.return_value = MagicMock(llm_max_tokens=1024)
         result = await check_contradiction("Alice works at Google", kind="fact")
 
     assert result is None
@@ -167,9 +163,7 @@ async def test_check_contradiction_handles_invalid_llm_json() -> None:
     with (
         patch("theo.memory.contradictions.search_nodes", mock_search),
         patch("theo.memory.contradictions.stream_response", _fake_stream_invalid_json),
-        patch("theo.memory.contradictions.get_settings") as mock_settings,
     ):
-        mock_settings.return_value = MagicMock(llm_max_tokens=1024)
         result = await check_contradiction("Some statement", kind="fact")
 
     assert result is None
@@ -182,10 +176,9 @@ async def test_check_contradiction_handles_invalid_llm_json() -> None:
 
 async def test_resolve_contradiction_reduces_confidence_and_creates_edge() -> None:
     mock_conn = AsyncMock()
-    # Return current confidence values for new_node then conflicting_node
-    mock_conn.fetchval.side_effect = [0.8, 0.9]
+    # fetchval: first two calls return current confidence, third returns edge id
+    mock_conn.fetchval.side_effect = [0.8, 0.9, 1]
     pool = _make_pool_with_conn(mock_conn)
-    mock_store_edge = AsyncMock(return_value=1)
 
     conflict = ConflictResult(
         conflicting_node_id=42,
@@ -193,39 +186,42 @@ async def test_resolve_contradiction_reduces_confidence_and_creates_edge() -> No
         explanation="Conflicting employers",
     )
 
-    with (
-        patch("theo.memory.contradictions.db", pool=pool),
-        patch("theo.memory.contradictions.store_edge", mock_store_edge),
-    ):
+    with patch("theo.memory.contradictions.db", pool=pool):
         await resolve_contradiction(new_node_id=100, conflict=conflict)
 
-    # Two confidence updates in the transaction
-    assert mock_conn.execute.await_count == 2
+    # Two confidence updates + one expire edge = 3 execute calls
+    assert mock_conn.execute.await_count == 3
 
-    # First update: new_node_id=100, confidence=0.8-0.3=0.5
+    # First execute: confidence update for new_node_id=100, 0.8-0.3=0.5
     first_call = mock_conn.execute.call_args_list[0]
     assert first_call.args[1] == 100
     assert first_call.args[2] == pytest.approx(0.5)
 
-    # Second update: conflicting_node_id=42, confidence=0.9-0.3=0.6
+    # Second execute: confidence update for conflicting_node_id=42, 0.9-0.3=0.6
     second_call = mock_conn.execute.call_args_list[1]
     assert second_call.args[1] == 42
     assert second_call.args[2] == pytest.approx(0.6)
 
-    # Edge created
-    mock_store_edge.assert_awaited_once_with(
-        source_id=100,
-        target_id=42,
-        label="contradicts",
-        weight=1.0,
-        meta={"explanation": "Conflicting employers"},
-    )
+    # Third execute: expire active edge
+    third_call = mock_conn.execute.call_args_list[2]
+    assert third_call.args[1] == 100
+    assert third_call.args[2] == 42
+    assert third_call.args[3] == "contradicts"
+
+    # Edge insert via fetchval (last call after the two confidence fetches)
+    edge_call = mock_conn.fetchval.call_args_list[2]
+    assert edge_call.args[1] == 100  # source_id
+    assert edge_call.args[2] == 42  # target_id
+    assert edge_call.args[3] == "contradicts"  # label
+    assert edge_call.args[4] == 1.0  # weight
+    assert edge_call.args[5] == {"explanation": "Conflicting employers"}
 
 
-async def test_resolve_contradiction_floors_confidence_at_0_1() -> None:
+async def test_resolve_contradiction_passes_raw_reduced_value_to_db() -> None:
     mock_conn = AsyncMock()
-    # Return low confidence values that would go below 0.1
-    mock_conn.fetchval.side_effect = [0.2, 0.15]
+    # Return low confidence values that would go below 0.1.
+    # fetchval: two confidence lookups + edge insert id
+    mock_conn.fetchval.side_effect = [0.2, 0.15, 1]
     pool = _make_pool_with_conn(mock_conn)
 
     conflict = ConflictResult(
@@ -234,10 +230,7 @@ async def test_resolve_contradiction_floors_confidence_at_0_1() -> None:
         explanation="Test",
     )
 
-    with (
-        patch("theo.memory.contradictions.db", pool=pool),
-        patch("theo.memory.contradictions.store_edge", AsyncMock(return_value=1)),
-    ):
+    with patch("theo.memory.contradictions.db", pool=pool):
         await resolve_contradiction(new_node_id=100, conflict=conflict)
 
     # The SQL uses GREATEST($2, 0.1), so even negative values are floored at DB level.
@@ -299,12 +292,13 @@ async def test_store_node_skips_contradiction_check_when_disabled(
 ) -> None:
     """Verify store_node does not spawn a task when contradiction check is disabled."""
     mock_pool.fetchval.return_value = 99
+    mock_check = AsyncMock()
 
     with (
         patch("theo.memory.nodes.db", pool=mock_pool),
         patch("theo.memory.nodes.embedder", mock_embedder),
         patch("theo.memory.nodes.get_settings") as mock_settings,
-        patch("theo.memory.contradictions.check_contradiction") as mock_check,
+        patch("theo.memory.contradictions.check_contradiction", mock_check),
     ):
         mock_settings.return_value = MagicMock(contradiction_check_enabled=False)
         result = await store_node(kind="fact", body="Earth is round")

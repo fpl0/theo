@@ -9,10 +9,8 @@ from typing import TYPE_CHECKING, Any
 
 from opentelemetry import trace
 
-from theo.config import get_settings
 from theo.db import db
 from theo.llm import TextDelta, stream_response
-from theo.memory.edges import store_edge
 from theo.memory.nodes import search_nodes
 
 if TYPE_CHECKING:
@@ -33,12 +31,28 @@ SET confidence = GREATEST($2, 0.1)
 WHERE id = $1
 """
 
+_EXPIRE_ACTIVE_EDGE = """
+UPDATE edge
+SET valid_to = now()
+WHERE source_id = $1
+    AND target_id = $2
+    AND label = $3
+    AND valid_to IS NULL
+"""
+
+_INSERT_EDGE = """
+INSERT INTO edge (source_id, target_id, label, weight, meta)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id
+"""
+
 # ---------------------------------------------------------------------------
 # Types
 # ---------------------------------------------------------------------------
 
 _SIMILARITY_THRESHOLD = 0.7
 _CONFIDENCE_REDUCTION = 0.3
+_CONTRADICTION_MAX_TOKENS = 256
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,7 +74,7 @@ async def check_contradiction(body: str, kind: str) -> ConflictResult | None:
 
     Searches for semantically similar nodes and asks the LLM to judge
     whether the statements are contradictory.  Returns a `ConflictResult`
-    if a contradiction is found, otherwise ``None``.
+    for the first contradiction found, or ``None``.
     """
     with tracer.start_as_current_span("check_contradiction") as span:
         candidates = await search_nodes(body, kind=kind, limit=5)
@@ -87,7 +101,11 @@ async def check_contradiction(body: str, kind: str) -> ConflictResult | None:
 
 
 async def resolve_contradiction(new_node_id: int, conflict: ConflictResult) -> None:
-    """Reduce confidence on both nodes and create a ``contradicts`` edge."""
+    """Reduce confidence on both nodes and create a ``contradicts`` edge.
+
+    All three writes (two confidence updates + edge insert) run in a single
+    transaction so they commit or roll back atomically.
+    """
     with tracer.start_as_current_span(
         "resolve_contradiction",
         attributes={
@@ -107,14 +125,20 @@ async def resolve_contradiction(new_node_id: int, conflict: ConflictResult) -> N
                 await _current_confidence(conn, conflict.conflicting_node_id)
                 - conflict.confidence_reduction,
             )
-
-        await store_edge(
-            source_id=new_node_id,
-            target_id=conflict.conflicting_node_id,
-            label="contradicts",
-            weight=1.0,
-            meta={"explanation": conflict.explanation},
-        )
+            await conn.execute(
+                _EXPIRE_ACTIVE_EDGE,
+                new_node_id,
+                conflict.conflicting_node_id,
+                "contradicts",
+            )
+            await conn.fetchval(
+                _INSERT_EDGE,
+                new_node_id,
+                conflict.conflicting_node_id,
+                "contradicts",
+                1.0,
+                {"explanation": conflict.explanation},
+            )
 
         log.info(
             "resolved contradiction",
@@ -130,12 +154,15 @@ async def resolve_contradiction(new_node_id: int, conflict: ConflictResult) -> N
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-_CONTRADICTION_PROMPT = (
-    "Are these two statements contradictory?\n"
-    "Statement A: {new_body}\n"
-    "Statement B: {existing_body}\n"
-    'Respond with JSON only: {{"contradicts": true/false, "explanation": "..."}}'
-)
+
+def _build_prompt(new_body: str, existing_body: str) -> str:
+    """Build the contradiction check prompt without str.format on untrusted input."""
+    return (
+        "Are these two statements contradictory?\n"
+        "Statement A: " + new_body + "\n"
+        "Statement B: " + existing_body + "\n"
+        'Respond with JSON only: {"contradicts": true/false, "explanation": "..."}'
+    )
 
 
 async def _current_confidence(conn: Any, node_id: int) -> float:
@@ -146,8 +173,7 @@ async def _current_confidence(conn: Any, node_id: int) -> float:
 
 async def _ask_llm_contradiction(new_body: str, candidate: NodeResult) -> tuple[bool, str]:
     """Ask the LLM whether two statements contradict each other."""
-    cfg = get_settings()
-    prompt = _CONTRADICTION_PROMPT.format(new_body=new_body, existing_body=candidate.body)
+    prompt = _build_prompt(new_body, candidate.body)
     messages: list[MessageParam] = [{"role": "user", "content": prompt}]
 
     chunks = [
@@ -155,7 +181,7 @@ async def _ask_llm_contradiction(new_body: str, candidate: NodeResult) -> tuple[
         async for event in stream_response(
             messages,
             speed="reactive",
-            max_tokens=cfg.llm_max_tokens,
+            max_tokens=_CONTRADICTION_MAX_TOKENS,
         )
         if isinstance(event, TextDelta)
     ]

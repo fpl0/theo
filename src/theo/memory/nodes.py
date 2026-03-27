@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -96,7 +97,10 @@ async def store_node(  # noqa: PLR0913
         log.info("stored node", extra={"node_id": row_id, "kind": kind})
 
         if get_settings().contradiction_check_enabled:
-            task = asyncio.create_task(_run_contradiction_check(row_id, body, kind))
+            task = asyncio.create_task(
+                _run_contradiction_check(row_id, body, kind),
+                context=contextvars.copy_context(),
+            )
             _background_tasks.add(task)
             task.add_done_callback(_background_tasks.discard)
 
