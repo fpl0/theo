@@ -1,11 +1,12 @@
 """Memory tools exposed to Claude via Anthropic tool-use.
 
-Four tools give Claude autonomous control over Theo's memory:
+Five tools give Claude autonomous control over Theo's memory:
 
 - ``store_memory`` — persist a new observation or fact as a knowledge node.
 - ``search_memory`` — search the knowledge graph by semantic similarity.
 - ``read_core_memory`` — read the always-on core memory documents.
 - ``update_core_memory`` — update a core memory document with changelog.
+- ``link_memories`` — create an explicit relationship between two memories.
 """
 
 from __future__ import annotations
@@ -257,8 +258,14 @@ async def _update_core_memory(tool_input: dict[str, object]) -> str:
 
 
 async def _link_memories(tool_input: dict[str, object]) -> str:
-    source_id = int(str(tool_input.get("source_id", 0)))
-    target_id = int(str(tool_input.get("target_id", 0)))
+    raw_source = tool_input.get("source_id")
+    raw_target = tool_input.get("target_id")
+    if not isinstance(raw_source, int) or not isinstance(raw_target, int):
+        return "Error: source_id and target_id must be integers."
+    if raw_source <= 0 or raw_target <= 0:
+        return "Error: source_id and target_id must be positive."
+    source_id = raw_source
+    target_id = raw_target
     label = str(tool_input.get("label", "related_to"))
     reason = tool_input.get("reason")
 

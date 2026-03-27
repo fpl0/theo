@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from opentelemetry import trace
+from opentelemetry import metrics, trace
 
 from theo.db import db
 from theo.memory.edges import store_edge
@@ -25,6 +25,14 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+_meter = metrics.get_meter(__name__)
+
+_edges_counter = _meter.create_counter(
+    "theo.memory.auto_edges.created",
+    description="Total co-occurrence edges created automatically",
+)
+
+_CO_OCCURRENCE_WEIGHT_STEP = 0.2
 
 # ---------------------------------------------------------------------------
 # SQL
@@ -36,6 +44,9 @@ VALUES ($1, $2, $3)
 ON CONFLICT DO NOTHING
 """
 
+# NOTE: This scans the entire session history, not just the current turn.
+# For long sessions this is O(N²) in edge upserts per turn. Acceptable at
+# current scale; revisit if sessions routinely exceed hundreds of episodes.
 _CO_OCCURRENCES = """
 SELECT
     en1.node_id AS node_a,
@@ -83,8 +94,8 @@ async def record_mention(
 async def extract_and_link(session_id: UUID) -> int:
     """Create ``co_occurs`` edges for nodes that appear together in a session.
 
-    Weight formula: ``min(1.0, co_occurrence_count * 0.2)`` — more co-occurrences
-    produce a stronger link, capped at 1.0.
+    Weight formula: ``min(1.0, co_count * _CO_OCCURRENCE_WEIGHT_STEP)`` — more
+    co-occurrences produce a stronger link, capped at 1.0.
 
     Returns the number of edges created.
     """
@@ -99,7 +110,7 @@ async def extract_and_link(session_id: UUID) -> int:
             node_a: int = row["node_a"]
             node_b: int = row["node_b"]
             co_count: int = row["co_count"]
-            weight = min(1.0, co_count * 0.2)
+            weight = min(1.0, co_count * _CO_OCCURRENCE_WEIGHT_STEP)
 
             await store_edge(
                 source_id=node_a,
@@ -111,6 +122,7 @@ async def extract_and_link(session_id: UUID) -> int:
             edges_created += 1
 
         span.set_attribute("edges.created", edges_created)
+        _edges_counter.add(edges_created)
         log.info(
             "extracted co-occurrence edges",
             extra={

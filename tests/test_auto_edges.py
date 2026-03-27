@@ -206,6 +206,30 @@ class TestLinkMemoriesTool:
         _, kwargs = mock_store_edge.call_args
         assert kwargs["meta"] == {"source": "llm_tool"}
 
+    async def test_link_memories_rejects_non_integer_ids(self) -> None:
+        result = await execute_tool(
+            "link_memories",
+            {"source_id": "ten", "target_id": 20, "label": "related_to"},
+        )
+        assert "Error" in result
+        assert "integers" in result
+
+    async def test_link_memories_rejects_zero_ids(self) -> None:
+        result = await execute_tool(
+            "link_memories",
+            {"source_id": 0, "target_id": 20, "label": "related_to"},
+        )
+        assert "Error" in result
+        assert "positive" in result
+
+    async def test_link_memories_rejects_negative_ids(self) -> None:
+        result = await execute_tool(
+            "link_memories",
+            {"source_id": 1, "target_id": -5, "label": "related_to"},
+        )
+        assert "Error" in result
+        assert "positive" in result
+
 
 # ---------------------------------------------------------------------------
 # store_memory + record_mention integration
