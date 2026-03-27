@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     retrieval_graph_seed_count: int = 5
     retrieval_graph_max_depth: int = 2
 
+    # Memory
+    contradiction_check_enabled: bool = True
+
     # Telegram gate
     telegram_bot_token: SecretStr | None = None
     telegram_owner_chat_id: int | None = None

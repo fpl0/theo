@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
 from opentelemetry import trace
 
+from theo.config import get_settings
 from theo.db import db
 from theo.embeddings import embedder
 from theo.memory._types import NodeResult
@@ -16,6 +18,8 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+
+_background_tasks: set[asyncio.Task[None]] = set()
 
 # ---------------------------------------------------------------------------
 # SQL
@@ -90,6 +94,12 @@ async def store_node(  # noqa: PLR0913
             meta if meta is not None else {},
         )
         log.info("stored node", extra={"node_id": row_id, "kind": kind})
+
+        if get_settings().contradiction_check_enabled:
+            task = asyncio.create_task(_run_contradiction_check(row_id, body, kind))
+            _background_tasks.add(task)
+            task.add_done_callback(_background_tasks.discard)
+
         return row_id
 
 
@@ -153,3 +163,18 @@ def _row_to_result(
         created_at=row["created_at"],
         similarity=row["similarity"] if with_similarity else None,
     )
+
+
+async def _run_contradiction_check(node_id: int, body: str, kind: str) -> None:
+    """Fire-and-forget contradiction check — errors are logged, never raised."""
+    try:
+        from theo.memory.contradictions import (  # noqa: PLC0415
+            check_contradiction,
+            resolve_contradiction,
+        )
+
+        conflict = await check_contradiction(body, kind)
+        if conflict is not None:
+            await resolve_contradiction(node_id, conflict)
+    except Exception:
+        log.exception("contradiction check failed", extra={"node_id": node_id})
