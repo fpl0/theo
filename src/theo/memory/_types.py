@@ -48,3 +48,28 @@ class EpisodeResult:
     meta: dict[str, Any]
     created_at: datetime
     similarity: float | None = None
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class EdgeResult:
+    """An edge retrieved from the knowledge graph."""
+
+    id: int
+    source_id: int
+    target_id: int
+    label: str
+    weight: float
+    meta: dict[str, Any]
+    valid_from: datetime
+    valid_to: datetime | None
+    created_at: datetime
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class TraversalResult:
+    """A node reached by graph traversal from a starting node."""
+
+    node_id: int
+    depth: int
+    path: tuple[int, ...]
+    cumulative_weight: float
