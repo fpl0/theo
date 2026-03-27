@@ -16,6 +16,10 @@ Rather than `INSERT ... ON CONFLICT UPDATE`, `store_edge` explicitly expires any
 
 `traverse` uses a `WITH RECURSIVE` CTE to walk outgoing edges up to `max_depth` hops. Cycle prevention uses `e.target_id <> ALL(g.path)` to avoid revisiting nodes already in the path. `DISTINCT ON (node_id)` with `ORDER BY cumulative_weight DESC` picks the best path per node when multiple paths exist, and final ordering is done in Python for clarity.
 
+## Decision: `tuple[int, ...]` for `TraversalResult.path`
+
+`TraversalResult` is a frozen dataclass, but `frozen=True` only prevents attribute reassignment — it does not prevent mutation of mutable containers. Using `tuple[int, ...]` instead of `list[int]` ensures the path is truly immutable, matching the frozen contract. The `_row_to_traversal` helper converts the PostgreSQL array to a tuple at the boundary.
+
 ## Decision: `execute` return string for expire
 
 `expire_edge` uses `db.pool.execute()` which returns a command tag string like `"UPDATE 1"`. Comparing against `"UPDATE 1"` is simpler than using `fetchval` with `RETURNING` and handles the not-found case naturally.

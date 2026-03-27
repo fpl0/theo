@@ -337,6 +337,24 @@ async def test_expire_edge_returns_false_when_not_found(mock_pool: AsyncMock) ->
 
 
 # ---------------------------------------------------------------------------
+# store_edge — transaction rollback
+# ---------------------------------------------------------------------------
+
+
+async def test_store_edge_propagates_error_from_insert() -> None:
+    mock_conn = AsyncMock()
+    mock_conn.fetchval.side_effect = RuntimeError("db error")
+    pool = _make_pool_with_conn(mock_conn)
+
+    with patch("theo.memory.edges.db", pool=pool), pytest.raises(RuntimeError, match="db error"):
+        await store_edge(source_id=1, target_id=2, label="test")
+
+    # Expire was called, but insert failed — transaction should roll back both
+    mock_conn.execute.assert_awaited_once()
+    mock_conn.fetchval.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
 # Result type invariants
 # ---------------------------------------------------------------------------
 
@@ -361,7 +379,7 @@ def test_traversal_result_is_frozen() -> None:
     tr = TraversalResult(
         node_id=20,
         depth=1,
-        path=[10, 20],
+        path=(10, 20),
         cumulative_weight=0.9,
     )
     with pytest.raises(AttributeError):

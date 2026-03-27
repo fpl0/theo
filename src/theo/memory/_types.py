@@ -71,5 +71,5 @@ class TraversalResult:
 
     node_id: int
     depth: int
-    path: list[int]
+    path: tuple[int, ...]
     cumulative_weight: float

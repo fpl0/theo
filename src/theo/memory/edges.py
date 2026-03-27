@@ -153,6 +153,7 @@ async def store_edge(
             "edge.label": label,
             "edge.source_id": source_id,
             "edge.target_id": target_id,
+            "edge.weight": weight,
         },
     ):
         async with db.pool.acquire() as conn, conn.transaction():
@@ -191,7 +192,11 @@ async def get_edges(
     """
     with tracer.start_as_current_span(
         "get_edges",
-        attributes={"node.id": node_id, "edge.direction": direction},
+        attributes={
+            "node.id": node_id,
+            "edge.direction": direction,
+            **({"edge.label": label} if label is not None else {}),
+        },
     ):
         if direction == "both":
             outgoing = await _fetch_edges(node_id, direction="outgoing", label=label)
@@ -200,7 +205,10 @@ async def get_edges(
         else:
             results = await _fetch_edges(node_id, direction=direction, label=label)
 
-        log.debug("get_edges returned %d edge(s)", len(results))
+        log.debug(
+            "fetched edges",
+            extra={"node_id": node_id, "count": len(results), "direction": direction},
+        )
         return results
 
 
@@ -216,7 +224,11 @@ async def traverse(
     """
     with tracer.start_as_current_span(
         "traverse_graph",
-        attributes={"start.id": start_id, "traverse.max_depth": max_depth},
+        attributes={
+            "start.id": start_id,
+            "traverse.max_depth": max_depth,
+            **({"traverse.label": label} if label is not None else {}),
+        },
     ):
         if label is not None:
             rows = await db.pool.fetch(_TRAVERSE_BY_LABEL, start_id, max_depth, label)
@@ -225,7 +237,10 @@ async def traverse(
 
         results = [_row_to_traversal(r) for r in rows]
         results.sort(key=lambda r: r.cumulative_weight, reverse=True)
-        log.debug("traverse from %d returned %d node(s)", start_id, len(results))
+        log.debug(
+            "traversed graph",
+            extra={"start_id": start_id, "count": len(results), "max_depth": max_depth},
+        )
         return results
 
 
@@ -241,7 +256,7 @@ async def expire_edge(edge_id: int) -> bool:
     ):
         result = await db.pool.execute(_EXPIRE_EDGE_BY_ID, edge_id)
         updated = result == "UPDATE 1"
-        log.info("expire_edge", extra={"edge_id": edge_id, "updated": updated})
+        log.info("expired edge", extra={"edge_id": edge_id, "updated": updated})
         return updated
 
 
@@ -287,6 +302,6 @@ def _row_to_traversal(row: Any) -> TraversalResult:
     return TraversalResult(
         node_id=row["node_id"],
         depth=row["depth"],
-        path=list(row["path"]),
+        path=tuple(row["path"]),
         cumulative_weight=row["cumulative_weight"],
     )
