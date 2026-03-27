@@ -9,7 +9,9 @@ from opentelemetry import trace
 
 from theo.db import db
 from theo.embeddings import embedder
+from theo.errors import PrivacyViolationError
 from theo.memory._types import EpisodeResult
+from theo.memory.privacy import escalate_sensitivity, evaluate
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -88,6 +90,16 @@ async def store_episode(  # noqa: PLR0913
         "store_episode",
         attributes={"session.id": str(session_id), "memory.operation": "store"},
     ):
+        decision = evaluate(
+            body,
+            trust=trust,
+            sensitivity=sensitivity,
+            channel=channel,
+        )
+        if not decision.allowed:
+            raise PrivacyViolationError(decision.reason)
+        sensitivity = escalate_sensitivity(sensitivity, decision.sensitivity)
+
         vec = await embedder.embed_one(body)
         row_id: int = await db.pool.fetchval(
             _INSERT_EPISODE,

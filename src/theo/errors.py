@@ -27,3 +27,7 @@ class CircuitOpenError(TheoError):
 
 class GateConfigError(TheoError):
     """Raised when a gate is missing required configuration."""
+
+
+class PrivacyViolationError(TheoError):
+    """Raised when the privacy filter rejects a storage operation."""
