@@ -2,6 +2,7 @@
 
 from theo.memory._types import (
     DimensionResult,
+    DomainResult,
     EdgeResult,
     EpisodeResult,
     NodeResult,
@@ -13,6 +14,7 @@ __all__ = [
     "ChangelogEntry",
     "CoreDocument",
     "DimensionResult",
+    "DomainResult",
     "EdgeResult",
     "EpisodeResult",
     "NodeResult",

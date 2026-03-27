@@ -65,6 +65,19 @@ class DimensionResult:
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
+class DomainResult:
+    """A self-model domain with accuracy tracking."""
+
+    id: int
+    domain: str
+    accuracy: float | None
+    total_predictions: int
+    correct_predictions: int
+    last_evaluated_at: datetime | None
+    created_at: datetime
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
 class EdgeResult:
     """An edge retrieved from the knowledge graph."""
 

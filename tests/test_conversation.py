@@ -10,8 +10,8 @@ import pytest
 
 from theo.bus import EventBus
 from theo.bus.events import MessageReceived, ResponseChunk, ResponseComplete
-from theo.conversation.context import AssembledContext
 from theo.conversation import _MAX_TOOL_ITERATIONS, ConversationEngine
+from theo.conversation.context import AssembledContext
 from theo.errors import ConversationNotRunningError
 from theo.llm import StreamDone, TextDelta, ToolUseRequest
 from theo.resilience import CircuitBreaker, RetryQueue
@@ -692,7 +692,9 @@ class TestToolLoop:
 
         with (
             patch("theo.conversation.turn.stream_response", text_and_tool),
-            patch("theo.conversation.turn.execute_tool", AsyncMock(return_value='{"results": []}')),
+            patch(
+                "theo.conversation.turn.execute_tool", AsyncMock(return_value='{"results": []}')
+            ),
         ):
             eng = ConversationEngine()
             eng._state = "running"
