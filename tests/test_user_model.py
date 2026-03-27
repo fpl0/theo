@@ -35,6 +35,7 @@ def _dim_row(
         "value": value if value is not None else {},
         "confidence": confidence,
         "evidence_count": evidence_count,
+        "meta": {},
         "updated_at": _NOW,
     }
 
@@ -253,6 +254,7 @@ class TestUpdateUserModelExecution:
                 value={"score": 0.8},
                 confidence=0.1,
                 evidence_count=1,
+                meta={},
                 updated_at=_NOW,
             ),
         )
@@ -297,6 +299,7 @@ class TestUpdateUserModelExecution:
                 value={"items": ["learn rust"]},
                 confidence=0.1,
                 evidence_count=1,
+                meta={},
                 updated_at=_NOW,
             ),
         )
@@ -310,6 +313,7 @@ class TestUpdateUserModelExecution:
                 },
             )
 
+        assert mock.await_args is not None
         _, kwargs = mock.await_args
         assert kwargs["reason"] is None
 
@@ -341,6 +345,7 @@ class TestDimensionResult:
             value={},
             confidence=0.0,
             evidence_count=0,
+            meta={},
             updated_at=_NOW,
         )
         with pytest.raises(AttributeError):
@@ -354,6 +359,7 @@ class TestDimensionResult:
             value={"score": 0.9},
             confidence=0.5,
             evidence_count=5,
+            meta={},
             updated_at=_NOW,
         )
         assert dim.id == 42

@@ -18,20 +18,20 @@ tracer = trace.get_tracer(__name__)
 # ---------------------------------------------------------------------------
 
 _SELECT_ALL = """
-SELECT id, framework, dimension, value, confidence, evidence_count, updated_at
+SELECT id, framework, dimension, value, confidence, evidence_count, meta, updated_at
 FROM user_model_dimension
 ORDER BY framework, dimension
 """
 
 _SELECT_BY_FRAMEWORK = """
-SELECT id, framework, dimension, value, confidence, evidence_count, updated_at
+SELECT id, framework, dimension, value, confidence, evidence_count, meta, updated_at
 FROM user_model_dimension
 WHERE framework = $1
 ORDER BY dimension
 """
 
 _SELECT_ONE = """
-SELECT id, framework, dimension, value, confidence, evidence_count, updated_at
+SELECT id, framework, dimension, value, confidence, evidence_count, meta, updated_at
 FROM user_model_dimension
 WHERE framework = $1 AND dimension = $2
 """
@@ -42,7 +42,7 @@ SET value = $3,
     evidence_count = evidence_count + 1,
     confidence = LEAST(1.0, (evidence_count + 1)::real / 10.0)
 WHERE framework = $1 AND dimension = $2
-RETURNING id, framework, dimension, value, confidence, evidence_count, updated_at
+RETURNING id, framework, dimension, value, confidence, evidence_count, meta, updated_at
 """
 
 # ---------------------------------------------------------------------------
@@ -132,5 +132,6 @@ def _row_to_result(row: Any) -> DimensionResult:
         value=row["value"],
         confidence=row["confidence"],
         evidence_count=row["evidence_count"],
+        meta=row["meta"],
         updated_at=row["updated_at"],
     )

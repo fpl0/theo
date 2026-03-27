@@ -60,4 +60,5 @@ class DimensionResult:
     value: dict[str, Any]
     confidence: float
     evidence_count: int
+    meta: dict[str, Any]
     updated_at: datetime
