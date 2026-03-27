@@ -47,6 +47,7 @@ class TestToolDefinitions:
             "read_core_memory",
             "update_core_memory",
             "link_memories",
+            "update_user_model",
         }
         assert names == expected
 
