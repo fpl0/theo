@@ -20,6 +20,7 @@ dependencies = [
     "opentelemetry-sdk>=1.40",
     "opentelemetry-exporter-otlp-proto-http>=1.40",
     "opentelemetry-instrumentation-asyncpg>=0.61b0",
+    "mlx-whisper>=0.4",
     "aiogram>=3.20",
 ]
 
@@ -54,7 +55,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101", "S105", "S106", "PLR2004", "SLF001"]
+"tests/**/*.py" = ["S101", "S105", "S106", "S108", "PLC0415", "PLR2004", "SLF001"]
 
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = ["pydantic_settings.BaseSettings"]

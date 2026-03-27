@@ -33,6 +33,18 @@ except (ImportError, OSError):  # fmt: skip
     sys.modules["mlx.core"] = _mlx_core
     sys.modules["mlx.nn"] = _mlx_nn
 
+# Stub out mlx_whisper if not available so transcription module can be imported.
+try:
+    import mlx_whisper  # noqa: F401
+except (ImportError, OSError):  # fmt: skip
+    import sys
+    import types
+    from unittest.mock import MagicMock
+
+    _mlx_whisper = types.ModuleType("mlx_whisper")
+    _mlx_whisper.transcribe = MagicMock(return_value={"text": ""})  # type: ignore[attr-defined]
+    sys.modules["mlx_whisper"] = _mlx_whisper
+
 # Provide a default so get_settings() doesn't fail during test collection.
 # Tests that construct Settings explicitly pass their own values.
 os.environ.setdefault("THEO_DATABASE_URL", "postgresql://theo:test@localhost:5432/theo")

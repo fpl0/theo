@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
@@ -140,6 +141,8 @@ def _make_message(chat_id: int, text: str | None = "hello") -> MagicMock:
     msg.chat.id = chat_id
     msg.text = text
     msg.message_id = 100
+    msg.voice = None
+    msg.audio = None
     return msg
 
 
@@ -547,3 +550,188 @@ class TestCommandStateTransitions:
         msg = _make_cmd_message(chat_id=42, text="/kill")
         await gate._on_cmd_kill(msg)
         assert engine.state == "stopped"
+
+
+# ── Voice message tests ────────────────────────────────────────────
+
+
+def _make_voice_message(chat_id: int, duration: int = 5) -> MagicMock:
+    """Create a mock aiogram Message with a voice attachment."""
+    msg = MagicMock()
+    msg.chat.id = chat_id
+    msg.text = None
+    msg.message_id = 100
+    msg.voice = MagicMock()
+    msg.voice.file_id = "file_abc123"
+    msg.voice.duration = duration
+    msg.audio = None
+    return msg
+
+
+class TestVoiceMessageHandling:
+    async def test_voice_message_publishes_transcribed_text(self) -> None:
+        gate = _make_gate()
+        published: list[MessageReceived] = []
+
+        async def mock_publish(event: object) -> None:
+            if isinstance(event, MessageReceived):
+                published.append(event)
+
+        file_mock = MagicMock()
+        file_mock.file_path = "voice/file.ogg"
+        gate._bot.get_file = AsyncMock(return_value=file_mock)
+        gate._bot.download_file = AsyncMock()
+
+        with (
+            patch.object(bus, "publish", side_effect=mock_publish),
+            patch("theo.gates.telegram.transcriber") as mock_transcriber,
+        ):
+            mock_transcriber.transcribe = AsyncMock(return_value="hello from voice")
+            await gate._on_message(_make_voice_message(chat_id=42))
+
+        assert len(published) == 1
+        assert published[0].body == "hello from voice"
+        assert published[0].channel == "message"
+        assert published[0].trust == "owner"
+        assert published[0].meta["source"] == "voice"
+        assert published[0].meta["duration_s"] == 5
+
+    async def test_voice_from_non_owner_ignored(self) -> None:
+        gate = _make_gate()
+        published: list[object] = []
+
+        async def mock_publish(event: object) -> None:
+            published.append(event)
+
+        with patch.object(bus, "publish", side_effect=mock_publish):
+            await gate._on_message(_make_voice_message(chat_id=999))
+
+        assert len(published) == 0
+
+    async def test_empty_transcription_not_published(self) -> None:
+        gate = _make_gate()
+        published: list[object] = []
+
+        async def mock_publish(event: object) -> None:
+            published.append(event)
+
+        file_mock = MagicMock()
+        file_mock.file_path = "voice/file.ogg"
+        gate._bot.get_file = AsyncMock(return_value=file_mock)
+        gate._bot.download_file = AsyncMock()
+
+        with (
+            patch.object(bus, "publish", side_effect=mock_publish),
+            patch("theo.gates.telegram.transcriber") as mock_transcriber,
+        ):
+            mock_transcriber.transcribe = AsyncMock(return_value="")
+            await gate._on_message(_make_voice_message(chat_id=42))
+
+        assert len(published) == 0
+
+    async def test_voice_meta_includes_telegram_ids(self) -> None:
+        gate = _make_gate()
+        published: list[MessageReceived] = []
+
+        async def mock_publish(event: object) -> None:
+            if isinstance(event, MessageReceived):
+                published.append(event)
+
+        file_mock = MagicMock()
+        file_mock.file_path = "voice/file.ogg"
+        gate._bot.get_file = AsyncMock(return_value=file_mock)
+        gate._bot.download_file = AsyncMock()
+
+        with (
+            patch.object(bus, "publish", side_effect=mock_publish),
+            patch("theo.gates.telegram.transcriber") as mock_transcriber,
+        ):
+            mock_transcriber.transcribe = AsyncMock(return_value="transcribed")
+            msg = _make_voice_message(chat_id=42)
+            msg.message_id = 777
+            await gate._on_message(msg)
+
+        assert published[0].meta["telegram_chat_id"] == 42
+        assert published[0].meta["telegram_message_id"] == 777
+
+    async def test_temp_file_cleaned_up_after_transcription(self) -> None:
+        gate = _make_gate()
+
+        file_mock = MagicMock()
+        file_mock.file_path = "voice/file.ogg"
+        gate._bot.get_file = AsyncMock(return_value=file_mock)
+        gate._bot.download_file = AsyncMock()
+
+        unlinked: list[str] = []
+
+        def tracking_unlink(self: Path, **_kwargs: object) -> None:
+            unlinked.append(str(self))
+
+        with (
+            patch.object(bus, "publish", new_callable=AsyncMock),
+            patch("theo.gates.telegram.transcriber") as mock_transcriber,
+            patch.object(Path, "unlink", tracking_unlink),
+        ):
+            mock_transcriber.transcribe = AsyncMock(return_value="text")
+            await gate._on_message(_make_voice_message(chat_id=42))
+
+        assert len(unlinked) == 1
+        assert unlinked[0].endswith(".ogg")
+
+    async def test_temp_file_cleaned_up_on_transcription_error(self) -> None:
+        gate = _make_gate()
+
+        file_mock = MagicMock()
+        file_mock.file_path = "voice/file.ogg"
+        gate._bot.get_file = AsyncMock(return_value=file_mock)
+        gate._bot.download_file = AsyncMock()
+
+        unlinked: list[str] = []
+
+        def tracking_unlink(self: Path, **_kwargs: object) -> None:
+            unlinked.append(str(self))
+
+        with (
+            patch.object(bus, "publish", new_callable=AsyncMock),
+            patch("theo.gates.telegram.transcriber") as mock_transcriber,
+            patch.object(Path, "unlink", tracking_unlink),
+        ):
+            mock_transcriber.transcribe = AsyncMock(side_effect=RuntimeError("boom"))
+            with pytest.raises(RuntimeError, match="boom"):
+                await gate._on_message(_make_voice_message(chat_id=42))
+
+        assert len(unlinked) == 1
+
+    async def test_audio_message_handled_like_voice(self) -> None:
+        gate = _make_gate()
+        published: list[MessageReceived] = []
+
+        async def mock_publish(event: object) -> None:
+            if isinstance(event, MessageReceived):
+                published.append(event)
+
+        msg = MagicMock()
+        msg.chat.id = 42
+        msg.text = None
+        msg.message_id = 100
+        msg.voice = None
+        msg.audio = MagicMock()
+        msg.audio.file_id = "audio_file_123"
+        msg.audio.duration = 10
+
+        file_mock = MagicMock()
+        file_mock.file_path = "audio/file.mp3"
+        gate._bot.get_file = AsyncMock(return_value=file_mock)
+        gate._bot.download_file = AsyncMock()
+
+        with (
+            patch.object(bus, "publish", side_effect=mock_publish),
+            patch("theo.gates.telegram.transcriber") as mock_transcriber,
+        ):
+            mock_transcriber.transcribe = AsyncMock(return_value="audio text")
+            await gate._on_message(msg)
+
+        assert len(published) == 1
+        assert published[0].body == "audio text"
+        assert published[0].meta["source"] == "voice"
+        assert published[0].meta["duration_s"] == 10
