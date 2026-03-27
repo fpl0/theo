@@ -1,6 +1,13 @@
-"""Memory subsystem: knowledge graph nodes, episodes, and core memory."""
+"""Memory subsystem: knowledge graph nodes, episodes, core memory, and edges."""
 
-from theo.memory._types import EpisodeResult, NodeResult
+from theo.memory._types import EdgeResult, EpisodeResult, NodeResult, TraversalResult
 from theo.memory.core import ChangelogEntry, CoreDocument
 
-__all__ = ["ChangelogEntry", "CoreDocument", "EpisodeResult", "NodeResult"]
+__all__ = [
+    "ChangelogEntry",
+    "CoreDocument",
+    "EdgeResult",
+    "EpisodeResult",
+    "NodeResult",
+    "TraversalResult",
+]
