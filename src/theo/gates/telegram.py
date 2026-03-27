@@ -314,7 +314,7 @@ class TelegramGate:
                 "voice.duration_s": duration_s,
             },
         ) as span:
-            tmp = Path(tempfile.mkstemp(suffix=".ogg")[1])
+            tmp: Path | None = None
             try:
                 file = await self._bot.get_file(voice.file_id)
                 if file.file_path is None:
@@ -323,6 +323,8 @@ class TelegramGate:
                         extra={"file_id": voice.file_id},
                     )
                     return
+                suffix = Path(file.file_path).suffix or ".ogg"
+                tmp = Path(tempfile.mkstemp(suffix=suffix)[1])  # noqa: ASYNC230
                 await self._bot.download_file(file.file_path, destination=tmp)
                 body = await transcriber.transcribe(tmp)
             except TranscriptionError:
@@ -331,8 +333,15 @@ class TelegramGate:
                     extra={"chat_id": chat_id, "file_id": voice.file_id},
                 )
                 return
+            except Exception:
+                log.exception(
+                    "voice message handling failed",
+                    extra={"chat_id": chat_id},
+                )
+                return
             finally:
-                tmp.unlink(missing_ok=True)  # noqa: ASYNC240
+                if tmp is not None:
+                    tmp.unlink(missing_ok=True)  # noqa: ASYNC240
 
             if not body:
                 return

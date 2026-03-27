@@ -90,6 +90,11 @@ rules = { invalid-argument-type = "ignore", missing-argument = "ignore" }
 include = ["tests/test_retrieval.py"]
 rules = { invalid-argument-type = "ignore", missing-argument = "ignore", unknown-argument = "ignore" }
 
+# test_telegram uses mock objects and patched constructors that ty cannot model.
+[[tool.ty.overrides]]
+include = ["tests/test_telegram.py"]
+rules = { invalid-argument-type = "ignore", missing-argument = "ignore", unknown-argument = "ignore" }
+
 [tool.sqlfluff.core]
 dialect = "postgres"
 max_line_length = 99

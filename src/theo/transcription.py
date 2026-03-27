@@ -6,20 +6,26 @@ import asyncio
 import logging
 import threading
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import mlx_whisper
-from opentelemetry import trace
+from opentelemetry import metrics, trace
 
 from theo.config import get_settings
 from theo.errors import TranscriptionError
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-    from pathlib import Path
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+meter = metrics.get_meter(__name__)
+_transcription_duration = meter.create_histogram(
+    "theo.transcription.duration",
+    unit="s",
+    description="Time spent transcribing audio via MLX Whisper",
+)
 
 
 class Transcriber:
@@ -65,7 +71,7 @@ class Transcriber:
 
         with tracer.start_as_current_span(
             "transcribe",
-            attributes={"audio.suffix": ".ogg"},
+            attributes={"audio.suffix": Path(audio_path).suffix},
         ) as span:
             try:
                 result: Mapping[str, object] = mlx_whisper.transcribe(
@@ -81,6 +87,7 @@ class Transcriber:
 
             span.set_attribute("transcription.duration_s", duration_s)
             span.set_attribute("transcription.text_length", len(text))
+            _transcription_duration.record(duration_s)
 
             log.info(
                 "transcribed audio",
