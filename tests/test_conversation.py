@@ -592,7 +592,7 @@ class TestToolLoop:
                 yield TextDelta(text="Done")
                 yield StreamDone(input_tokens=20, output_tokens=3, stop_reason="end_turn")
 
-        async def tracking_execute(name, _tool_input):
+        async def tracking_execute(name, _tool_input, **_kwargs):
             tool_calls.append(name)
             return '{"ok": true}'
 
