@@ -1,12 +1,13 @@
 """Memory tools exposed to Claude via Anthropic tool-use.
 
-Five tools give Claude autonomous control over Theo's memory:
+Six tools give Claude autonomous control over Theo's memory:
 
 - ``store_memory`` — persist a new observation or fact as a knowledge node.
 - ``search_memory`` — search the knowledge graph by semantic similarity.
 - ``read_core_memory`` — read the always-on core memory documents.
 - ``update_core_memory`` — update a core memory document with changelog.
 - ``update_user_model`` — update a structured user model dimension.
+- ``advance_onboarding`` — move to the next onboarding phase.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from typing import Any, cast
 from opentelemetry import trace
 
 from theo.memory import core, nodes, user_model
+from theo.onboarding import flow as onboarding_flow
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -160,6 +162,23 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "required": ["framework", "dimension", "value"],
         },
     },
+    {
+        "name": "advance_onboarding",
+        "description": (
+            "Mark the current onboarding phase as complete and move to the next. "
+            "Call this when you feel you have enough information for the current phase."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "summary": {
+                    "type": "string",
+                    "description": "Brief summary of what was learned in this phase.",
+                },
+            },
+            "required": ["summary"],
+        },
+    },
 ]
 
 # ── Tool execution ───────────────────────────────────────────────────
@@ -177,6 +196,7 @@ def _register_dispatch() -> None:
             "read_core_memory": _read_core_memory_wrapper,
             "update_core_memory": _update_core_memory,
             "update_user_model": _update_user_model,
+            "advance_onboarding": _advance_onboarding,
         }
     )
 
@@ -284,6 +304,19 @@ async def _update_user_model(tool_input: dict[str, object]) -> str:
             "evidence_count": result.evidence_count,
         }
     )
+
+
+async def _advance_onboarding(tool_input: dict[str, object]) -> str:
+    summary = str(tool_input.get("summary", ""))
+    state = await onboarding_flow.get_onboarding_state()
+    if state is None:
+        return json.dumps({"error": "No active onboarding session."})
+
+    log.info("advancing onboarding", extra={"from_phase": state.phase, "summary": summary})
+    new_state = await onboarding_flow.advance_phase(state)
+    if new_state is None:
+        return json.dumps({"completed": True, "message": "Onboarding complete!"})
+    return json.dumps({"phase": new_state.phase, "phase_index": new_state.phase_index})
 
 
 # ── Bootstrap ─────────────────────────────────────────────────────────

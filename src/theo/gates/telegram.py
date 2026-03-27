@@ -20,6 +20,12 @@ from theo.bus import bus
 from theo.bus.events import MessageReceived, ResponseChunk, ResponseComplete
 from theo.config import get_settings
 from theo.errors import GateConfigError
+from theo.onboarding.flow import (
+    complete_onboarding,
+    get_onboarding_state,
+    is_onboarding_completed,
+    start_onboarding,
+)
 
 if TYPE_CHECKING:
     from aiogram.types import Message
@@ -125,6 +131,7 @@ class TelegramGate:
         self._dp.message.register(self._on_cmd_stop, Command("stop"))
         self._dp.message.register(self._on_cmd_kill, Command("kill"))
         self._dp.message.register(self._on_cmd_status, Command("status"))
+        self._dp.message.register(self._on_cmd_onboard, Command("onboard"))
         self._dp.message.register(self._on_message)
 
         # Track the in-flight streamed message per session so chunks can edit it.
@@ -240,6 +247,53 @@ class TelegramGate:
             text = "\n".join(lines) if lines else "No status available."
             await message.answer(text, parse_mode=None)
             log.info("owner issued /status")
+
+    async def _on_cmd_onboard(self, message: Message) -> None:
+        """Handle /onboard — start, check status, or reset onboarding."""
+        if not self._is_owner(message):
+            return
+        with tracer.start_as_current_span("telegram.command", attributes={"command": "onboard"}):
+            _commands_counter.add(1, {"command": "onboard"})
+
+            # Parse optional argument (e.g. "/onboard reset").
+            arg = (message.text or "").partition(" ")[2].strip().lower()
+
+            state = await get_onboarding_state()
+
+            if arg == "reset":
+                if state is not None:
+                    await complete_onboarding()
+                new_state = await start_onboarding()
+                await message.answer(
+                    f"Onboarding reset. Starting fresh at phase: {new_state.phase}",
+                    parse_mode=None,
+                )
+                log.info("owner issued /onboard reset")
+                return
+
+            if state is not None:
+                phase_name = state.phase.replace("_", " ").title()
+                await message.answer(
+                    f"Onboarding in progress — phase {state.phase_index + 1}: {phase_name}. "
+                    "Just keep chatting to continue.",
+                    parse_mode=None,
+                )
+                return
+
+            if await is_onboarding_completed():
+                await message.answer(
+                    "Onboarding already complete. Send /onboard reset to redo.",
+                    parse_mode=None,
+                )
+                return
+
+            new_state = await start_onboarding()
+            await message.answer(
+                f"Starting onboarding! Phase: {new_state.phase.replace('_', ' ').title()}. "
+                "Let's get to know each other.",
+                parse_mode=None,
+            )
+            log.info("owner issued /onboard")
 
     # ── inbound: Telegram → bus ──────────────────────────────────────
 

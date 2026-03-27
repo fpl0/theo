@@ -23,6 +23,8 @@ from opentelemetry import metrics, trace
 from theo.memory import core
 from theo.memory.episodes import list_episodes
 from theo.memory.nodes import search_nodes
+from theo.onboarding.flow import get_onboarding_state
+from theo.onboarding.prompts import get_phase_system_prompt
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -211,8 +213,18 @@ async def assemble(
         memory_section = _format_relevant_memories(relevant_nodes, budget=memory_budget)
         memory_tokens = estimate_tokens(memory_section) if memory_section else 0
 
-        # 3. Assemble system prompt
-        parts = [core_section] if core_section else []
+        # 3. Check for active onboarding and assemble system prompt
+        parts: list[str] = []
+        onboarding_state = await get_onboarding_state()
+        if onboarding_state is not None:
+            phase_prompt = get_phase_system_prompt(onboarding_state.phase)
+            phase_num = onboarding_state.phase_index + 1
+            phase_name = onboarding_state.phase.replace("_", " ").title()
+            parts.append(f"## Onboarding (Phase {phase_num}: {phase_name})\n{phase_prompt}")
+            span.set_attribute("context.onboarding_phase", onboarding_state.phase)
+
+        if core_section:
+            parts.append(core_section)
         if memory_section:
             parts.append(memory_section)
         system_prompt = "\n\n".join(parts)
