@@ -20,13 +20,21 @@ Each LLM call inserts a row into `token_usage` with full context (session, model
 
 Cost weights are per speed tier (reactive/reflective/deliberative) rather than per model ID. Model IDs change frequently with Anthropic releases; tiers are stable abstractions. When pricing changes, updating three numbers in config is simpler than maintaining a model-to-cost lookup table.
 
-### Warning via bus event, hard cap via exception
+### Warning via ephemeral bus event with band deduplication
 
-Warning threshold (default 80%) emits a `BudgetWarning` event on the bus. The Telegram gate (or any future gate) can subscribe and notify the owner. Hard caps raise `BudgetExceededError`, which turn execution catches and converts to a graceful user-facing message. No retry queuing for budget exhaustion — it's not a transient failure.
+Warning threshold (default 80%) emits a `BudgetWarning` event on the bus. The event is ephemeral (not persisted) since no subscriber exists yet — avoids polluting `event_queue` with unprocessable rows. Warnings deduplicate by 5% bands (80%, 85%, 90%, 95%, 100%) via module-level state to prevent flooding on repeated calls within the same band.
 
-### Budget check before LLM call, recording after
+### Budget check before every LLM call, recording after
 
-`check_budget()` runs at the start of `execute_turn()`, before context assembly or streaming. This fails fast and avoids wasted work. `record_usage()` runs inside `_stream_one_iteration()` after each `StreamDone`, so multi-iteration tool loops accumulate correctly.
+`check_budget()` runs at the start of `execute_turn()` and before each subsequent tool-loop iteration. This ensures multi-tool turns cannot silently exceed the cap. `record_usage()` runs inside `_stream_one_iteration()` after each `StreamDone`, so usage accumulates correctly across iterations.
+
+### UsageRecord dataclass bundles call parameters
+
+`record_usage()` accepts a `UsageRecord` frozen dataclass instead of 6 positional arguments. This avoids the PLR0913 too-many-arguments lint violation without inline `noqa` suppression, and makes call sites self-documenting.
+
+### CHECK constraint on source column
+
+The `source` column has a CHECK constraint limiting values to the `UsageSource` literal type (`conversation`, `deliberation`, `intent`). This prevents invalid data at the database level, matching the pattern used in other Theo tables.
 
 ### No updated_at column on token_usage
 

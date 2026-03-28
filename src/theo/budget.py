@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from opentelemetry import metrics, trace
@@ -15,6 +16,8 @@ from theo.errors import BudgetExceededError
 
 if TYPE_CHECKING:
     from uuid import UUID
+
+    from theo.llm import Speed
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -34,6 +37,9 @@ _cap_rejections = _meter.create_counter(
 )
 
 type UsageSource = Literal["conversation", "deliberation", "intent"]
+
+# Track last-warned 5% band per scope to avoid flooding.
+_warned_bands: dict[str, int] = {}
 
 # ── SQL ──────────────────────────────────────────────────────────────
 
@@ -56,17 +62,32 @@ _SESSION_TOTAL = """
 """
 
 
+# ── Usage record ─────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True, slots=True)
+class UsageRecord:
+    """Immutable record of token usage from a single LLM call."""
+
+    session_id: UUID
+    model: str
+    input_tokens: int
+    output_tokens: int
+    speed: Speed
+    source: UsageSource = "conversation"
+
+
 # ── Cost estimation ──────────────────────────────────────────────────
 
 
 def estimate_cost(
     input_tokens: int,
     output_tokens: int,
-    speed: str,
+    speed: Speed,
 ) -> float:
     """Estimate cost for a given token count and speed tier."""
     cfg = get_settings()
-    rate_map = {
+    rate_map: dict[str, float] = {
         "reactive": cfg.budget_cost_reactive_per_1k,
         "reflective": cfg.budget_cost_reflective_per_1k,
         "deliberative": cfg.budget_cost_deliberative_per_1k,
@@ -79,54 +100,47 @@ def estimate_cost(
 # ── Recording ────────────────────────────────────────────────────────
 
 
-async def record_usage(  # noqa: PLR0913
-    session_id: UUID,
-    model: str,
-    input_tokens: int,
-    output_tokens: int,
-    speed: str,
-    source: UsageSource = "conversation",
-) -> None:
+async def record_usage(record: UsageRecord) -> None:
     """Record token usage and emit metrics. Check warning thresholds."""
     with tracer.start_as_current_span(
         "budget.record_usage",
         attributes={
-            "session.id": str(session_id),
-            "budget.model": model,
-            "budget.source": source,
-            "budget.input_tokens": input_tokens,
-            "budget.output_tokens": output_tokens,
+            "session.id": str(record.session_id),
+            "budget.model": record.model,
+            "budget.source": record.source,
+            "budget.input_tokens": record.input_tokens,
+            "budget.output_tokens": record.output_tokens,
         },
     ):
-        cost = estimate_cost(input_tokens, output_tokens, speed)
+        cost = estimate_cost(record.input_tokens, record.output_tokens, record.speed)
 
         await db.pool.execute(
             _INSERT_USAGE,
-            session_id,
-            model,
-            input_tokens,
-            output_tokens,
+            record.session_id,
+            record.model,
+            record.input_tokens,
+            record.output_tokens,
             cost,
-            source,
+            record.source,
         )
 
-        total = input_tokens + output_tokens
-        _tokens_used.add(total, {"model": model, "source": source})
-        _cost_counter.add(cost, {"model": model, "source": source})
+        total = record.input_tokens + record.output_tokens
+        _tokens_used.add(total, {"model": record.model, "source": record.source})
+        _cost_counter.add(cost, {"model": record.model, "source": record.source})
 
         log.info(
             "token usage recorded",
             extra={
-                "session_id": str(session_id),
-                "model": model,
-                "source": source,
-                "input_tokens": input_tokens,
-                "output_tokens": output_tokens,
+                "session_id": str(record.session_id),
+                "model": record.model,
+                "source": record.source,
+                "input_tokens": record.input_tokens,
+                "output_tokens": record.output_tokens,
                 "estimated_cost": round(cost, 4),
             },
         )
 
-        await _check_warnings(session_id)
+        await _check_warnings(record.session_id)
 
 
 # ── Budget checking ──────────────────────────────────────────────────
@@ -176,45 +190,59 @@ async def check_budget(session_id: UUID) -> None:
 
 async def get_daily_total() -> int:
     """Return total tokens used in the last 24 hours."""
-    row = await db.pool.fetchval(_DAILY_TOTAL)
-    return int(row)
+    with tracer.start_as_current_span("budget.get_daily_total"):
+        row = await db.pool.fetchval(_DAILY_TOTAL)
+        return int(row)
 
 
 async def get_session_total(session_id: UUID) -> int:
     """Return total tokens used in a specific session."""
-    row = await db.pool.fetchval(_SESSION_TOTAL, session_id)
-    return int(row)
+    with tracer.start_as_current_span(
+        "budget.get_session_total",
+        attributes={"session.id": str(session_id)},
+    ):
+        row = await db.pool.fetchval(_SESSION_TOTAL, session_id)
+        return int(row)
 
 
 # ── Warning checks ───────────────────────────────────────────────────
 
+_BAND_SIZE = 5  # Emit warnings at 5% intervals (80%, 85%, 90%, 95%, 100%)
+
 
 async def _check_warnings(session_id: UUID) -> None:
-    """Emit BudgetWarning events if usage crosses the warning threshold."""
+    """Emit BudgetWarning events when usage crosses a new 5% band."""
     cfg = get_settings()
 
     daily_used = await get_daily_total()
     daily_ratio = daily_used / cfg.budget_daily_cap_tokens
     if daily_ratio >= cfg.budget_warning_threshold:
-        await bus.publish(
-            BudgetWarning(
-                session_id=session_id,
-                scope="daily",
-                used_tokens=daily_used,
-                cap_tokens=cfg.budget_daily_cap_tokens,
-                usage_ratio=round(daily_ratio, 3),
-            ),
-        )
+        band = int(daily_ratio * 100) // _BAND_SIZE
+        if band > _warned_bands.get("daily", 0):
+            _warned_bands["daily"] = band
+            await bus.publish(
+                BudgetWarning(
+                    session_id=session_id,
+                    scope="daily",
+                    used_tokens=daily_used,
+                    cap_tokens=cfg.budget_daily_cap_tokens,
+                    usage_ratio=round(daily_ratio, 3),
+                ),
+            )
 
     session_used = await get_session_total(session_id)
     session_ratio = session_used / cfg.budget_session_cap_tokens
     if session_ratio >= cfg.budget_warning_threshold:
-        await bus.publish(
-            BudgetWarning(
-                session_id=session_id,
-                scope="session",
-                used_tokens=session_used,
-                cap_tokens=cfg.budget_session_cap_tokens,
-                usage_ratio=round(session_ratio, 3),
-            ),
-        )
+        key = f"session:{session_id}"
+        band = int(session_ratio * 100) // _BAND_SIZE
+        if band > _warned_bands.get(key, 0):
+            _warned_bands[key] = band
+            await bus.publish(
+                BudgetWarning(
+                    session_id=session_id,
+                    scope="session",
+                    used_tokens=session_used,
+                    cap_tokens=cfg.budget_session_cap_tokens,
+                    usage_ratio=round(session_ratio, 3),
+                ),
+            )

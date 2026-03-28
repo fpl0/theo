@@ -6,7 +6,9 @@ CREATE TABLE IF NOT EXISTS token_usage (
     output_tokens int NOT NULL,
     estimated_cost real NOT NULL,
     source text NOT NULL DEFAULT 'conversation',
-    created_at timestamptz NOT NULL DEFAULT now()
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT token_usage_source_check
+    CHECK (source IN ('conversation', 'deliberation', 'intent'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_token_usage_session_created

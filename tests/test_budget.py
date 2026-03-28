@@ -8,6 +8,8 @@ from uuid import uuid4
 import pytest
 
 from theo.budget import (
+    UsageRecord,
+    _warned_bands,
     check_budget,
     estimate_cost,
     get_daily_total,
@@ -28,6 +30,17 @@ _CFG = Settings(**_REQUIRED, _env_file=None)  # type: ignore[arg-type]
 
 def _settings(**overrides: object) -> Settings:
     return Settings(**{**_REQUIRED, **overrides}, _env_file=None)  # type: ignore[arg-type]
+
+
+def _record(**overrides: object) -> UsageRecord:
+    defaults: dict[str, object] = {
+        "session_id": uuid4(),
+        "model": "test-model",
+        "input_tokens": 10,
+        "output_tokens": 5,
+        "speed": "reactive",
+    }
+    return UsageRecord(**{**defaults, **overrides})  # type: ignore[arg-type]
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────
@@ -63,6 +76,7 @@ def mock_bus():
 
 @pytest.fixture(autouse=True)
 def _isolate_settings():
+    _warned_bands.clear()
     with patch("theo.budget.get_settings", return_value=_CFG):
         yield
 
@@ -83,10 +97,6 @@ class TestEstimateCost:
         cost = estimate_cost(1000, 1000, "deliberative")
         assert cost == pytest.approx(30.0)
 
-    def test_unknown_speed_falls_back_to_reflective(self) -> None:
-        cost = estimate_cost(1000, 0, "unknown")
-        assert cost == pytest.approx(3.0)
-
     def test_zero_tokens(self) -> None:
         cost = estimate_cost(0, 0, "reactive")
         assert cost == 0.0
@@ -100,11 +110,12 @@ class TestRecordUsage:
         _ = mock_bus
         session = uuid4()
         await record_usage(
-            session_id=session,
-            model="claude-haiku-4-5-20251001",
-            input_tokens=100,
-            output_tokens=50,
-            speed="reactive",
+            _record(
+                session_id=session,
+                model="claude-haiku-4-5-20251001",
+                input_tokens=100,
+                output_tokens=50,
+            ),
         )
         mock_db.execute.assert_awaited_once()
         args = mock_db.execute.call_args[0]
@@ -115,38 +126,19 @@ class TestRecordUsage:
 
     async def test_records_correct_cost(self, mock_db: MagicMock, mock_bus) -> None:
         _ = mock_bus
-        await record_usage(
-            session_id=uuid4(),
-            model="test-model",
-            input_tokens=1000,
-            output_tokens=0,
-            speed="reactive",
-        )
+        await record_usage(_record(input_tokens=1000, output_tokens=0))
         args = mock_db.execute.call_args[0]
         assert args[5] == pytest.approx(0.25)
 
     async def test_default_source_is_conversation(self, mock_db: MagicMock, mock_bus) -> None:
         _ = mock_bus
-        await record_usage(
-            session_id=uuid4(),
-            model="test",
-            input_tokens=10,
-            output_tokens=5,
-            speed="reactive",
-        )
+        await record_usage(_record())
         args = mock_db.execute.call_args[0]
         assert args[6] == "conversation"
 
     async def test_custom_source(self, mock_db: MagicMock, mock_bus) -> None:
         _ = mock_bus
-        await record_usage(
-            session_id=uuid4(),
-            model="test",
-            input_tokens=10,
-            output_tokens=5,
-            speed="reactive",
-            source="deliberation",
-        )
+        await record_usage(_record(source="deliberation"))
         args = mock_db.execute.call_args[0]
         assert args[6] == "deliberation"
 
@@ -157,16 +149,9 @@ class TestRecordUsage:
 class TestBudgetWarnings:
     async def test_daily_warning_emitted_at_threshold(self, mock_db: MagicMock, mock_bus) -> None:
         _bus, published = mock_bus
-        # Set daily total to 80% of cap (default 2M * 0.8 = 1.6M)
         mock_db.fetchval = AsyncMock(return_value=1_600_000)
 
-        await record_usage(
-            session_id=uuid4(),
-            model="test",
-            input_tokens=10,
-            output_tokens=5,
-            speed="reactive",
-        )
+        await record_usage(_record())
 
         warnings = [e for e in published if isinstance(e, BudgetWarning)]
         daily_warnings = [w for w in warnings if w.scope == "daily"]
@@ -178,25 +163,15 @@ class TestBudgetWarnings:
     ) -> None:
         _bus, published = mock_bus
         session = uuid4()
-        call_count = 0
 
-        async def progressive_fetchval(*_args):
-            nonlocal call_count
-            call_count += 1
-            # First call is daily total (below threshold), second is session total (at threshold)
-            if call_count % 2 == 1:
-                return 100_000  # daily: well below threshold
-            return 400_000  # session: at threshold
+        async def route_by_args(*args):
+            if len(args) > 1:
+                return 400_000  # session query (has session_id arg)
+            return 100_000  # daily query (no args)
 
-        mock_db.fetchval = AsyncMock(side_effect=progressive_fetchval)
+        mock_db.fetchval = AsyncMock(side_effect=route_by_args)
 
-        await record_usage(
-            session_id=session,
-            model="test",
-            input_tokens=10,
-            output_tokens=5,
-            speed="reactive",
-        )
+        await record_usage(_record(session_id=session))
 
         warnings = [e for e in published if isinstance(e, BudgetWarning)]
         session_warnings = [w for w in warnings if w.scope == "session"]
@@ -206,16 +181,34 @@ class TestBudgetWarnings:
         _bus, published = mock_bus
         mock_db.fetchval = AsyncMock(return_value=100)
 
-        await record_usage(
-            session_id=uuid4(),
-            model="test",
-            input_tokens=10,
-            output_tokens=5,
-            speed="reactive",
-        )
+        await record_usage(_record())
 
         warnings = [e for e in published if isinstance(e, BudgetWarning)]
         assert len(warnings) == 0
+
+    async def test_duplicate_warning_suppressed(self, mock_db: MagicMock, mock_bus) -> None:
+        """Same 5% band should not emit a second warning."""
+        _bus, published = mock_bus
+        mock_db.fetchval = AsyncMock(return_value=1_600_000)
+
+        await record_usage(_record())
+        await record_usage(_record())
+
+        warnings = [e for e in published if isinstance(e, BudgetWarning) and e.scope == "daily"]
+        assert len(warnings) == 1
+
+    async def test_new_band_emits_warning(self, mock_db: MagicMock, mock_bus) -> None:
+        """Crossing from 80% band to 85% band should emit a second warning."""
+        _bus, published = mock_bus
+        # First call at 80%
+        mock_db.fetchval = AsyncMock(return_value=1_600_000)
+        await record_usage(_record())
+        # Second call at 85%
+        mock_db.fetchval = AsyncMock(return_value=1_700_000)
+        await record_usage(_record())
+
+        warnings = [e for e in published if isinstance(e, BudgetWarning) and e.scope == "daily"]
+        assert len(warnings) == 2
 
 
 # ── Budget check tests ───────────────────────────────────────────────
@@ -234,14 +227,11 @@ class TestCheckBudget:
 
     async def test_raises_when_session_cap_exceeded(self, mock_db: MagicMock) -> None:
         session = uuid4()
-        call_count = 0
 
-        async def per_scope_fetchval(*_args):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return 0  # daily: fine
-            return _CFG.budget_session_cap_tokens  # session: exceeded
+        async def per_scope_fetchval(*args):
+            if len(args) > 1:
+                return _CFG.budget_session_cap_tokens  # session query
+            return 0  # daily query
 
         mock_db.fetchval = AsyncMock(side_effect=per_scope_fetchval)
 
@@ -274,7 +264,6 @@ class TestAggregateQueries:
         result = await get_session_total(session)
         assert result == 6789
         mock_db.fetchval.assert_awaited_once()
-        # Verify session_id was passed
         args = mock_db.fetchval.call_args[0]
         assert len(args) == 2  # query + session_id
 
@@ -331,14 +320,14 @@ class TestBudgetConfig:
 
 
 class TestBudgetWarningEvent:
-    def test_budget_warning_is_durable(self) -> None:
+    def test_budget_warning_is_ephemeral(self) -> None:
         event = BudgetWarning(
             scope="daily",
             used_tokens=1000,
             cap_tokens=2000,
             usage_ratio=0.5,
         )
-        assert event.durable is True
+        assert event.durable is False
 
     def test_budget_warning_fields(self) -> None:
         event = BudgetWarning(
