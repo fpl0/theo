@@ -90,6 +90,18 @@ rules = { invalid-argument-type = "ignore", missing-argument = "ignore" }
 include = ["tests/test_retrieval.py"]
 rules = { invalid-argument-type = "ignore", missing-argument = "ignore", unknown-argument = "ignore" }
 
+# Dict lookups return str, not Literal — ty cannot narrow str keys/values
+# from dict[str, ...] to their Literal subtypes.
+[[tool.ty.overrides]]
+include = ["src/theo/memory/privacy.py"]
+rules = { invalid-return-type = "ignore", invalid-assignment = "ignore" }
+
+# pydantic-settings constructors accept str for SecretStr and dynamic kwargs
+# like _env_file that ty cannot model.
+[[tool.ty.overrides]]
+include = ["tests/test_privacy.py"]
+rules = { invalid-argument-type = "ignore", invalid-assignment = "ignore" }
+
 # test_telegram uses mock objects and patched constructors that ty cannot model.
 [[tool.ty.overrides]]
 include = ["tests/test_telegram.py"]
