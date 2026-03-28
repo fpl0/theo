@@ -170,11 +170,9 @@ async def deliver_pending(session_id: UUID) -> list[str]:
         "deliver_pending_deliberations",
         attributes={"session.id": str(session_id)},
     ):
-        pending = await list_pending_delivery()
+        pending = await list_pending_delivery(session_id)
         results: list[str] = []
         for delib in pending:
-            if delib.session_id != session_id:
-                continue
             synthesis = delib.phase_outputs.get("synthesize", "")
             if synthesis:
                 results.append(synthesis)
@@ -309,8 +307,13 @@ async def _run_phase(
             {"role": "user", "content": question},
         ]
 
-        # Only the gather phase gets memory tools.
-        tools = TOOL_DEFINITIONS if phase == "gather" else None
+        # Only the gather phase gets memory tools. Exclude start_deliberation
+        # to prevent recursive deliberation spawning.
+        tools = (
+            [t for t in TOOL_DEFINITIONS if t["name"] != "start_deliberation"]
+            if phase == "gather"
+            else None
+        )
 
         try:
             result = await asyncio.wait_for(
@@ -416,6 +419,26 @@ async def _try_deliver(
         return
 
     try:
+        # Mark delivered first to prevent double-delivery if deliver_pending
+        # runs concurrently (it also calls mark_delivered with NOT delivered guard).
+        await mark_delivered(deliberation_id)
+    except LookupError:
+        # Already delivered by deliver_pending — skip the bus publish.
+        log.info(
+            "deliberation already delivered by deferred path",
+            extra={"deliberation_id": str(deliberation_id)},
+        )
+        return
+    except Exception:  # noqa: BLE001
+        # mark_delivered failure is not fatal — stays pending for next turn.
+        log.warning(
+            "failed to mark deliberation delivered",
+            extra={"deliberation_id": str(deliberation_id)},
+            exc_info=True,
+        )
+        return
+
+    try:
         await bus.publish(
             MessageReceived(
                 body=f"[Deliberation complete] {synthesis}",
@@ -424,15 +447,13 @@ async def _try_deliver(
                 role="system",
             )
         )
-        await mark_delivered(deliberation_id)
         log.info(
             "delivered deliberation via internal message",
             extra={"deliberation_id": str(deliberation_id)},
         )
     except Exception:  # noqa: BLE001
-        # Delivery failure is not fatal — stays pending for next turn.
         log.warning(
-            "failed to deliver deliberation immediately",
+            "failed to publish deliberation message",
             extra={"deliberation_id": str(deliberation_id)},
             exc_info=True,
         )

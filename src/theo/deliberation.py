@@ -145,9 +145,9 @@ SELECT
     updated_at,
     delivered
 FROM deliberation
-WHERE status = 'completed' AND NOT delivered
+WHERE status = 'completed' AND NOT delivered AND session_id = $1
 ORDER BY created_at
-LIMIT $1
+LIMIT $2
 """
 
 _LIST_ACTIVE = """
@@ -297,10 +297,13 @@ async def mark_delivered(deliberation_id: UUID) -> None:
         )
 
 
-async def list_pending_delivery(*, limit: int = 100) -> list[DeliberationState]:
-    """Return all completed but undelivered deliberations, oldest first."""
-    with tracer.start_as_current_span("list_pending_delivery"):
-        rows = await db.pool.fetch(_LIST_PENDING_DELIVERY, limit)
+async def list_pending_delivery(session_id: UUID, *, limit: int = 100) -> list[DeliberationState]:
+    """Return completed but undelivered deliberations for a session."""
+    with tracer.start_as_current_span(
+        "list_pending_delivery",
+        attributes={"session.id": str(session_id)},
+    ):
+        rows = await db.pool.fetch(_LIST_PENDING_DELIVERY, session_id, limit)
         results = [_row_to_state(r) for r in rows]
         log.debug("found pending deliberations", extra={"count": len(results)})
         return results

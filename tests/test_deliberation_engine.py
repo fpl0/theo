@@ -411,18 +411,12 @@ class TestDeliverPending:
         mock_mark.assert_awaited_once_with(_DELIB_ID)
 
     async def test_skips_different_session(self) -> None:
-        other_session = uuid4()
-        delib = _make_state(
-            session_id=other_session,
-            status="completed",
-            phase_outputs={"synthesize": "result"},
-        )
-
+        """DB now filters by session_id, so other sessions' results never appear."""
         with (
             patch(
                 "theo.conversation.deliberation.list_pending_delivery",
                 new_callable=AsyncMock,
-                return_value=[delib],
+                return_value=[],
             ),
             patch(
                 "theo.conversation.deliberation.mark_delivered",
