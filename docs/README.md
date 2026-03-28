@@ -1,6 +1,6 @@
 # Theo Documentation
 
-## [Decision Records](decisions/)
+## Decision Records
 
 Architectural decisions covering memory, conversation, infrastructure, and interface design. Each record documents context, rationale, and files affected.
 
