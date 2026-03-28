@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS intent (
     result jsonb,
     error text,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz,
+    updated_at timestamptz NOT NULL DEFAULT now(),
     started_at timestamptz,
     completed_at timestamptz,
     expires_at timestamptz,
