@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, cast
 
 from opentelemetry import metrics, trace
 
+from theo.autonomy import classify_tool, log_action, requires_approval
 from theo.llm import StreamDone, TextDelta, ToolUseRequest, stream_response
 from theo.memory.tools import execute_tool
 from theo.resilience import circuit_breaker
@@ -179,16 +180,47 @@ async def _run_tools(
     episode_id: int | None,
     session_id: UUID | None,
 ) -> int:
-    """Execute tool requests, append results, return count."""
+    """Execute tool requests, classify autonomy, append results, return count."""
     results: list[dict[str, object]] = []
     for req in reqs:
         _tool_call_counter.add(1, {"tool.name": req.name})
+
+        classification = classify_tool(req.name)
+
+        # Propose/consult actions will route to approval gateway (FPL-37).
+        # For now all actions execute and get logged.
+        if requires_approval(classification.autonomy_level):
+            log.info(
+                "action requires approval (executing pending gateway)",
+                extra={
+                    "tool": req.name,
+                    "autonomy_level": classification.autonomy_level,
+                    "action_type": classification.action_type,
+                },
+            )
+
         result = await execute_tool(
             req.name,
             req.input,
             episode_id=episode_id,
             session_id=session_id,
         )
+
+        try:
+            await log_action(
+                classification.action_type,
+                classification.autonomy_level,
+                "executed",
+                context={"tool": req.name, "tool_use_id": req.id},
+                session_id=session_id,
+            )
+        except Exception:  # noqa: BLE001
+            log.warning(
+                "failed to log action, continuing turn",
+                extra={"tool": req.name, "action_type": classification.action_type},
+                exc_info=True,
+            )
+
         results.append(
             {"type": "tool_result", "tool_use_id": req.id, "content": result},
         )
