@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     embedding_model: str = "BAAI/bge-base-en-v1.5"
     embedding_dim: int = 768
 
+    whisper_model: str = "mlx-community/whisper-small"
+
     # Context assembly budgets (approximate token counts).
     # Persona and goals are never truncated — no budget field needed.
     # User model and current task are capped at their budget when they exceed it.
@@ -50,6 +52,9 @@ class Settings(BaseSettings):
 
     # Memory
     contradiction_check_enabled: bool = True
+
+    # Privacy filtering
+    privacy_filter_enabled: bool = True
 
     # Telegram gate
     telegram_bot_token: SecretStr | None = None

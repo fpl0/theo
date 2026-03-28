@@ -20,6 +20,7 @@ dependencies = [
     "opentelemetry-sdk>=1.40",
     "opentelemetry-exporter-otlp-proto-http>=1.40",
     "opentelemetry-instrumentation-asyncpg>=0.61b0",
+    "mlx-whisper>=0.4",
     "aiogram>=3.20",
 ]
 
@@ -54,7 +55,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101", "S105", "S106", "PLR2004", "SLF001"]
+"tests/**/*.py" = ["S101", "S105", "S106", "S108", "PLC0415", "PLR2004", "SLF001"]
 
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = ["pydantic_settings.BaseSettings"]
@@ -93,6 +94,29 @@ rules = { invalid-argument-type = "ignore", missing-argument = "ignore", unknown
 [[tool.ty.overrides]]
 include = ["tests/test_contradictions.py"]
 rules = { invalid-assignment = "ignore" }
+
+# Dict lookups return str, not Literal — ty cannot narrow str keys/values
+# from dict[str, ...] to their Literal subtypes.
+[[tool.ty.overrides]]
+include = ["src/theo/memory/privacy.py"]
+rules = { invalid-return-type = "ignore", invalid-assignment = "ignore" }
+
+# pydantic-settings constructors accept str for SecretStr and dynamic kwargs
+# like _env_file that ty cannot model.
+[[tool.ty.overrides]]
+include = ["tests/test_privacy.py"]
+rules = { invalid-argument-type = "ignore", invalid-assignment = "ignore" }
+
+# test_telegram uses mock objects and patched constructors that ty cannot model.
+[[tool.ty.overrides]]
+include = ["tests/test_telegram.py"]
+rules = { invalid-argument-type = "ignore", missing-argument = "ignore", unknown-argument = "ignore", invalid-assignment = "ignore" }
+
+# conftest stubs MLX modules on non-Apple-Silicon CI by setting attributes on
+# dynamically created ModuleType instances — ty cannot resolve those attributes.
+[[tool.ty.overrides]]
+include = ["tests/conftest.py"]
+rules = { unresolved-attribute = "ignore" }
 
 [tool.sqlfluff.core]
 dialect = "postgres"
