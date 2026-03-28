@@ -209,15 +209,18 @@ async def update_phase(
     deliberation_id: UUID,
     phase: DeliberationPhase,
     output: str,
+    *,
+    output_key: str | None = None,
 ) -> None:
-    """Store *output* under the *phase* key and advance the deliberation.
+    """Store *output* and advance the deliberation to *phase*.
 
-    The output is stored in ``phase_outputs[phase]`` — i.e., the key matches
-    the phase that produced the output.  Only running deliberations can be
-    advanced.
+    The output is stored in ``phase_outputs[output_key]``.  When *output_key*
+    is ``None`` (the default) it equals *phase* — matching the convention where
+    the key corresponds to the producing phase when it equals the next phase.
 
     Raises :class:`LookupError` if no running deliberation matches.
     """
+    key = output_key if output_key is not None else phase
     with tracer.start_as_current_span(
         "update_deliberation_phase",
         attributes={
@@ -229,7 +232,7 @@ async def update_phase(
             _UPDATE_PHASE,
             deliberation_id,
             phase,
-            phase,
+            key,
             output,
         )
         if result is None:

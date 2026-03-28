@@ -36,6 +36,7 @@ from theo.conversation.context.formatting import (
     join_system_prompt,
 )
 from theo.conversation.context.tokens import estimate_tokens
+from theo.conversation.deliberation import deliver_pending
 from theo.memory import core
 from theo.memory.episodes import list_episodes
 from theo.memory.retrieval import hybrid_search
@@ -148,10 +149,25 @@ async def assemble(
                 onboarding_tokens = estimate_tokens(onboarding_section)
                 span.set_attribute("context.onboarding_phase", onboarding_state.phase)
 
+        # Check for completed deliberations awaiting delivery.
+        deliberation_section = ""
+        deliberation_tokens = 0
+        pending_results = await deliver_pending(session_id)
+        if pending_results:
+            deliberation_section = (
+                "## Completed Deliberation Results\n"
+                "You previously deliberated on a question in the background. "
+                "Here are the results — incorporate them into your response.\n\n"
+                + "\n\n---\n\n".join(pending_results)
+            )
+            deliberation_tokens = estimate_tokens(deliberation_section)
+            span.set_attribute("context.deliberation_results", len(pending_results))
+
         system_prompt = join_system_prompt(
             sections,
             memory_section,
             onboarding_section=onboarding_section,
+            deliberation_section=deliberation_section,
         )
 
         eps = await list_episodes(session_id)
@@ -174,6 +190,7 @@ async def assemble(
             + section_tokens.memory
             + section_tokens.history
             + onboarding_tokens
+            + deliberation_tokens
         )
 
         span.set_attribute("context.persona_tokens", section_tokens.persona)

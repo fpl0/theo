@@ -193,4 +193,26 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "required": ["summary"],
         },
     },
+    {
+        "name": "start_deliberation",
+        "description": (
+            "Start a multi-step deliberation on a complex question. "
+            "Use this when the question requires deep thinking: weighing trade-offs, "
+            "researching multiple angles, or producing a well-reasoned recommendation. "
+            "The deliberation runs in the background — acknowledge the user and let them "
+            "know you're thinking about it. The result will be delivered when ready."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": (
+                        "The question to deliberate on, restated clearly and completely."
+                    ),
+                },
+            },
+            "required": ["question"],
+        },
+    },
 ]

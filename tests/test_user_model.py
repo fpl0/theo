@@ -238,6 +238,7 @@ class TestUpdateUserModelTool:
             "update_core_memory",
             "update_user_model",
             "advance_onboarding",
+            "start_deliberation",
         }
         assert names == expected
 

@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     llm_model_deliberative: str = "claude-opus-4-6-20250514"
     llm_max_tokens: int = 4096
 
+    # Deliberation
+    deliberation_max_phases: int = 5
+    deliberation_phase_timeout_s: int = 120
+    deliberation_budget_tokens: int = 20_000
+
     # Embeddings
     embedding_model: str = "BAAI/bge-base-en-v1.5"
     embedding_dim: int = 768

@@ -176,6 +176,7 @@ def join_system_prompt(
     memory_section: str,
     *,
     onboarding_section: str = "",
+    deliberation_section: str = "",
 ) -> str:
     """Join non-empty sections in canonical order."""
     parts: list[str] = []
@@ -191,6 +192,8 @@ def join_system_prompt(
         parts.append(sections.task)
     if memory_section:
         parts.append(memory_section)
+    if deliberation_section:
+        parts.append(deliberation_section)
     return "\n\n".join(parts)
 
 

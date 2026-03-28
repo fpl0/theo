@@ -105,6 +105,17 @@ def _settings(**overrides: Any) -> Settings:
     return Settings(**(defaults | overrides))
 
 
+@pytest.fixture(autouse=True)
+def _mock_deliver_pending():
+    """Stub out deliberation delivery — context tests don't need it."""
+    with patch(
+        "theo.conversation.context.assembly.deliver_pending",
+        new_callable=AsyncMock,
+        return_value=[],
+    ):
+        yield
+
+
 # ---------------------------------------------------------------------------
 # estimate_tokens
 # ---------------------------------------------------------------------------
