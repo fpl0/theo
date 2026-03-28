@@ -19,12 +19,12 @@ You are the foremost expert on how Theo remembers, retrieves, and reasons about 
 - `episodes.py` — Append-only episodic memory per session
 - `edges.py` — Typed relationships between nodes with temporal validity, graph traversal via recursive CTE
 - `retrieval.py` — Hybrid search fusing vector + FTS + graph signals via Reciprocal Rank Fusion (7-CTE single query)
-- `user_model.py` — 29 structured dimensions (Schwartz values, Big Five, communication, energy, goals, boundaries)
-- `self_model.py` — Accuracy calibration across 6 domains (scheduling, drafting, recommendations, research, summarization, task_execution)
+- `user_model.py` — Structured dimensions (Schwartz values, Big Five, communication, energy, goals, boundaries)
+- `self_model.py` — Accuracy calibration across domains (scheduling, drafting, recommendations, research, summarization, task_execution)
 - `privacy.py` — Three-stage filter: trust check → content classification (regex heuristics) → channel check
 - `contradictions.py` — Semantic conflict detection via similarity search + LLM judgment, confidence reduction + `conflicts_with` edges
 - `auto_edges.py` — Co-occurrence linking via `episode_node` junction table, weight formula: `min(1.0, co_count * 0.2)`
-- `tools.py` — Seven LLM-facing tools: store_memory, search_memory, read_core_memory, update_core_memory, link_memories, update_user_model, advance_onboarding
+- `tools.py` — LLM-facing tools: store_memory, search_memory, read_core_memory, update_core_memory, link_memories, update_user_model, advance_onboarding
 
 **Schema** (`src/theo/db/migrations/`):
 - `0001_initial.sql` — Extensions (vector, pg_stat_statements), domain types (trust_tier, sensitivity_level), utility triggers

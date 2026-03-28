@@ -54,7 +54,7 @@ You own the runtime foundation that everything else runs on. Database connection
 **Infrastructure** (`docker-compose.yml`, `infra/`, `justfile`):
 - PostgreSQL 18 + pgvector 0.8.2 (health check, tuned settings)
 - OpenObserve v0.70.0 (OTLP HTTP, ~250MB RAM)
-- Provisioning: 6 dashboards + 5 alerts via curl
+- Provisioning: dashboards + alerts via curl
 - Justfile targets: up, down, dev, reset, check, test, lint, fmt
 
 **Tests**: `tests/test_bus.py`, `tests/test_resilience.py`, `tests/test_embeddings.py`, `tests/test_transcription.py`, `tests/test_config.py`, `tests/test_main.py`, `tests/conftest.py`

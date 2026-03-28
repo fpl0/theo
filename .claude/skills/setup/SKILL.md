@@ -106,7 +106,7 @@ After both are healthy, provision dashboards:
 cd /Users/fpl0/Code/theo && just dashboards
 ```
 
-This creates 6 dashboards + 5 alerts in OpenObserve. Alerts may be skipped if no data streams exist yet (they'll be created on the next run).
+This provisions dashboards and alerts in OpenObserve. Alerts may be skipped if no data streams exist yet (they'll be created on the next run).
 
 ```
 [3/7] Infrastructure   OK  (PostgreSQL :5432, OpenObserve :5080, dashboards provisioned)

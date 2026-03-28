@@ -99,8 +99,8 @@ just fmt                               # auto-format python + sql
 - **PostgreSQL 18 + pgvector 0.8.2**: knowledge graph with vector + full-text search.
 - **OpenObserve v0.70.0**: lightweight OTEL backend (~250MB RAM). Traces, metrics, logs in one binary.
 - All infrastructure runs via `docker compose`. Data is persisted in named volumes.
-- **Dashboards** (`infra/dashboards/`): 6 pre-built OpenObserve dashboards provisioned via `just dashboards` — Overview, Conversation, LLM, Memory, Resilience, Telegram.
-- **Alerts** (`infra/alerts/`): 5 alert definitions (circuit breaker, retry queue, LLM errors, health check, bus failures). Provisioned best-effort after first data arrives.
+- **Dashboards** (`infra/dashboards/`): Pre-built OpenObserve dashboards provisioned via `just dashboards`.
+- **Alerts** (`infra/alerts/`): Alert definitions provisioned best-effort after first data arrives.
 
 ## Decision records
 

@@ -17,12 +17,12 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 
 - Knowledge graph edges with temporal validity, weight constraints, and graph traversal
-- Structured user model — 29 dimensions across 7 psychological frameworks with confidence scores
+- Structured user model — dimensions across psychological frameworks with confidence scores
 - Self-model — Theo tracks its own accuracy per domain
 - Hybrid retrieval — vector + full-text + graph BFS fused via Reciprocal Rank Fusion
 - Auto-edge creation from entity co-occurrence in conversations
 - Enhanced context assembly with per-section token budgets and tiered eviction
-- OpenObserve dashboard provisioning — 6 dashboards, 5 alerts via `just dashboards`
+- OpenObserve dashboard and alert provisioning via `just dashboards`
 
 ## M1 — 2026-03-26
 
