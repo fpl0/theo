@@ -2,7 +2,6 @@
 
 **Date:** 2026-03-26
 **Ticket:** FPL-7
-**Status:** Accepted
 
 ## Context
 

@@ -1,7 +1,7 @@
 # Graceful degradation
 
-**Ticket:** FPL-17
 **Date:** 2026-03-26
+**Ticket:** FPL-17
 
 ## Context
 

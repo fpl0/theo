@@ -1,5 +1,7 @@
 # Voice message input via Whisper
 
+**Date:** 2026-03-28
+
 ## Context
 
 Telegram supports voice messages (`.ogg` format). Users should be able to speak instead of type. M2 adds local transcription on Apple Silicon using MLX Whisper, keeping the local-first philosophy — no cloud transcription APIs, no data leaves the machine.

@@ -1,5 +1,7 @@
 # Contradiction Detection (FPL-26)
 
+**Date:** 2026-03-28
+
 ## Context
 
 As the knowledge graph grows, conflicting facts are inevitable ("Alice works at Google" vs "Alice works at Meta"). Without detection, Theo silently accumulates contradictory information, degrading the quality of memory retrieval and reasoning. M2 adds contradiction detection at storage time so conflicting nodes have reduced confidence and are linked for future resolution.

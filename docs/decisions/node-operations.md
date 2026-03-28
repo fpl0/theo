@@ -1,5 +1,7 @@
 # Node Operations (FPL-8)
 
+**Date:** 2026-03-26
+
 ## Decision: Result types as frozen dataclasses
 
 Shared result types (`NodeResult`, `EpisodeResult`) use `@dataclasses.dataclass(frozen=True, slots=True)` rather than Pydantic models or NamedTuples. Rationale:

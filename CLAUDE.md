@@ -40,7 +40,9 @@ All code lives under `src/theo/`. Key modules by concern:
 - **Memory**: `memory/` — knowledge graph (nodes, episodes, core ops, LLM tools)
 - **Database**: `db/` — asyncpg pool, forward-only SQL migrations
 - **Gates**: `gates/` — external interfaces (Telegram via aiogram)
+- **Onboarding**: `onboarding/` — structured user-model seeding flow
 - **Resilience**: `resilience/` — circuit breaker, retry queue, health check
+- **Transcription**: `transcription.py` — speech-to-text via MLX Whisper
 - **Infra**: `bus/` (event bus), `telemetry.py` (OTEL), `embeddings.py` (MLX BERT), `errors.py` (exception hierarchy)
 
 ## Design decisions
@@ -122,8 +124,8 @@ Any code change that introduces a new module, changes architecture, or makes a n
 
 The `.claude/` directory contains all Claude Code tooling for this project:
 
-- **Skills** (`.claude/skills/`): `/check`, `/db-migrate`, `/db-optimize`, `/otel-check`, `/otel-dashboard`
-- **Subagents** (`.claude/agents/`): `code-reviewer` — expert review for agentic AI, async Python, and PostgreSQL
+- **Skills** (`.claude/skills/`): `/check`, `/db-migrate`, `/db-optimize`, `/otel-check`, `/otel-dashboard`, `/setup`
+- **Subagents** (`.claude/agents/`): `code-reviewer` (review), `theo-memory` (knowledge graph & retrieval), `theo-conversation` (turn execution & LLM), `theo-platform` (infra & resilience), `theo-interface` (Telegram & gates)
 - **Rules** (`.claude/rules/`): path-specific conventions loaded only when editing relevant files — `telemetry.md`, `database.md`, `testing.md`
 - **Hooks** (`.claude/settings.json`): auto-format Python (`ruff`) and SQL (`sqlfluff`) on every edit
 - **Local overrides** (`.claude/settings.local.json`): machine-specific permissions (gitignored)

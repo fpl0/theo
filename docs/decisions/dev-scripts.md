@@ -1,5 +1,7 @@
 # Dev scripts
 
+**Date:** 2026-03-26
+
 ## Context
 
 Every dev workflow (start infra, run agent, lint, format, test) required typing full commands from memory or copying from CLAUDE.md. A task runner provides short aliases.

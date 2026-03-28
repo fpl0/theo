@@ -1,5 +1,7 @@
 # Privacy Filter Pipeline (FPL-25)
 
+**Date:** 2026-03-28
+
 ## Context
 
 Trust tiers (`owner` through `untrusted`) and sensitivity levels (`normal`, `sensitive`, `private`) are defined as PostgreSQL domain types and enforced at the database level. However, no application-level enforcement existed — any trust tier could store data at any sensitivity. M2 adds a three-stage pipeline that runs at the storage boundary in `store_node()` and `store_episode()`.

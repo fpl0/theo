@@ -1,5 +1,7 @@
 # Edge Operations (FPL-20)
 
+**Date:** 2026-03-27
+
 ## Context
 
 The `edge` table exists since migration 0002 with temporal validity (`valid_from`/`valid_to`), weight constraints, and a unique partial index ensuring one active edge per (source, target, label) triple. No application code existed to operate on edges.

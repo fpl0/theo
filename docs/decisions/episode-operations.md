@@ -1,5 +1,7 @@
 # Episode Operations (FPL-9)
 
+**Date:** 2026-03-26
+
 ## Decision: Mirror node operations patterns
 
 Episode operations follow the same structural patterns as node operations: static SQL constants, singleton `db`/`embedder` imports, `_row_to_result` helper, OTEL spans on every public function. Consistency across the memory package reduces cognitive load and makes the codebase predictable.

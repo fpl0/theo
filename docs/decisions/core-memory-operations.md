@@ -1,5 +1,7 @@
 # Core Memory Operations (FPL-10)
 
+**Date:** 2026-03-26
+
 ## Decision: Dedicated result types in core.py, not _types.py
 
 `CoreDocument` and `ChangelogEntry` live in `theo.memory.core` rather than the shared `_types.py` module. Core memory has a distinct shape (label/body/version) unrelated to nodes or episodes, and keeping types co-located with their data access layer makes the module self-contained. They're re-exported from `theo.memory.__init__` for external consumers.

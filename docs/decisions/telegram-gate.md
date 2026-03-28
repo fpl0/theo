@@ -1,5 +1,7 @@
 # Telegram Gate (FPL-15)
 
+**Date:** 2026-03-26
+
 ## Decision: aiogram 3.x over python-telegram-bot
 
 aiogram is async-native (no threading shims), has first-class type annotations, and uses pydantic models internally. It aligns with Theo's async-only, strictly-typed design. python-telegram-bot's async support is bolted on and less ergonomic.

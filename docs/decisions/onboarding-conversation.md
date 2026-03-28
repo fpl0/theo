@@ -1,5 +1,7 @@
 # Onboarding conversation (FPL-29)
 
+**Date:** 2026-03-28
+
 ## Context
 
 Theo needs a structured way to learn about its owner. Rather than accumulating observations passively over weeks, a dedicated onboarding conversation seeds the user model quickly and intentionally. The conversation is built on Motivational Interviewing techniques and maps responses to the structured `user_model_dimension` table (FPL-21).

@@ -1,5 +1,7 @@
 # Hybrid Retrieval with RRF Fusion (FPL-24)
 
+**Date:** 2026-03-27
+
 ## Context
 
 M1 retrieval was pure vector similarity via `search_nodes()` in `nodes.py` — a single `ORDER BY embedding <=> $1` query. The `node` table already has a GIN-indexed `tsv` tsvector column for full-text search, and the `edge` table (FPL-20) supports graph traversal. M2 fuses all three signals into a single ranked list.

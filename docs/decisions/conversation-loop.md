@@ -1,5 +1,7 @@
 # Conversation Loop (FPL-13)
 
+**Date:** 2026-03-26
+
 ## Decision: Per-session asyncio locks for sequential processing
 
 Messages within a single session are serialized using `asyncio.Lock` keyed by `session_id`. This prevents interleaving of conversation turns within one session (which would corrupt the alternating user/assistant history) while allowing different sessions to process concurrently. The dict of locks grows lazily; cleanup is deferred to M2 since session counts in M1 are trivially small.

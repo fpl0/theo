@@ -1,5 +1,7 @@
 # Enhanced context assembly
 
+**Date:** 2026-03-27
+
 ## Context
 
 M1's context assembly used flat budgets (`memory_budget=2000`, `history_budget=4000`) and pure vector search (`search_nodes`). Core memory was included as a single block without per-section token accounting. M2 requires hybrid retrieval, per-section budget enforcement, and a defined eviction policy to handle budget pressure gracefully.
@@ -29,11 +31,23 @@ This matches the MemGPT priority hierarchy: identity > goals > user model > retr
 
 Added `SectionTokens` frozen dataclass with per-section token counts. `AssembledContext` now includes this as a field. OTEL span attributes updated to emit `context.persona_tokens`, `context.goals_tokens`, `context.user_model_tokens`, `context.task_tokens`, `context.memory_tokens`, `context.history_tokens`. This replaces the single `context.core_tokens` attribute from M1.
 
+### Module-to-package split
+
+`src/theo/conversation/context.py` (424 lines) was split into a `context/` package to respect the ~200-line module convention:
+
+- `context/tokens.py` — token estimation and truncation (pure functions, no dependencies)
+- `context/formatting.py` — core section formatting, archival memory formatting, episode-to-message conversion, onboarding state extraction, eviction logic
+- `context/assembly.py` — `assemble()` entry point, `AssembledContext` and `SectionTokens` result types, OTEL instrumentation
+- `context/__init__.py` — re-exports all public names so `from theo.conversation.context import ...` continues to work
+
+Private helpers (`_format_core_section`, `_truncate_section`, etc.) were made public during the split since they are now module-level exports tested directly.
+
 ## Files changed
 
 - `src/theo/config.py` — two new per-section budget fields (`context_user_model_budget`, `context_current_task_budget`), budget validator
-- `src/theo/conversation/context.py` — hybrid search, per-section formatting, eviction policy, `SectionTokens` dataclass, updated OTEL attributes
-- `tests/test_context.py` — updated for `hybrid_search`, config-driven budgets, new tests for eviction, section ordering, protected sections, and `SectionTokens`
+- `src/theo/conversation/context/` — package replacing single-file module (see split above)
+- `tests/test_context.py` — updated imports for renamed public functions, patch targets updated to `assembly` submodule
+- `tests/test_onboarding.py` — patch targets updated to `assembly` submodule
 - `tests/test_conversation.py` — updated `AssembledContext` construction with `section_tokens`
 - `tests/test_resilience.py` — updated `AssembledContext` construction with `section_tokens`
 - `docs/decisions/enhanced-context-assembly.md` — this file

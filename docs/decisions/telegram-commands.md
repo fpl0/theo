@@ -1,7 +1,7 @@
 # Telegram Commands and System Control
 
-**Ticket**: FPL-16
-**Date**: 2026-03-26
+**Date:** 2026-03-26
+**Ticket:** FPL-16
 
 ## Decision
 

@@ -1,5 +1,7 @@
 # OpenObserve Provisioning
 
+**Date:** 2026-03-27
+
 ## Context
 
 Theo has comprehensive OTEL instrumentation (13 metrics, 24 spans, 60+ structured log messages) flowing to OpenObserve, but OpenObserve starts as a blank slate. Every `just reset` or fresh setup required manual dashboard creation. For an agent built for decades where observability is non-negotiable, understanding Theo's state should be immediate — not a manual setup chore.

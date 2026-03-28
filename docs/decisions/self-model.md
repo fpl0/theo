@@ -1,5 +1,7 @@
 # Self Model Initialization (FPL-22)
 
+**Date:** 2026-03-27
+
 ## Context
 
 M2 requires Theo to begin tracking its own accuracy per domain so future milestones (M5) can build calibration curves and scoring. This ticket provides the schema, seed data, and basic record/read operations.

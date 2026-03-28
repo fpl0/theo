@@ -1,5 +1,7 @@
 # Auto-edge Creation from Entity Co-occurrence (FPL-27)
 
+**Date:** 2026-03-27
+
 ## Context
 
 The knowledge graph has nodes and edges but no automatic relationship discovery. When Theo stores memories about related concepts in the same conversation, they should be linked. The `episode_node` join table (migration 0003) exists for cross-referencing episodes to entities but was unused. FPL-20 provides `store_edge()` for edge upsert.

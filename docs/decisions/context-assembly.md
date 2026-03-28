@@ -1,12 +1,14 @@
 # Context Assembly (FPL-12)
 
+**Date:** 2026-03-26
+
 ## Decision: Word-count token estimation for M1
 
 Token budgets use a rough approximation of ~1.3 tokens per word. This is intentionally coarse — accurate tokenization would require the Anthropic tokenizer (or tiktoken), adding a dependency for marginal gain at this stage. The `estimate_tokens()` function has a stable API so a tokenizer-backed implementation can replace it later without changing callers.
 
-## Decision: Function parameters over Settings coupling
+## Decision: Settings-driven budgets
 
-`assemble()` accepts `memory_budget` and `history_budget` as explicit parameters with sensible defaults (2000 and 4000) rather than reading from `get_settings()` directly. This keeps the module testable without mocking settings and lets the conversation engine (FPL-13) read from Settings and pass values through. Config fields (`context_memory_budget`, `context_history_budget`) are added to `Settings` for documentation and validation but the context module itself has no direct dependency on config.
+`assemble()` reads `context_memory_budget` and `context_history_budget` from `get_settings()` directly. Budget values are configured in `Settings` (`config.py`) and loaded from env vars. This keeps budget management centralized in config rather than threaded through call sites.
 
 ## Decision: Non-assistant roles mapped to "user"
 
