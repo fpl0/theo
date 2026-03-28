@@ -93,7 +93,13 @@ rules = { invalid-argument-type = "ignore", missing-argument = "ignore", unknown
 # test_telegram uses mock objects and patched constructors that ty cannot model.
 [[tool.ty.overrides]]
 include = ["tests/test_telegram.py"]
-rules = { invalid-argument-type = "ignore", missing-argument = "ignore", unknown-argument = "ignore" }
+rules = { invalid-argument-type = "ignore", missing-argument = "ignore", unknown-argument = "ignore", invalid-assignment = "ignore" }
+
+# conftest stubs MLX modules on non-Apple-Silicon CI by setting attributes on
+# dynamically created ModuleType instances — ty cannot resolve those attributes.
+[[tool.ty.overrides]]
+include = ["tests/conftest.py"]
+rules = { unresolved-attribute = "ignore" }
 
 [tool.sqlfluff.core]
 dialect = "postgres"
