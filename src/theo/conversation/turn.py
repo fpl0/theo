@@ -15,6 +15,7 @@ from theo.bus.events import ResponseChunk, ResponseComplete
 from theo.conversation.context import assemble
 from theo.errors import APIUnavailableError, CircuitOpenError, PrivacyViolationError
 from theo.llm import (
+    SessionContext,
     Speed,
     StreamDone,
     TextDelta,
@@ -34,6 +35,7 @@ if TYPE_CHECKING:
     from anthropic.types import MessageParam, ToolParam
 
     from theo.bus.events import MessageReceived
+    from theo.conversation.engine import ConversationEngine
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -89,10 +91,12 @@ async def execute_turn(
     session_id: UUID,
     *,
     persist_user_message: bool = True,
+    session_context: SessionContext | None = None,
+    engine: ConversationEngine | None = None,
 ) -> None:
     """Run a full conversation turn: context -> LLM stream -> tool loop -> response."""
     t0 = time.monotonic()
-    speed = classify_speed(event.body)
+    speed, signals = classify_speed(event.body, session_context)
     model = model_for_speed(speed)
     state = _TurnState(
         session_id=session_id,
@@ -101,12 +105,17 @@ async def execute_turn(
         model=model,
     )
 
+    # Record the effective speed for future session ratchet decisions.
+    if engine is not None:
+        engine.record_speed(session_id, speed)
+
     with tracer.start_as_current_span(
         "conversation.turn",
         attributes={
             "session.id": str(session_id),
             "llm.speed": speed,
             "llm.model": model,
+            **{f"speed.{k}": str(v) for k, v in signals.items()},
         },
     ) as span:
         try:

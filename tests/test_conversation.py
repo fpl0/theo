@@ -304,6 +304,75 @@ class TestSpeedSelection:
 
         assert streamed_kwargs[0]["speed"] == "deliberative"
 
+    async def test_ratchet_holds_speed_across_turns(
+        self, mock_bus, mock_store_episode, mock_assemble
+    ) -> None:
+        """After a deliberative turn, a reflective message should stay deliberative."""
+        _ = mock_bus, mock_store_episode, mock_assemble  # activate fixtures
+        streamed_kwargs: list[dict] = []
+
+        async def capture_stream(_messages, **kwargs):
+            streamed_kwargs.append(kwargs)
+            yield TextDelta(text="ok")
+            yield StreamDone(input_tokens=1, output_tokens=1, stop_reason="end_turn")
+
+        with patch("theo.conversation.turn.stream_response", capture_stream):
+            eng = ConversationEngine()
+            eng._state = "running"
+            # First message: deliberative
+            await eng._process_message(_make_msg(body="please analyze this data carefully"))
+            # Second message: normally reflective, but ratchet should hold
+            await eng._process_message(_make_msg(body="tell me more about that"))
+
+        assert streamed_kwargs[0]["speed"] == "deliberative"
+        assert streamed_kwargs[1]["speed"] == "deliberative"
+
+    async def test_ratchet_allows_downgrade_on_ack(
+        self, mock_bus, mock_store_episode, mock_assemble
+    ) -> None:
+        """A reactive acknowledgment after deliberative should downgrade."""
+        _ = mock_bus, mock_store_episode, mock_assemble  # activate fixtures
+        streamed_kwargs: list[dict] = []
+
+        async def capture_stream(_messages, **kwargs):
+            streamed_kwargs.append(kwargs)
+            yield TextDelta(text="ok")
+            yield StreamDone(input_tokens=1, output_tokens=1, stop_reason="end_turn")
+
+        with patch("theo.conversation.turn.stream_response", capture_stream):
+            eng = ConversationEngine()
+            eng._state = "running"
+            await eng._process_message(_make_msg(body="please analyze this data carefully"))
+            await eng._process_message(_make_msg(body="ok"))
+
+        assert streamed_kwargs[0]["speed"] == "deliberative"
+        assert streamed_kwargs[1]["speed"] == "reactive"
+
+
+class TestEngineSessionContext:
+    def test_session_context_empty_for_new_session(self) -> None:
+        eng = ConversationEngine()
+        ctx = eng.session_context_for(uuid4())
+        assert ctx.peak_speed is None
+        assert ctx.prior_speeds == ()
+
+    def test_record_speed_builds_history(self) -> None:
+        eng = ConversationEngine()
+        sid = uuid4()
+        eng.record_speed(sid, "reactive")
+        eng.record_speed(sid, "deliberative")
+        ctx = eng.session_context_for(sid)
+        assert ctx.peak_speed == "deliberative"
+        assert ctx.prior_speeds == ("reactive", "deliberative")
+
+    def test_history_window_capped(self) -> None:
+        eng = ConversationEngine()
+        sid = uuid4()
+        for _ in range(10):
+            eng.record_speed(sid, "reflective")
+        ctx = eng.session_context_for(sid)
+        assert len(ctx.prior_speeds) == ConversationEngine._HISTORY_WINDOW
+
 
 # ── State management tests ───────────────────────────────────────────
 
