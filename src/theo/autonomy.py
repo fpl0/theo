@@ -114,13 +114,28 @@ RETURNING id, action_type, autonomy_level, decision, context, session_id, intent
 _COUNT_CONSECUTIVE_EXECUTED = """
 SELECT count(*) AS streak
 FROM (
-    SELECT decision
+    SELECT
+        decision,
+        row_number() OVER (ORDER BY created_at DESC) AS rn
     FROM action_log
     WHERE action_type = $1
     ORDER BY created_at DESC
     LIMIT $2
 ) AS recent
 WHERE decision = 'executed'
+  AND rn < coalesce(
+      (
+          SELECT min(sub.rn)
+          FROM (
+              SELECT row_number() OVER (ORDER BY created_at DESC) AS rn
+              FROM action_log
+              WHERE action_type = $1 AND decision != 'executed'
+              ORDER BY created_at DESC
+              LIMIT $2
+          ) AS sub
+      ),
+      $2 + 1
+  )
 """
 
 
@@ -214,13 +229,13 @@ async def log_action(  # noqa: PLR0913
             "autonomy.decision": decision,
         },
     ):
-        ctx_json = json.dumps(context) if context else "{}"
+        ctx = context or {}
         row = await db.pool.fetchrow(
             _INSERT_LOG,
             action_type,
             autonomy_level,
             decision,
-            ctx_json,
+            ctx,
             session_id,
             intent_id,
         )

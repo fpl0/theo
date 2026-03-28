@@ -295,13 +295,20 @@ async def _execute_tools(
 
         result = await execute_tool(req.name, req.input, episode_id=state.user_episode_id)
 
-        await log_action(
-            classification.action_type,
-            classification.autonomy_level,
-            "executed",
-            context={"tool": req.name, "tool_use_id": req.id},
-            session_id=state.session_id,
-        )
+        try:
+            await log_action(
+                classification.action_type,
+                classification.autonomy_level,
+                "executed",
+                context={"tool": req.name, "tool_use_id": req.id},
+                session_id=state.session_id,
+            )
+        except Exception:  # noqa: BLE001
+            log.warning(
+                "failed to log action, continuing turn",
+                extra={"tool": req.name, "action_type": classification.action_type},
+                exc_info=True,
+            )
 
         tool_results.append(
             {"type": "tool_result", "tool_use_id": req.id, "content": result},

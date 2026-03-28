@@ -255,7 +255,7 @@ async def test_log_action_passes_context(mock_pool: AsyncMock) -> None:
 
     assert entry.context == {"tool": "store_memory"}
     args = mock_pool.fetchrow.call_args.args
-    assert json.loads(args[4]) == {"tool": "store_memory"}
+    assert args[4] == {"tool": "store_memory"}
 
 
 async def test_log_action_with_intent_id(mock_pool: AsyncMock) -> None:
