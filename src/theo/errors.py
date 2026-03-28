@@ -27,3 +27,7 @@ class CircuitOpenError(TheoError):
 
 class GateConfigError(TheoError):
     """Raised when a gate is missing required configuration."""
+
+
+class TranscriptionError(TheoError):
+    """Raised when audio transcription fails."""
