@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     deliberation_phase_timeout_s: int = 120
     deliberation_budget_tokens: int = 20_000
 
+    # Metacognition
+    metacognition_enabled: bool = True
+    metacognition_spinning_threshold: float = 0.85
+    metacognition_drift_threshold: float = 0.7
+    metacognition_min_evidence_for_high_confidence: int = 3
+
     # Embeddings
     embedding_model: str = "BAAI/bge-base-en-v1.5"
     embedding_dim: int = 768
@@ -120,6 +126,19 @@ class Settings(BaseSettings):
             raise ValueError(msg)
         if self.retrieval_graph_seed_count > self.retrieval_candidate_limit:
             msg = "retrieval_graph_seed_count must be <= retrieval_candidate_limit"
+            raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
+    def _validate_metacognition(self) -> Self:
+        if not (0.0 < self.metacognition_spinning_threshold <= 1.0):
+            msg = "metacognition_spinning_threshold must be in (0, 1]"
+            raise ValueError(msg)
+        if not (0.0 < self.metacognition_drift_threshold <= 1.0):
+            msg = "metacognition_drift_threshold must be in (0, 1]"
+            raise ValueError(msg)
+        if self.metacognition_min_evidence_for_high_confidence < 1:
+            msg = "metacognition_min_evidence_for_high_confidence must be >= 1"
             raise ValueError(msg)
         return self
 

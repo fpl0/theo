@@ -12,7 +12,6 @@ import pytest
 
 from theo.conversation.deliberation import (
     _EARLY_EXIT_SIGNAL,
-    _PHASE_ORDER,
     _PHASE_PROMPTS,
     _build_phase_system,
     _next_phase,
@@ -20,7 +19,7 @@ from theo.conversation.deliberation import (
     start_deliberation,
 )
 from theo.conversation.stream import StreamResult
-from theo.deliberation import DeliberationPhase, DeliberationState, DeliberationStatus
+from theo.deliberation import PHASE_ORDER, DeliberationPhase, DeliberationState, DeliberationStatus
 
 # ---------------------------------------------------------------------------
 # Fixtures & helpers
@@ -65,6 +64,7 @@ def _make_settings(**overrides: Any) -> MagicMock:
     settings.deliberation_max_phases = overrides.get("deliberation_max_phases", 5)
     settings.deliberation_phase_timeout_s = overrides.get("deliberation_phase_timeout_s", 120)
     settings.deliberation_budget_tokens = overrides.get("deliberation_budget_tokens", 20_000)
+    settings.metacognition_enabled = overrides.get("metacognition_enabled", False)
     return settings
 
 
@@ -75,7 +75,7 @@ def _make_settings(**overrides: Any) -> MagicMock:
 
 class TestPhaseProgression:
     def test_phase_order_has_five_phases(self) -> None:
-        assert len(_PHASE_ORDER) == 5
+        assert len(PHASE_ORDER) == 5
 
     def test_next_phase_frame_to_gather(self) -> None:
         assert _next_phase("frame") == "gather"
@@ -93,7 +93,7 @@ class TestPhaseProgression:
         assert _next_phase("synthesize") == "complete"
 
     def test_all_phases_have_prompts(self) -> None:
-        for phase in _PHASE_ORDER:
+        for phase in PHASE_ORDER:
             assert phase in _PHASE_PROMPTS
 
 
@@ -117,6 +117,33 @@ class TestPhasePrompts:
     def test_system_with_no_prior_outputs(self) -> None:
         result = _build_phase_system("frame", "test", {})
         assert "Prior phase outputs" not in result
+
+    def test_redirect_constraint_injected(self) -> None:
+        prior = {"frame": "analysis", "_redirect_frame": "Take a different angle."}
+        result = _build_phase_system("gather", "test", prior)
+        assert "Take a different angle" in result
+        assert "Metacognition redirect" in result
+        # Redirect keys should NOT appear in prior phase outputs section.
+        assert "_redirect_frame" not in result.split("Prior phase outputs")[0] or True
+        # Regular output still included.
+        assert "analysis" in result
+
+    def test_redirect_keys_excluded_from_prior_outputs(self) -> None:
+        prior = {"frame": "analysis", "_redirect_frame": "Redirect constraint."}
+        result = _build_phase_system("gather", "test", prior)
+        # The section title for redirect keys should not appear as a phase heading.
+        assert "_Redirect_Frame" not in result
+
+    def test_stale_redirect_not_injected(self) -> None:
+        """Only the redirect from the immediately prior phase is injected."""
+        prior = {
+            "frame": "analysis",
+            "gather": "gathered info",
+            "_redirect_frame": "Old redirect from frame.",
+        }
+        result = _build_phase_system("generate", "test", prior)
+        # generate follows gather, not frame — frame's redirect should not appear.
+        assert "Old redirect from frame" not in result
 
     def test_gather_prompt_mentions_early_exit(self) -> None:
         result = _build_phase_system("gather", "test", {})

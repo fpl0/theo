@@ -48,6 +48,15 @@ type DeliberationPhase = Literal[
 ]
 type DeliberationStatus = Literal["running", "completed", "failed", "cancelled"]
 
+# Canonical phase execution order (excludes "complete" which is a terminal state).
+PHASE_ORDER: tuple[DeliberationPhase, ...] = (
+    "frame",
+    "gather",
+    "generate",
+    "evaluate",
+    "synthesize",
+)
+
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class DeliberationState:
