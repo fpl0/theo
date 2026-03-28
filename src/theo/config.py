@@ -147,6 +147,19 @@ class Settings(BaseSettings):
             raise ValueError(msg)
         return self
 
+    @model_validator(mode="after")
+    def _validate_proposal_settings(self) -> Self:
+        if self.proposal_timeout_propose_s < 1:
+            msg = "proposal_timeout_propose_s must be >= 1"
+            raise ValueError(msg)
+        if self.proposal_timeout_consult_s < 1:
+            msg = "proposal_timeout_consult_s must be >= 1"
+            raise ValueError(msg)
+        if self.max_pending_proposals < 1:
+            msg = "max_pending_proposals must be >= 1"
+            raise ValueError(msg)
+        return self
+
 
 @cache
 def get_settings() -> Settings:

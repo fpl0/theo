@@ -17,7 +17,11 @@ _SESSION_ID = UUID("00000000-0000-0000-0000-000000000001")
 
 
 def _settings(**overrides: object) -> Settings:
-    defaults = {"database_url": "postgresql://x:x@localhost/x", "_env_file": None}
+    defaults = {
+        "database_url": "postgresql://x:x@localhost/x",
+        "anthropic_api_key": "sk-test",
+        "_env_file": None,
+    }
     return Settings(**(defaults | overrides))
 
 
@@ -25,6 +29,7 @@ def _make_gateway() -> ProposalGateway:
     """Create a ProposalGateway with mocked bot and dispatcher."""
     bot = MagicMock()
     bot.send_message = AsyncMock()
+    bot.edit_message_text = AsyncMock()
     bot.edit_message_reply_markup = AsyncMock()
     dp = MagicMock()
     dp.callback_query = MagicMock()
@@ -236,23 +241,25 @@ class TestApproveCallback:
         assert published[0].proposal_id == proposal.proposal_id
         assert short not in gw._pending
 
-    async def test_removes_keyboard_on_approve(self) -> None:
+    async def test_edits_message_with_status_on_approve(self) -> None:
         gw = _make_gateway()
+        gw._bot.edit_message_text = AsyncMock()
         proposal = _make_proposal()
         short = _short_id(proposal.proposal_id)
 
         gw._pending[short] = proposal
         gw._messages[short] = 200
+        gw._message_texts[short] = "[EXTERNAL ACTION] Proposal\n\nWHAT: Test"
         gw._timers[short] = asyncio.create_task(asyncio.sleep(9999))
 
         with patch.object(bus, "publish", new_callable=AsyncMock):
             await gw._on_callback(_make_callback(f"proposal:{short}:approve"))
 
-        gw._bot.edit_message_reply_markup.assert_called_once_with(
-            chat_id=_OWNER_CHAT_ID,
-            message_id=200,
-            reply_markup=None,
-        )
+        gw._bot.edit_message_text.assert_called_once()
+        call_kwargs = gw._bot.edit_message_text.call_args.kwargs
+        assert call_kwargs["message_id"] == 200
+        assert "(Approved)" in call_kwargs["text"]
+        assert call_kwargs["reply_markup"] is None
 
 
 class TestRejectCallback:
@@ -408,22 +415,24 @@ class TestTimeout:
         assert published[0].proposal_id == proposal.proposal_id
         assert short not in gw._pending
 
-    async def test_expire_removes_keyboard(self) -> None:
+    async def test_expire_edits_message_with_status(self) -> None:
         gw = _make_gateway()
+        gw._bot.edit_message_text = AsyncMock()
         proposal = _make_proposal()
         short = _short_id(proposal.proposal_id)
 
         gw._pending[short] = proposal
         gw._messages[short] = 200
+        gw._message_texts[short] = "[EXTERNAL ACTION] Proposal\n\nWHAT: Test"
 
         with patch.object(bus, "publish", new_callable=AsyncMock):
             await gw._expire_after(short, 0)
 
-        gw._bot.edit_message_reply_markup.assert_called_once_with(
-            chat_id=_OWNER_CHAT_ID,
-            message_id=200,
-            reply_markup=None,
-        )
+        gw._bot.edit_message_text.assert_called_once()
+        call_kwargs = gw._bot.edit_message_text.call_args.kwargs
+        assert call_kwargs["message_id"] == 200
+        assert "(Expired)" in call_kwargs["text"]
+        assert call_kwargs["reply_markup"] is None
 
     async def test_expire_already_handled_is_noop(self) -> None:
         gw = _make_gateway()

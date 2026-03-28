@@ -92,6 +92,7 @@ class ProposalGateway:
         # State: short-id → data.
         self._pending: dict[str, ProposalCreated] = {}
         self._messages: dict[str, int] = {}  # short-id → telegram message_id
+        self._message_texts: dict[str, str] = {}  # short-id → original text
         self._timers: dict[str, asyncio.Task[None]] = {}
         self._awaiting_modification: dict[int, str] = {}  # msg_id → short-id
 
@@ -141,7 +142,7 @@ class ProposalGateway:
                         chat_id=self._owner_chat_id,
                         text=(
                             f"Cannot present new proposal — {len(self._pending)} pending "
-                            "(max {cfg.max_pending_proposals}). "
+                            f"(max {cfg.max_pending_proposals}). "
                             "Please respond to existing proposals first."
                         ),
                         parse_mode=None,
@@ -179,6 +180,7 @@ class ProposalGateway:
             # Track state.
             self._pending[short] = event
             self._messages[short] = sent.message_id
+            self._message_texts[short] = text
 
             # Start timeout timer.
             self._timers[short] = asyncio.create_task(
@@ -203,7 +205,8 @@ class ProposalGateway:
         """Handle approve/modify/reject button taps."""
         data = callback.data or ""
         parts = data.split(":")
-        if len(parts) != 3:  # noqa: PLR2004
+        expected_parts = 3  # proposal:<short>:<action>
+        if len(parts) != expected_parts:
             return
 
         _, short, action = parts
@@ -239,7 +242,7 @@ class ProposalGateway:
         # Edit message to show approval.
         msg_id = self._messages.pop(short, None)
         if msg_id is not None:
-            await self._edit_proposal_status(msg_id, "(Approved)")
+            await self._edit_proposal_status(short, msg_id, "(Approved)")
 
         _proposals_approved.add(1, {"action_type": event.action_type})
         log.info("proposal approved", extra={"proposal_id": str(event.proposal_id)})
@@ -265,7 +268,7 @@ class ProposalGateway:
 
         msg_id = self._messages.pop(short, None)
         if msg_id is not None:
-            await self._edit_proposal_status(msg_id, "(Rejected)")
+            await self._edit_proposal_status(short, msg_id, "(Rejected)")
 
         _proposals_rejected.add(1, {"action_type": event.action_type})
         log.info("proposal rejected", extra={"proposal_id": str(event.proposal_id)})
@@ -287,6 +290,7 @@ class ProposalGateway:
         if msg_id is not None:
             self._awaiting_modification[msg_id] = short
             await self._edit_proposal_status(
+                short,
                 msg_id,
                 "(Awaiting modification \u2014 reply to this message)",
                 keep_keyboard=True,
@@ -320,7 +324,7 @@ class ProposalGateway:
 
             msg_id = self._messages.pop(short, None)
             if msg_id is not None:
-                await self._edit_proposal_status(msg_id, "(Modified)")
+                await self._edit_proposal_status(short, msg_id, "(Modified)")
 
             _proposals_modified.add(1, {"action_type": event.action_type})
             log.info(
@@ -360,7 +364,7 @@ class ProposalGateway:
 
             msg_id = self._messages.pop(short, None)
             if msg_id is not None:
-                await self._edit_proposal_status(msg_id, "(Expired)")
+                await self._edit_proposal_status(short, msg_id, "(Expired)")
                 self._awaiting_modification.pop(msg_id, None)
 
             _proposals_expired.add(1, {"action_type": event.action_type})
@@ -392,23 +396,24 @@ class ProposalGateway:
 
     async def _edit_proposal_status(
         self,
+        short: str,
         message_id: int,
         status_suffix: str,
         *,
         keep_keyboard: bool = False,
     ) -> None:
-        """Append a status suffix to the proposal message and optionally remove keyboard."""
+        """Update the proposal message text with a status suffix."""
+        original = self._message_texts.pop(short, None)
         try:
-            # Fetch doesn't work in aiogram edit — we need to rebuild.
-            # Instead, just edit with the suffix appended as a new line.
-            # We store original text? No — we just edit reply_markup.
-            if keep_keyboard:
-                # Only answer_callback_query was used, message text already
-                # updated by the caller. For modify, we append status to text.
-                # Since we can't easily read the current text, we use a simpler
-                # approach: edit only the reply markup.
-                pass
-            else:
+            if original is not None:
+                updated = f"{original}\n\n{status_suffix}"
+                await self._bot.edit_message_text(
+                    chat_id=self._owner_chat_id,
+                    message_id=message_id,
+                    text=updated,
+                    reply_markup=_build_keyboard(short) if keep_keyboard else None,
+                )
+            elif not keep_keyboard:
                 await self._bot.edit_message_reply_markup(
                     chat_id=self._owner_chat_id,
                     message_id=message_id,
