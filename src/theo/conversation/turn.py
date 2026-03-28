@@ -10,11 +10,17 @@ from typing import TYPE_CHECKING
 
 from opentelemetry import metrics, trace
 
+from theo.budget import UsageRecord, check_budget, record_usage
 from theo.bus import bus
 from theo.bus.events import ResponseChunk, ResponseComplete
 from theo.conversation.context import assemble
 from theo.conversation.stream import stream_and_collect
-from theo.errors import APIUnavailableError, CircuitOpenError, PrivacyViolationError
+from theo.errors import (
+    APIUnavailableError,
+    BudgetExceededError,
+    CircuitOpenError,
+    PrivacyViolationError,
+)
 from theo.llm import Speed, classify_speed, model_for_speed
 from theo.memory.auto_edges import extract_and_link
 from theo.memory.episodes import store_episode
@@ -100,6 +106,7 @@ async def execute_turn(
         },
     ) as span:
         try:
+            await check_budget(session_id)
             if persist_user_message and not await _persist_incoming(state, span):
                 return
             # Record speed only after privacy check passes — rejected messages
@@ -117,12 +124,28 @@ async def execute_turn(
                     )
                 )
 
+            async def _before_iteration() -> None:
+                await check_budget(state.session_id)
+
+            async def _after_stream(input_tokens: int, output_tokens: int) -> None:
+                await record_usage(
+                    UsageRecord(
+                        session_id=state.session_id,
+                        model=state.model,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        speed=state.speed,
+                    ),
+                )
+
             result = await stream_and_collect(
                 messages,
                 system=system_prompt,
                 speed=state.speed,
                 tools=TOOL_DEFINITIONS,
                 on_text=_publish_chunk,
+                before_iteration=_before_iteration,
+                after_stream=_after_stream,
                 episode_id=state.user_episode_id,
                 session_id=state.session_id,
             )
@@ -130,6 +153,9 @@ async def execute_turn(
             state.tool_call_count = result.tool_call_count
             span.set_attribute("llm.input_tokens", result.input_tokens)
             span.set_attribute("llm.output_tokens", result.output_tokens)
+        except BudgetExceededError as exc:
+            await _handle_budget_exceeded(event, session_id, str(exc))
+            return
         except APIUnavailableError, CircuitOpenError:
             await _handle_api_failure(event, session_id)
             return
@@ -255,6 +281,30 @@ async def _safe_extract_and_link(session_id: UUID) -> None:
             extra={"session_id": str(session_id)},
             exc_info=True,
         )
+
+
+_BUDGET_EXCEEDED_MSG = (
+    "I've reached my token budget for now. I'll be able to help again once the budget resets."
+)
+
+
+async def _handle_budget_exceeded(
+    event: MessageReceived,
+    session_id: UUID,
+    detail: str,
+) -> None:
+    """Inform the user that the budget has been exceeded."""
+    log.warning(
+        "budget exceeded, refusing turn",
+        extra={"session_id": str(session_id), "detail": detail},
+    )
+    await bus.publish(
+        ResponseComplete(
+            session_id=session_id,
+            channel=event.channel,
+            body=_BUDGET_EXCEEDED_MSG,
+        ),
+    )
 
 
 async def _handle_api_failure(
