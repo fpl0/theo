@@ -154,6 +154,11 @@ rules = { invalid-assignment = "ignore" }
 include = ["tests/test_autonomy.py"]
 rules = { invalid-argument-type = "ignore", invalid-assignment = "ignore" }
 
+# test_proposals uses mock objects and patched constructors that ty cannot model.
+[[tool.ty.overrides]]
+include = ["tests/test_proposals.py"]
+rules = { invalid-argument-type = "ignore", missing-argument = "ignore", unknown-argument = "ignore", invalid-assignment = "ignore", unresolved-attribute = "ignore" }
+
 # conftest stubs MLX modules on non-Apple-Silicon CI by setting attributes on
 # dynamically created ModuleType instances — ty cannot resolve those attributes.
 [[tool.ty.overrides]]

@@ -87,3 +87,32 @@ class BudgetWarning(Event):
     used_tokens: int
     cap_tokens: int
     usage_ratio: float
+
+
+# ── Proposal lifecycle events ─────────────────────────────────────
+
+
+class ProposalCreated(Event):
+    """A propose/consult action awaiting owner approval."""
+
+    proposal_id: UUID
+    action_type: str
+    summary: str
+    detail: str = ""
+    timeout_s: int
+
+
+class ProposalResponse(Event):
+    """Owner responded to a proposal."""
+
+    proposal_id: UUID
+    action: Literal["approve", "reject", "modify"]
+    modification: str = ""
+
+
+class ProposalExpired(Event):
+    """Proposal timed out without owner response — ephemeral."""
+
+    durable: ClassVar[bool] = False
+
+    proposal_id: UUID

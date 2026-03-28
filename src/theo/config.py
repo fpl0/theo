@@ -80,6 +80,11 @@ class Settings(BaseSettings):
     telegram_bot_token: SecretStr | None = None
     telegram_owner_chat_id: int | None = None
 
+    # Proposal approval gateway
+    proposal_timeout_propose_s: int = 14400  # 4 hours
+    proposal_timeout_consult_s: int = 86400  # 24 hours
+    max_pending_proposals: int = 5
+
     @model_validator(mode="after")
     def _validate_pool_bounds(self) -> Self:
         if self.db_pool_min > self.db_pool_max:

@@ -24,6 +24,7 @@ from theo.bus import bus
 from theo.bus.events import MessageReceived, ResponseChunk, ResponseComplete
 from theo.config import get_settings
 from theo.errors import GateConfigError, TranscriptionError
+from theo.gates.proposals import ProposalGateway
 from theo.onboarding.flow import (
     complete_onboarding,
     get_onboarding_state,
@@ -148,6 +149,9 @@ class TelegramGate:
         self._dp.message.register(self._on_cmd_onboard, Command("onboard"))
         self._dp.message.register(self._on_message)
 
+        # Proposal approval gateway (registered before catch-all via dp).
+        self._proposals = ProposalGateway(self._bot, self._owner_chat_id, self._dp)
+
         # Track the in-flight streamed message per session so chunks can edit it.
         self._streaming: dict[UUID, int] = {}  # session_id -> telegram message_id
         self._polling_task: asyncio.Task[None] | None = None
@@ -159,6 +163,7 @@ class TelegramGate:
         """Subscribe to bus events and start polling Telegram."""
         bus.subscribe(ResponseChunk, self._on_response_chunk)
         bus.subscribe(ResponseComplete, self._on_response_complete)
+        self._proposals.subscribe()
         self._start_time = time.monotonic()
         log.info("telegram gate starting")
         self._polling_task = asyncio.create_task(
@@ -169,6 +174,7 @@ class TelegramGate:
     async def stop(self) -> None:
         """Stop polling and close the bot session."""
         log.info("telegram gate stopping")
+        await self._proposals.shutdown()
         if self._polling_task is not None:
             self._polling_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -323,6 +329,10 @@ class TelegramGate:
                 "ignored message from non-owner",
                 extra={"chat_id": chat_id},
             )
+            return
+
+        # Check if this is a reply to a proposal awaiting modification.
+        if await self._proposals.try_handle_reply(message):
             return
 
         # Voice message path: download, transcribe, publish.
