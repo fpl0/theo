@@ -138,8 +138,8 @@ def _detect_diminishing_returns(
     prior_nodes_referenced: list[int],
 ) -> bool:
     """Return True if current phase adds no new nodes over prior phases."""
-    # Only relevant after gather — generate/evaluate should build on gathered info.
-    if current_phase in ("frame", "gather"):
+    # Only relevant for generate/evaluate — synthesize reuses existing info by design.
+    if current_phase in ("frame", "gather", "synthesize"):
         return False
     if not prior_nodes_referenced:
         return False

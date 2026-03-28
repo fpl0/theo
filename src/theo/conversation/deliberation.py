@@ -253,37 +253,20 @@ async def _run_deliberation(
             )
             phase_outputs[phase] = output
 
-            # Update cumulative node references before any early-exit or
-            # metacognition check so all paths see accurate state.
+            # Snapshot prior nodes BEFORE extending with current phase,
+            # so diminishing-returns detection compares current vs truly-prior.
+            prior_nodes_snapshot = list(all_nodes_referenced)
             all_nodes_referenced.extend(extract_node_ids(output))
 
-            # Early exit: after gather, if LLM signals the question is simple.
-            if phase == "gather" and _EARLY_EXIT_SIGNAL in output:
-                log.info(
-                    "early exit after gather",
-                    extra={"deliberation_id": str(deliberation_id)},
-                )
-                span.set_attribute("deliberation.early_exit", "true")
-                # Skip generate+evaluate, jump to synthesize.
-                synth_output = await _run_phase(
-                    deliberation_id,
-                    question,
-                    "synthesize",
-                    phase_outputs,
-                    timeout_s=cfg.deliberation_phase_timeout_s,
-                )
-                phase_outputs["synthesize"] = synth_output
-                all_nodes_referenced.extend(extract_node_ids(synth_output))
-                break
-
             # Metacognition: check for pathological patterns after each phase.
+            # Runs before early-exit so drifted/spinning gather is still caught.
             if cfg.metacognition_enabled and question_embedding is not None:
                 decision = await _check_metacognition(
                     deliberation_id,
                     question_embedding,
                     phase_outputs,
                     phase,
-                    all_nodes_referenced,
+                    prior_nodes_snapshot,
                 )
                 if decision.action == "abort":
                     span.set_attribute("deliberation.aborted_by_metacognition", "true")
@@ -307,11 +290,31 @@ async def _run_deliberation(
                     # Store redirect so _build_phase_system injects it.
                     phase_outputs[f"{_REDIRECT_PREFIX}{phase}"] = decision.redirect_prompt
 
+            # Early exit: after gather, if LLM signals the question is simple.
+            if phase == "gather" and _EARLY_EXIT_SIGNAL in output:
+                log.info(
+                    "early exit after gather",
+                    extra={"deliberation_id": str(deliberation_id)},
+                )
+                span.set_attribute("deliberation.early_exit", "true")
+                # Skip generate+evaluate, jump to synthesize.
+                synth_output = await _run_phase(
+                    deliberation_id,
+                    question,
+                    "synthesize",
+                    phase_outputs,
+                    timeout_s=cfg.deliberation_phase_timeout_s,
+                )
+                phase_outputs["synthesize"] = synth_output
+                all_nodes_referenced.extend(extract_node_ids(synth_output))
+                break
+
         await complete_deliberation(deliberation_id)
         elapsed = time.monotonic() - t0
         _duration.record(elapsed)
         span.set_attribute("deliberation.duration_s", round(elapsed, 3))
-        span.set_attribute("deliberation.phases_completed", len(phase_outputs))
+        real_phase_count = sum(1 for k in phase_outputs if not k.startswith(_REDIRECT_PREFIX))
+        span.set_attribute("deliberation.phases_completed", real_phase_count)
 
         log.info(
             "deliberation completed",
@@ -415,11 +418,14 @@ def _build_phase_system(
 
     parts.append(f"\n\n## Original question\n{question}")
 
-    # Inject redirect constraint from the immediately prior phase's
-    # metacognition check.  Redirect keys use the _redirect_ prefix.
-    for key, value in prior_outputs.items():
-        if key.startswith(_REDIRECT_PREFIX) and value:
-            parts.append(f"\n\n## IMPORTANT: Metacognition redirect\n{value}")
+    # Inject only the redirect from the immediately prior phase (not all
+    # accumulated redirects — old redirects are stale and cause prompt bloat).
+    prev_idx = PHASE_ORDER.index(phase) - 1 if phase in PHASE_ORDER else -1
+    if prev_idx >= 0:
+        redirect_key = f"{_REDIRECT_PREFIX}{PHASE_ORDER[prev_idx]}"
+        redirect_value = prior_outputs.get(redirect_key, "")
+        if redirect_value:
+            parts.append(f"\n\n## IMPORTANT: Metacognition redirect\n{redirect_value}")
 
     real_outputs = {k: v for k, v in prior_outputs.items() if not k.startswith(_REDIRECT_PREFIX)}
     if real_outputs:

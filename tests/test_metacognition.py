@@ -210,9 +210,10 @@ class TestDetectDiminishingReturns:
     def test_has_novel_nodes(self) -> None:
         assert not _detect_diminishing_returns("generate", [1, 2, 4], [1, 2, 3])
 
-    def test_skips_early_phases(self) -> None:
+    def test_skips_non_generative_phases(self) -> None:
         assert not _detect_diminishing_returns("frame", [1], [1])
         assert not _detect_diminishing_returns("gather", [1], [1])
+        assert not _detect_diminishing_returns("synthesize", [1], [1])
 
     def test_no_prior_nodes(self) -> None:
         assert not _detect_diminishing_returns("generate", [1], [])

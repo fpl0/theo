@@ -45,9 +45,5 @@ class DeliberationError(TheoError):
     """Raised when a deliberation phase fails or times out."""
 
 
-class MetacognitionError(TheoError):
-    """Raised when metacognition monitoring fails."""
-
-
 class TranscriptionError(TheoError):
     """Raised when audio transcription fails."""

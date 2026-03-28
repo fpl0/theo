@@ -134,6 +134,17 @@ class TestPhasePrompts:
         # The section title for redirect keys should not appear as a phase heading.
         assert "_Redirect_Frame" not in result
 
+    def test_stale_redirect_not_injected(self) -> None:
+        """Only the redirect from the immediately prior phase is injected."""
+        prior = {
+            "frame": "analysis",
+            "gather": "gathered info",
+            "_redirect_frame": "Old redirect from frame.",
+        }
+        result = _build_phase_system("generate", "test", prior)
+        # generate follows gather, not frame — frame's redirect should not appear.
+        assert "Old redirect from frame" not in result
+
     def test_gather_prompt_mentions_early_exit(self) -> None:
         result = _build_phase_system("gather", "test", {})
         assert _EARLY_EXIT_SIGNAL in result

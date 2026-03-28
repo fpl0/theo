@@ -61,6 +61,5 @@ Enabled by default (`metacognition_enabled: bool = True`). All thresholds are co
 - `src/theo/conversation/deliberation.py` — integration: call monitor after each phase, handle decisions
 - `src/theo/config.py` — 4 new settings (enabled, spinning threshold, drift threshold, min evidence)
 - `src/theo/bus/events.py` — `MetacognitionAlert` ephemeral event
-- `src/theo/errors.py` — `MetacognitionError` exception
 - `tests/test_metacognition.py` — 41 tests covering all detection patterns, integration, and edge cases
 - `tests/test_deliberation_engine.py` — updated settings mock to include metacognition_enabled
