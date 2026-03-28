@@ -322,7 +322,7 @@ def test_deliberation_state_is_frozen() -> None:
         delivered=False,
     )
     with pytest.raises(AttributeError):
-        state.phase = "gather"  # type: ignore[misc]
+        state.phase = "gather"  # type: ignore[misc]  # ty: ignore[invalid-assignment]
 
 
 def test_deliberation_state_has_slots() -> None:
