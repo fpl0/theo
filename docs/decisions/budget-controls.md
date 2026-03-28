@@ -26,7 +26,7 @@ Warning threshold (default 80%) emits a `BudgetWarning` event on the bus. The ev
 
 ### Budget check before every LLM call, recording after
 
-`check_budget()` runs at the start of `execute_turn()` and before each subsequent tool-loop iteration. This ensures multi-tool turns cannot silently exceed the cap. `record_usage()` runs inside `_stream_one_iteration()` after each `StreamDone`, so usage accumulates correctly across iterations.
+`check_budget()` runs at the start of `execute_turn()`. Subsequent tool-loop iterations use the `before_iteration` callback on `stream_and_collect()` to check budget before each LLM call. `record_usage()` runs via the `after_stream` callback after each stream completes, so usage accumulates correctly across iterations. This callback approach keeps `stream.py` generic — it has no budget dependency — while ensuring multi-tool turns cannot silently exceed the cap.
 
 ### UsageRecord dataclass bundles call parameters
 
@@ -47,7 +47,8 @@ Rows are write-once, never modified. No trigger needed.
 - `src/theo/errors.py` — `BudgetExceededError`
 - `src/theo/bus/events.py` — `BudgetWarning` event
 - `src/theo/budget.py` — new module: tracking, checking, cost estimation, OTEL metrics
-- `src/theo/conversation/turn.py` — integration: check before call, record after stream
+- `src/theo/conversation/stream.py` — `before_iteration` and `after_stream` callbacks
+- `src/theo/conversation/turn.py` — integration: check before call, record after stream via callbacks
 - `tests/test_budget.py` — full coverage of budget module
 - `tests/test_conversation.py` — mock budget in existing turn tests
 - `docs/decisions/budget-controls.md` — this file
