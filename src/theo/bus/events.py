@@ -56,17 +56,6 @@ class SystemEvent(Event):
     detail: str = ""
 
 
-class BudgetWarning(Event):
-    """Emitted when token usage crosses the warning threshold."""
-
-    durable: ClassVar[bool] = False
-
-    scope: Literal["daily", "session"]
-    used_tokens: int
-    cap_tokens: int
-    usage_ratio: float
-
-
 # ── Ephemeral events (dispatch only, no persistence) ─────────────────
 
 
@@ -77,3 +66,14 @@ class ResponseChunk(Event):
 
     body: str
     done: bool = False
+
+
+class BudgetWarning(Event):
+    """Emitted when token usage crosses the warning threshold."""
+
+    durable: ClassVar[bool] = False
+
+    scope: Literal["daily", "session"]
+    used_tokens: int
+    cap_tokens: int
+    usage_ratio: float
