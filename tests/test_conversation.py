@@ -316,7 +316,7 @@ class TestSpeedSelection:
             yield TextDelta(text="ok")
             yield StreamDone(input_tokens=1, output_tokens=1, stop_reason="end_turn")
 
-        with patch("theo.conversation.turn.stream_response", capture_stream):
+        with patch("theo.conversation.stream.stream_response", capture_stream):
             eng = ConversationEngine()
             eng._state = "running"
             # First message: deliberative
@@ -339,7 +339,7 @@ class TestSpeedSelection:
             yield TextDelta(text="ok")
             yield StreamDone(input_tokens=1, output_tokens=1, stop_reason="end_turn")
 
-        with patch("theo.conversation.turn.stream_response", capture_stream):
+        with patch("theo.conversation.stream.stream_response", capture_stream):
             eng = ConversationEngine()
             eng._state = "running"
             await eng._process_message(_make_msg(body="please analyze this data carefully"))
