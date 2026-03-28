@@ -406,6 +406,16 @@ def fresh_retry_queue():
     resilience.retry_queue = original
 
 
+@pytest.fixture(autouse=True)
+def _isolate_budget():
+    """Stub budget checks and recording so conversation tests don't need a DB."""
+    with (
+        patch("theo.conversation.turn.check_budget", AsyncMock()),
+        patch("theo.conversation.turn.record_usage", AsyncMock()),
+    ):
+        yield
+
+
 class TestConversationIntegration:
     async def test_api_failure_sends_ack_and_enqueues(
         self,

@@ -56,6 +56,15 @@ class SystemEvent(Event):
     detail: str = ""
 
 
+class BudgetWarning(Event):
+    """Emitted when token usage crosses the warning threshold."""
+
+    scope: Literal["daily", "session"]
+    used_tokens: int
+    cap_tokens: int
+    usage_ratio: float
+
+
 # ── Ephemeral events (dispatch only, no persistence) ─────────────────
 
 

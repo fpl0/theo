@@ -47,3 +47,7 @@ class DeliberationError(TheoError):
 
 class TranscriptionError(TheoError):
     """Raised when audio transcription fails."""
+
+
+class BudgetExceededError(TheoError):
+    """Raised when a token budget cap has been reached."""

@@ -61,6 +61,8 @@ async def stream_and_collect(  # noqa: PLR0913
     tools: list[dict[str, object]] | None = None,
     max_iterations: int = _MAX_TOOL_ITERATIONS,
     on_text: Callable[[str], Awaitable[None]] | None = None,
+    before_iteration: Callable[[], Awaitable[None]] | None = None,
+    after_stream: Callable[[int, int], Awaitable[None]] | None = None,
     episode_id: int | None = None,
     session_id: UUID | None = None,
 ) -> StreamResult:
@@ -81,6 +83,13 @@ async def stream_and_collect(  # noqa: PLR0913
     on_text:
         Optional async callback invoked for each text chunk (e.g. to publish
         streaming events). When *None*, text is collected silently.
+    before_iteration:
+        Optional async callback invoked before each LLM call in the tool loop
+        (e.g. budget checks). Skipped on the first iteration (caller handles
+        the initial check). May raise to abort the loop.
+    after_stream:
+        Optional async callback invoked after each LLM stream completes, with
+        ``(input_tokens, output_tokens)`` (e.g. usage recording).
     episode_id:
         Passed to ``execute_tool`` for cross-referencing stored nodes.
     session_id:
@@ -97,10 +106,16 @@ async def stream_and_collect(  # noqa: PLR0913
     tool_calls = 0
 
     for _iteration in range(max_iterations):
+        if _iteration > 0 and before_iteration is not None:
+            await before_iteration()
+
         chunks, reqs, in_tok, out_tok = await _stream_one(messages, system, speed, tools, on_text)
         all_chunks.extend(chunks)
         total_input += in_tok
         total_output += out_tok
+
+        if after_stream is not None:
+            await after_stream(in_tok, out_tok)
 
         if not reqs:
             break
