@@ -70,7 +70,7 @@ All code under `src/theo/`. Each module owns one concern.
 
 ## Decisions
 
-Architectural decisions are documented in [`docs/decisions/`](docs/decisions/).
+Architectural decisions are documented in [`docs/`](docs/).
 
 ## Development
 
