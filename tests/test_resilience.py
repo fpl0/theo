@@ -418,7 +418,7 @@ class TestConversationIntegration:
         _ = mock_store_episode, mock_assemble, fresh_circuit
         _bus, published = mock_bus
 
-        with patch("theo.conversation.turn.stream_response", _failing_stream):
+        with patch("theo.conversation.stream.stream_response", _failing_stream):
             eng = ConversationEngine()
             eng._state = "running"
             await eng._process_message(_make_msg(body="test message"))
@@ -438,7 +438,7 @@ class TestConversationIntegration:
     ) -> None:
         _ = mock_bus, mock_store_episode, mock_assemble, fresh_retry_queue
 
-        with patch("theo.conversation.turn.stream_response", _failing_stream):
+        with patch("theo.conversation.stream.stream_response", _failing_stream):
             eng = ConversationEngine()
             eng._state = "running"
             for _ in range(3):
@@ -463,7 +463,7 @@ class TestConversationIntegration:
             fresh_circuit._on_failure()
         assert fresh_circuit.state == "open"
 
-        with patch("theo.conversation.turn.stream_response", _ok_stream):
+        with patch("theo.conversation.stream.stream_response", _ok_stream):
             eng = ConversationEngine()
             eng._state = "running"
             await eng._process_message(_make_msg())
@@ -484,7 +484,7 @@ class TestConversationIntegration:
         _ = mock_store_episode, mock_assemble, fresh_retry_queue
         _bus, published = mock_bus
 
-        with patch("theo.conversation.turn.stream_response", _ok_stream):
+        with patch("theo.conversation.stream.stream_response", _ok_stream):
             eng = ConversationEngine()
             eng._state = "running"
             await eng._process_message(_make_msg())
@@ -507,7 +507,7 @@ class TestConversationIntegration:
             session_id=_SESSION, channel="message", body="queued", trust="owner"
         )
 
-        with patch("theo.conversation.turn.stream_response", _ok_stream):
+        with patch("theo.conversation.stream.stream_response", _ok_stream):
             eng = ConversationEngine()
             eng._state = "running"
 

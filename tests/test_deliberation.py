@@ -238,7 +238,7 @@ async def test_list_pending_delivery_returns_completed_undelivered(
     ]
 
     with patch("theo.deliberation.db", pool=mock_pool):
-        result = await list_pending_delivery()
+        result = await list_pending_delivery(_SESSION_ID)
 
     assert len(result) == 2
     assert all(isinstance(r, DeliberationState) for r in result)
@@ -248,7 +248,7 @@ async def test_list_pending_delivery_returns_empty(mock_pool: AsyncMock) -> None
     mock_pool.fetch.return_value = []
 
     with patch("theo.deliberation.db", pool=mock_pool):
-        result = await list_pending_delivery()
+        result = await list_pending_delivery(_SESSION_ID)
 
     assert result == []
 
@@ -257,10 +257,11 @@ async def test_list_pending_delivery_default_limit(mock_pool: AsyncMock) -> None
     mock_pool.fetch.return_value = []
 
     with patch("theo.deliberation.db", pool=mock_pool):
-        await list_pending_delivery()
+        await list_pending_delivery(_SESSION_ID)
 
     args = mock_pool.fetch.call_args.args
-    assert args[1] == 100  # default limit
+    assert args[1] == _SESSION_ID
+    assert args[2] == 100  # default limit
 
 
 # ---------------------------------------------------------------------------

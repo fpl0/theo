@@ -403,7 +403,7 @@ class TestAdvanceOnboardingTool:
         tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "advance_onboarding")
         assert "summary" in tool["input_schema"]["required"]
 
-    def test_all_seven_tools_defined(self) -> None:
+    def test_all_tools_defined(self) -> None:
         names = {t["name"] for t in TOOL_DEFINITIONS}
         expected = {
             "store_memory",
@@ -413,6 +413,7 @@ class TestAdvanceOnboardingTool:
             "link_memories",
             "update_user_model",
             "advance_onboarding",
+            "start_deliberation",
         }
         assert names == expected
 
@@ -470,6 +471,9 @@ class TestAdvanceOnboardingTool:
 # ---------------------------------------------------------------------------
 
 
+_MOCK_DELIVER = "theo.conversation.context.assembly.deliver_pending"
+
+
 class TestContextOnboardingIntegration:
     async def test_injects_phase_prompt_when_active(self) -> None:
         state = _make_state(phase="values", phase_index=1)
@@ -488,6 +492,7 @@ class TestContextOnboardingIntegration:
             patch("theo.conversation.context.assembly.hybrid_search", AsyncMock(return_value=[])),
             patch("theo.conversation.context.assembly.list_episodes", AsyncMock(return_value=[])),
             patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
+            patch(_MOCK_DELIVER, AsyncMock(return_value=[])),
         ):
             ctx = await assemble(
                 session_id=UUID("00000000-0000-0000-0000-000000000001"),
@@ -514,6 +519,7 @@ class TestContextOnboardingIntegration:
             patch("theo.conversation.context.assembly.hybrid_search", AsyncMock(return_value=[])),
             patch("theo.conversation.context.assembly.list_episodes", AsyncMock(return_value=[])),
             patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
+            patch(_MOCK_DELIVER, AsyncMock(return_value=[])),
         ):
             ctx = await assemble(
                 session_id=UUID("00000000-0000-0000-0000-000000000001"),
@@ -540,6 +546,7 @@ class TestContextOnboardingIntegration:
             patch("theo.conversation.context.assembly.hybrid_search", AsyncMock(return_value=[])),
             patch("theo.conversation.context.assembly.list_episodes", AsyncMock(return_value=[])),
             patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
+            patch(_MOCK_DELIVER, AsyncMock(return_value=[])),
         ):
             ctx = await assemble(
                 session_id=UUID("00000000-0000-0000-0000-000000000001"),
