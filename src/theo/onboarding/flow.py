@@ -7,13 +7,18 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from opentelemetry import trace
+from opentelemetry import metrics, trace
 
 from theo.memory import core
 from theo.onboarding.prompts import PHASES
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+_meter = metrics.get_meter(__name__)
+_phase_advances = _meter.create_counter(
+    "theo.onboarding.phase_advances",
+    description="Total onboarding phase advances",
+)
 
 _CONTEXT_KEY = "onboarding"
 _COMPLETED_KEY = "onboarding_completed"
@@ -43,7 +48,7 @@ def _state_to_dict(state: OnboardingState) -> dict[str, Any]:
     }
 
 
-def _dict_to_state(data: dict[str, Any]) -> OnboardingState:
+def dict_to_state(data: dict[str, Any]) -> OnboardingState:
     return OnboardingState(
         phase=data["phase"],
         phase_index=data["phase_index"],
@@ -67,7 +72,7 @@ async def get_onboarding_state() -> OnboardingState | None:
         raw = doc.body.get(_CONTEXT_KEY)
         if raw is None or not isinstance(raw, dict):
             return None
-        return _dict_to_state(raw)
+        return dict_to_state(raw)
 
 
 async def is_onboarding_completed() -> bool:
@@ -102,24 +107,23 @@ async def start_onboarding() -> OnboardingState:
 
 async def advance_phase(current_state: OnboardingState) -> OnboardingState | None:
     """Move to the next phase. Returns ``None`` if onboarding is now complete."""
-    next_index = current_state.phase_index + 1
-    completed = (*current_state.completed_phases, current_state.phase)
-
-    if next_index >= len(PHASES):
-        # All phases done — complete onboarding.
-        await complete_onboarding()
-        log.info("onboarding completed (all phases done)")
-        return None
-
-    next_phase = PHASES[next_index]
     with tracer.start_as_current_span(
         "advance_onboarding_phase",
-        attributes={
-            "onboarding.from_phase": current_state.phase,
-            "onboarding.to_phase": next_phase,
-            "onboarding.phase_index": next_index,
-        },
-    ):
+        attributes={"onboarding.from_phase": current_state.phase},
+    ) as span:
+        next_index = current_state.phase_index + 1
+        completed = (*current_state.completed_phases, current_state.phase)
+
+        if next_index >= len(PHASES):
+            span.set_attribute("onboarding.completed", value=True)
+            await complete_onboarding()
+            log.info("onboarding completed (all phases done)")
+            return None
+
+        next_phase = PHASES[next_index]
+        span.set_attribute("onboarding.to_phase", next_phase)
+        span.set_attribute("onboarding.phase_index", next_index)
+
         new_state = OnboardingState(
             phase=next_phase,
             phase_index=next_index,
@@ -130,6 +134,7 @@ async def advance_phase(current_state: OnboardingState) -> OnboardingState | Non
             new_state,
             reason=f"advanced from {current_state.phase} to {next_phase}",
         )
+        _phase_advances.add(1, {"onboarding.to_phase": next_phase})
         log.info(
             "onboarding phase advanced",
             extra={"from": current_state.phase, "to": next_phase, "index": next_index},

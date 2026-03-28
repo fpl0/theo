@@ -23,7 +23,7 @@ from opentelemetry import metrics, trace
 from theo.memory import core
 from theo.memory.episodes import list_episodes
 from theo.memory.nodes import search_nodes
-from theo.onboarding.flow import get_onboarding_state
+from theo.onboarding.flow import OnboardingState, dict_to_state
 from theo.onboarding.prompts import get_phase_system_prompt
 
 if TYPE_CHECKING:
@@ -213,9 +213,16 @@ async def assemble(
         memory_section = _format_relevant_memories(relevant_nodes, budget=memory_budget)
         memory_tokens = estimate_tokens(memory_section) if memory_section else 0
 
-        # 3. Check for active onboarding and assemble system prompt
+        # 3. Check for active onboarding from already-fetched core docs
         parts: list[str] = []
-        onboarding_state = await get_onboarding_state()
+        onboarding_tokens = 0
+        onboarding_state: OnboardingState | None = None
+        context_doc = core_docs.get("context")
+        if context_doc is not None:
+            raw = context_doc.body.get("onboarding")
+            if isinstance(raw, dict):
+                onboarding_state = dict_to_state(raw)
+
         if onboarding_state is not None:
             try:
                 phase_prompt = get_phase_system_prompt(onboarding_state.phase)
@@ -227,7 +234,9 @@ async def assemble(
             else:
                 phase_num = onboarding_state.phase_index + 1
                 phase_name = onboarding_state.phase.replace("_", " ").title()
-                parts.append(f"## Onboarding (Phase {phase_num}: {phase_name})\n{phase_prompt}")
+                section = f"## Onboarding (Phase {phase_num}: {phase_name})\n{phase_prompt}"
+                parts.append(section)
+                onboarding_tokens = estimate_tokens(section)
                 span.set_attribute("context.onboarding_phase", onboarding_state.phase)
 
         if core_section:
@@ -241,12 +250,13 @@ async def assemble(
         messages = _episodes_to_messages(eps, budget=history_budget)
         history_tokens = sum(estimate_tokens(m["content"]) for m in messages)
 
-        total_tokens = core_tokens + memory_tokens + history_tokens
+        total_tokens = core_tokens + memory_tokens + history_tokens + onboarding_tokens
 
         # Record per-section token counts on the span
         span.set_attribute("context.core_tokens", core_tokens)
         span.set_attribute("context.memory_tokens", memory_tokens)
         span.set_attribute("context.history_tokens", history_tokens)
+        span.set_attribute("context.onboarding_tokens", onboarding_tokens)
         span.set_attribute("context.total_tokens", total_tokens)
         span.set_attribute("context.message_count", len(messages))
 
@@ -257,6 +267,7 @@ async def assemble(
                 "core_tokens": core_tokens,
                 "memory_tokens": memory_tokens,
                 "history_tokens": history_tokens,
+                "onboarding_tokens": onboarding_tokens,
                 "total_tokens": total_tokens,
                 "message_count": len(messages),
             },

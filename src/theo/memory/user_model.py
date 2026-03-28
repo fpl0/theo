@@ -5,13 +5,19 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from opentelemetry import trace
+from opentelemetry import metrics, trace
 
 from theo.db import db
+from theo.errors import DimensionNotFoundError
 from theo.memory._types import DimensionResult
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+_meter = metrics.get_meter(__name__)
+_updates_total = _meter.create_counter(
+    "theo.user_model.updates",
+    description="Total user model dimension updates",
+)
 
 # ---------------------------------------------------------------------------
 # SQL
@@ -103,9 +109,13 @@ async def update_dimension(
         row = await db.pool.fetchrow(_UPDATE, framework, dimension, value)
         if row is None:
             msg = f"user model dimension {framework!r}/{dimension!r} not found"
-            raise LookupError(msg)
+            raise DimensionNotFoundError(msg)
 
         result = _row_to_result(row)
+        _updates_total.add(
+            1,
+            {"user_model.framework": framework, "user_model.dimension": dimension},
+        )
         log.info(
             "updated user model dimension",
             extra={

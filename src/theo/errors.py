@@ -27,3 +27,7 @@ class CircuitOpenError(TheoError):
 
 class GateConfigError(TheoError):
     """Raised when a gate is missing required configuration."""
+
+
+class DimensionNotFoundError(TheoError):
+    """Raised when a user model dimension does not exist."""

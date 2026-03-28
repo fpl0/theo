@@ -21,17 +21,6 @@ from theo.memory._types import EpisodeResult, NodeResult
 from theo.memory.core import CoreDocument
 
 
-@pytest.fixture(autouse=True)
-def _no_onboarding():
-    """Disable onboarding state for all assemble tests in this module."""
-    with patch(
-        "theo.conversation.context.get_onboarding_state",
-        new_callable=AsyncMock,
-        return_value=None,
-    ):
-        yield
-
-
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
 # ---------------------------------------------------------------------------

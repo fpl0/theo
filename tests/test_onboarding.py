@@ -15,7 +15,7 @@ from theo.memory.core import CoreDocument
 from theo.memory.tools import TOOL_DEFINITIONS, execute_tool
 from theo.onboarding.flow import (
     OnboardingState,
-    _dict_to_state,
+    dict_to_state,
     _state_to_dict,
     advance_phase,
     complete_onboarding,
@@ -116,7 +116,7 @@ class TestStateSerialization:
     def test_round_trip(self) -> None:
         state = _make_state(phase="values", phase_index=1, completed_phases=("welcome",))
         serialized = _state_to_dict(state)
-        restored = _dict_to_state(serialized)
+        restored = dict_to_state(serialized)
         assert restored.phase == state.phase
         assert restored.phase_index == state.phase_index
         assert restored.started_at == state.started_at
@@ -134,7 +134,7 @@ class TestStateSerialization:
             "started_at": "2026-01-15T12:00:00+00:00",
             "completed_phases": ["welcome"],
         }
-        state = _dict_to_state(data)
+        state = dict_to_state(data)
         assert isinstance(state.completed_phases, tuple)
 
 
@@ -457,10 +457,6 @@ class TestContextOnboardingIntegration:
             patch("theo.conversation.context.core.read_all", AsyncMock(return_value=all_docs)),
             patch("theo.conversation.context.search_nodes", AsyncMock(return_value=[])),
             patch("theo.conversation.context.list_episodes", AsyncMock(return_value=[])),
-            patch(
-                "theo.conversation.context.get_onboarding_state",
-                AsyncMock(return_value=state),
-            ),
         ):
             ctx = await assemble(
                 session_id=UUID("00000000-0000-0000-0000-000000000001"),
@@ -469,6 +465,7 @@ class TestContextOnboardingIntegration:
 
         assert "## Onboarding (Phase 2: Values)" in ctx.system_prompt
         assert "Schwartz" in ctx.system_prompt
+        assert ctx.token_estimate > 0
 
     async def test_no_injection_when_not_onboarding(self) -> None:
         all_docs = {
@@ -482,10 +479,6 @@ class TestContextOnboardingIntegration:
             patch("theo.conversation.context.core.read_all", AsyncMock(return_value=all_docs)),
             patch("theo.conversation.context.search_nodes", AsyncMock(return_value=[])),
             patch("theo.conversation.context.list_episodes", AsyncMock(return_value=[])),
-            patch(
-                "theo.conversation.context.get_onboarding_state",
-                AsyncMock(return_value=None),
-            ),
         ):
             ctx = await assemble(
                 session_id=UUID("00000000-0000-0000-0000-000000000001"),
