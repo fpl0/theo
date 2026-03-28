@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from opentelemetry import trace
 
@@ -25,6 +25,9 @@ from theo.memory import core, edges, nodes, retrieval, user_model
 from theo.memory._schemas import TOOL_DEFINITIONS
 from theo.memory.auto_edges import record_mention
 from theo.onboarding import flow as onboarding_flow
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 __all__ = ["TOOL_DEFINITIONS", "execute_tool"]
 
@@ -40,11 +43,15 @@ async def execute_tool(
     tool_input: dict[str, object],
     *,
     episode_id: int | None = None,
+    session_id: UUID | None = None,
 ) -> str:
     """Execute a memory tool and return the result as a string.
 
     *episode_id*, when provided, enables cross-referencing stored nodes back
     to the episode that triggered the tool call (via ``episode_node``).
+
+    *session_id*, when provided, enables tools that need session context
+    (e.g. ``start_deliberation``).
 
     Errors are returned as descriptive strings so Claude can adapt -- they are
     never raised to the caller.
@@ -54,10 +61,10 @@ async def execute_tool(
         attributes={"tool.name": name},
     ):
         try:
-            # store_memory is special-cased: it needs episode_id to record
-            # the mention link, which other tools don't require.
             if name == "store_memory":
                 return await _store_memory(tool_input, episode_id=episode_id)
+            if name == "start_deliberation":
+                return await _start_deliberation(tool_input, session_id=session_id)
             handler = _TOOL_DISPATCH.get(name)
             if handler is None:
                 return f"Unknown tool: {name}"
@@ -196,6 +203,28 @@ async def _advance_onboarding(tool_input: dict[str, object]) -> str:
     if new_state is None:
         return json.dumps({"completed": True, "message": "Onboarding complete!"})
     return json.dumps({"phase": new_state.phase, "phase_index": new_state.phase_index})
+
+
+async def _start_deliberation(
+    tool_input: dict[str, object],
+    *,
+    session_id: UUID | None = None,
+) -> str:
+    # Lazy import to avoid circular dependency (deliberation imports TOOL_DEFINITIONS).
+    from theo.conversation.deliberation import start_deliberation  # noqa: PLC0415
+
+    if session_id is None:
+        return json.dumps({"error": "No session context for deliberation."})
+    question = str(tool_input.get("question", ""))
+    if not question:
+        return json.dumps({"error": "A question is required."})
+    deliberation_id = await start_deliberation(session_id, question)
+    return json.dumps(
+        {
+            "deliberation_id": str(deliberation_id),
+            "status": "started",
+        }
+    )
 
 
 # -- Dispatch table --------------------------------------------------------

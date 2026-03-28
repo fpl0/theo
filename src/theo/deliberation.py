@@ -145,9 +145,9 @@ SELECT
     updated_at,
     delivered
 FROM deliberation
-WHERE status = 'completed' AND NOT delivered
+WHERE status = 'completed' AND NOT delivered AND session_id = $1
 ORDER BY created_at
-LIMIT $1
+LIMIT $2
 """
 
 _LIST_ACTIVE = """
@@ -209,15 +209,18 @@ async def update_phase(
     deliberation_id: UUID,
     phase: DeliberationPhase,
     output: str,
+    *,
+    output_key: str | None = None,
 ) -> None:
-    """Store *output* under the *phase* key and advance the deliberation.
+    """Store *output* and advance the deliberation to *phase*.
 
-    The output is stored in ``phase_outputs[phase]`` — i.e., the key matches
-    the phase that produced the output.  Only running deliberations can be
-    advanced.
+    The output is stored in ``phase_outputs[output_key]``.  When *output_key*
+    is ``None`` (the default) it equals *phase* — matching the convention where
+    the key corresponds to the producing phase when it equals the next phase.
 
     Raises :class:`LookupError` if no running deliberation matches.
     """
+    key = output_key if output_key is not None else phase
     with tracer.start_as_current_span(
         "update_deliberation_phase",
         attributes={
@@ -229,7 +232,7 @@ async def update_phase(
             _UPDATE_PHASE,
             deliberation_id,
             phase,
-            phase,
+            key,
             output,
         )
         if result is None:
@@ -294,10 +297,13 @@ async def mark_delivered(deliberation_id: UUID) -> None:
         )
 
 
-async def list_pending_delivery(*, limit: int = 100) -> list[DeliberationState]:
-    """Return all completed but undelivered deliberations, oldest first."""
-    with tracer.start_as_current_span("list_pending_delivery"):
-        rows = await db.pool.fetch(_LIST_PENDING_DELIVERY, limit)
+async def list_pending_delivery(session_id: UUID, *, limit: int = 100) -> list[DeliberationState]:
+    """Return completed but undelivered deliberations for a session."""
+    with tracer.start_as_current_span(
+        "list_pending_delivery",
+        attributes={"session.id": str(session_id)},
+    ):
+        rows = await db.pool.fetch(_LIST_PENDING_DELIVERY, session_id, limit)
         results = [_row_to_state(r) for r in rows]
         log.debug("found pending deliberations", extra={"count": len(results)})
         return results

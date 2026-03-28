@@ -41,5 +41,9 @@ class SelfModelDomainNotFoundError(TheoError):
     """Raised when a self-model domain does not exist."""
 
 
+class DeliberationError(TheoError):
+    """Raised when a deliberation phase fails or times out."""
+
+
 class TranscriptionError(TheoError):
     """Raised when audio transcription fails."""

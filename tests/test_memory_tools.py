@@ -49,6 +49,7 @@ class TestToolDefinitions:
             "link_memories",
             "update_user_model",
             "advance_onboarding",
+            "start_deliberation",
         }
         assert names == expected
 
@@ -439,3 +440,46 @@ class TestAdvanceOnboarding:
         parsed = json.loads(result)
         assert parsed["phase"] == "values"
         assert parsed["phase_index"] == 1
+
+
+# -- start_deliberation tests -----------------------------------------------
+
+
+class TestStartDeliberationTool:
+    async def test_start_deliberation_tool(self) -> None:
+        from uuid import uuid4
+
+        delib_id = uuid4()
+        with patch(
+            "theo.conversation.deliberation.start_deliberation",
+            new_callable=AsyncMock,
+            return_value=delib_id,
+        ):
+            result = await execute_tool(
+                "start_deliberation",
+                {"question": "What should I prioritize?"},
+                session_id=uuid4(),
+            )
+
+        parsed = json.loads(result)
+        assert parsed["status"] == "started"
+        assert parsed["deliberation_id"] == str(delib_id)
+
+    async def test_start_deliberation_no_session(self) -> None:
+        result = await execute_tool(
+            "start_deliberation",
+            {"question": "test"},
+        )
+        parsed = json.loads(result)
+        assert "error" in parsed
+
+    async def test_start_deliberation_empty_question(self) -> None:
+        from uuid import uuid4
+
+        result = await execute_tool(
+            "start_deliberation",
+            {"question": ""},
+            session_id=uuid4(),
+        )
+        parsed = json.loads(result)
+        assert "error" in parsed

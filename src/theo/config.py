@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     llm_max_tokens: int = 4096
     session_ratchet_enabled: bool = True
 
+    # Deliberation
+    deliberation_max_phases: int = 5
+    deliberation_phase_timeout_s: int = 120
+    deliberation_budget_tokens: int = 20_000
+
     # Embeddings
     embedding_model: str = "BAAI/bge-base-en-v1.5"
     embedding_dim: int = 768
