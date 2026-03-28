@@ -19,6 +19,7 @@ Eviction policy when total exceeds capacity:
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import logging
 import time
@@ -128,7 +129,10 @@ async def assemble(
         sections = build_core_sections(core_docs)
         apply_eviction(sections, cfg)
 
-        relevant_nodes = await hybrid_search(latest_message, limit=20)
+        relevant_nodes, verbosity_dim = await asyncio.gather(
+            hybrid_search(latest_message, limit=20),
+            get_dimension("communication", "verbosity"),
+        )
         memory_section = format_relevant_memories(
             relevant_nodes,
             budget=cfg.context_memory_budget,
@@ -158,7 +162,6 @@ async def assemble(
                 span.set_attribute("context.onboarding_phase", onboarding_state.phase)
 
         # Build reasoning transparency instructions for the current speed tier.
-        verbosity_dim = await get_dimension("communication", "verbosity")
         transparency_section = build_transparency_instructions(speed, verbosity_dim)
         transparency_tokens = estimate_tokens(transparency_section)
         span.set_attribute("context.speed_tier", speed)
@@ -257,6 +260,7 @@ def _record_telemetry(
     span.set_attribute("context.history_tokens", s.history)
     span.set_attribute("context.onboarding_tokens", t.onboarding)
     span.set_attribute("context.transparency_tokens", t.transparency)
+    span.set_attribute("context.deliberation_tokens", t.deliberation)
     span.set_attribute("context.total_tokens", t.total)
     span.set_attribute("context.message_count", t.message_count)
 
@@ -272,6 +276,7 @@ def _record_telemetry(
             "history_tokens": s.history,
             "onboarding_tokens": t.onboarding,
             "transparency_tokens": t.transparency,
+            "deliberation_tokens": t.deliberation,
             "total_tokens": t.total,
             "message_count": t.message_count,
         },

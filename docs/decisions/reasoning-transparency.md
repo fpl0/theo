@@ -20,7 +20,7 @@ The instructions are placed immediately after the Persona section and before Goa
 
 The deliberative and reflective tiers have concise variants selected when the user's `communication/verbosity` dimension is set to `"concise"`. The reactive tier is already minimal so it has no variant. When no verbosity preference exists (dimension not found or not yet seeded), the default (detailed) variant is used.
 
-This reads a single dimension via `get_dimension("communication", "verbosity")` during context assembly — one lightweight DB query that runs in parallel with the existing assembly work.
+This reads a single dimension via `get_dimension("communication", "verbosity")` during context assembly — one lightweight DB query gathered in parallel with `hybrid_search` to avoid adding serial latency.
 
 ## Decision: Transparency instructions always present
 
