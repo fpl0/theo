@@ -472,6 +472,7 @@ class TestAdvanceOnboardingTool:
 
 
 _MOCK_DELIVER = "theo.conversation.context.assembly.deliver_pending"
+_MOCK_GET_DIM = "theo.conversation.context.assembly.get_dimension"
 
 
 class TestContextOnboardingIntegration:
@@ -493,6 +494,7 @@ class TestContextOnboardingIntegration:
             patch("theo.conversation.context.assembly.list_episodes", AsyncMock(return_value=[])),
             patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
             patch(_MOCK_DELIVER, AsyncMock(return_value=[])),
+            patch(_MOCK_GET_DIM, AsyncMock(return_value=None)),
         ):
             ctx = await assemble(
                 session_id=UUID("00000000-0000-0000-0000-000000000001"),
@@ -520,6 +522,7 @@ class TestContextOnboardingIntegration:
             patch("theo.conversation.context.assembly.list_episodes", AsyncMock(return_value=[])),
             patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
             patch(_MOCK_DELIVER, AsyncMock(return_value=[])),
+            patch(_MOCK_GET_DIM, AsyncMock(return_value=None)),
         ):
             ctx = await assemble(
                 session_id=UUID("00000000-0000-0000-0000-000000000001"),
@@ -547,6 +550,7 @@ class TestContextOnboardingIntegration:
             patch("theo.conversation.context.assembly.list_episodes", AsyncMock(return_value=[])),
             patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
             patch(_MOCK_DELIVER, AsyncMock(return_value=[])),
+            patch(_MOCK_GET_DIM, AsyncMock(return_value=None)),
         ):
             ctx = await assemble(
                 session_id=UUID("00000000-0000-0000-0000-000000000001"),

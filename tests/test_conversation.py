@@ -253,6 +253,7 @@ class TestContextAssembly:
         mock_assemble.assert_awaited_once_with(
             session_id=_SESSION,
             latest_message="what is the weather?",
+            speed="reflective",
         )
 
     async def test_system_prompt_passed_to_stream(

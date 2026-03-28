@@ -14,12 +14,19 @@ from theo.conversation.context import (
     AssembledContext,
     SectionTokens,
     assemble,
+    build_transparency_instructions,
     episodes_to_messages,
     estimate_tokens,
     format_relevant_memories,
     truncate_section,
 )
-from theo.memory._types import EpisodeChannel, EpisodeResult, EpisodeRole, NodeResult
+from theo.memory._types import (
+    DimensionResult,
+    EpisodeChannel,
+    EpisodeResult,
+    EpisodeRole,
+    NodeResult,
+)
 from theo.memory.core import CoreDocument, CoreMemoryLabel
 
 # ---------------------------------------------------------------------------
@@ -114,6 +121,37 @@ def _mock_deliver_pending():
         return_value=[],
     ):
         yield
+
+
+@pytest.fixture(autouse=True)
+def _mock_get_dimension():
+    """Stub out user model dimension lookup — returns None (no preference set)."""
+    with patch(
+        "theo.conversation.context.assembly.get_dimension",
+        new_callable=AsyncMock,
+        return_value=None,
+    ):
+        yield
+
+
+def _dimension(
+    *,
+    framework: str = "communication",
+    dimension: str = "verbosity",
+    value: dict[str, Any] | None = None,
+    confidence: float = 0.8,
+    evidence_count: int = 5,
+) -> DimensionResult:
+    return DimensionResult(
+        id=1,
+        framework=framework,
+        dimension=dimension,
+        value=value if value is not None else {"verbosity": "detailed"},
+        confidence=confidence,
+        evidence_count=evidence_count,
+        meta={},
+        updated_at=_NOW,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -362,9 +400,10 @@ async def test_assemble_empty_memory() -> None:
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hello")
 
-    assert result.system_prompt == ""
+    # Even with no core docs, the transparency section is always present
+    assert "## Response Guidelines" in result.system_prompt
     assert result.messages == []
-    assert result.token_estimate == 0
+    assert result.token_estimate > 0
 
 
 async def test_assemble_no_relevant_memories() -> None:
@@ -526,11 +565,12 @@ async def test_assemble_token_estimate_sums_sections() -> None:
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hi")
 
-    # Token estimate should be positive and equal to the sum of all sections
+    # Token estimate should be positive and >= the sum of tracked sections
+    # (total also includes transparency/onboarding/deliberation tokens)
     assert result.token_estimate > 0
     st = result.section_tokens
-    expected = st.persona + st.goals + st.user_model + st.current_task + st.memory + st.history
-    assert result.token_estimate == expected
+    section_sum = st.persona + st.goals + st.user_model + st.current_task + st.memory + st.history
+    assert result.token_estimate >= section_sum
 
 
 async def test_assemble_respects_history_budget() -> None:
@@ -772,3 +812,214 @@ def test_section_tokens_is_frozen() -> None:
     st = SectionTokens(persona=10, goals=10, user_model=5, current_task=5, memory=0, history=0)
     with pytest.raises(AttributeError):
         st.persona = 99  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# build_transparency_instructions
+# ---------------------------------------------------------------------------
+
+
+def test_transparency_deliberative_default() -> None:
+    result = build_transparency_instructions("deliberative")
+    assert "## Response Guidelines" in result
+    assert "Recommendation" in result
+    assert "Reasoning" in result
+    assert "Confidence" in result
+    assert "Alternatives" in result
+
+
+def test_transparency_deliberative_concise() -> None:
+    dim = _dimension(value={"verbosity": "concise"})
+    result = build_transparency_instructions("deliberative", dim)
+    assert "## Response Guidelines" in result
+    assert "Recommendation" in result
+    assert "keep it tight" in result
+
+
+def test_transparency_deliberative_detailed() -> None:
+    dim = _dimension(value={"verbosity": "detailed"})
+    result = build_transparency_instructions("deliberative", dim)
+    assert "## Response Guidelines" in result
+    assert "explain the key factors" in result
+
+
+def test_transparency_reflective_default() -> None:
+    result = build_transparency_instructions("reflective")
+    assert "## Response Guidelines" in result
+    assert "direct" in result.lower()
+    assert "context" in result.lower()
+
+
+def test_transparency_reflective_concise() -> None:
+    dim = _dimension(value={"verbosity": "concise"})
+    result = build_transparency_instructions("reflective", dim)
+    assert "concise" in result.lower()
+
+
+def test_transparency_reactive() -> None:
+    result = build_transparency_instructions("reactive")
+    assert "## Response Guidelines" in result
+    assert "brief" in result.lower()
+
+
+def test_transparency_reactive_ignores_verbosity() -> None:
+    """Reactive tier stays brief regardless of verbosity preference."""
+    dim = _dimension(value={"verbosity": "detailed"})
+    result_with = build_transparency_instructions("reactive", dim)
+    result_without = build_transparency_instructions("reactive")
+    assert result_with == result_without
+
+
+def test_transparency_no_dimension() -> None:
+    """When no verbosity dimension exists, uses default (detailed) variant."""
+    result = build_transparency_instructions("deliberative", None)
+    assert "explain the key factors" in result
+
+
+def test_transparency_malformed_dimension_value() -> None:
+    """When dimension value has no 'verbosity' key, uses default variant."""
+    dim = _dimension(value={"something_else": True})
+    result = build_transparency_instructions("deliberative", dim)
+    assert "explain the key factors" in result
+
+
+# ---------------------------------------------------------------------------
+# assemble with transparency
+# ---------------------------------------------------------------------------
+
+
+async def test_assemble_includes_transparency_section() -> None:
+    """Assembled context includes response guidelines for the given speed tier."""
+    core_docs = _all_core_docs()
+
+    with (
+        patch(
+            "theo.conversation.context.assembly.core.read_all",
+            new_callable=AsyncMock,
+            return_value=core_docs,
+        ),
+        patch(
+            "theo.conversation.context.assembly.hybrid_search",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "theo.conversation.context.assembly.list_episodes",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
+    ):
+        result = await assemble(
+            session_id=_SESSION,
+            latest_message="Analyze the trade-offs",
+            speed="deliberative",
+        )
+
+    assert "## Response Guidelines" in result.system_prompt
+    assert "Recommendation" in result.system_prompt
+
+
+async def test_assemble_transparency_respects_concise_preference() -> None:
+    """When user prefers concise, deliberative uses the concise variant."""
+    core_docs = _all_core_docs()
+    dim = _dimension(value={"verbosity": "concise"})
+
+    with (
+        patch(
+            "theo.conversation.context.assembly.core.read_all",
+            new_callable=AsyncMock,
+            return_value=core_docs,
+        ),
+        patch(
+            "theo.conversation.context.assembly.hybrid_search",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "theo.conversation.context.assembly.list_episodes",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
+        patch(
+            "theo.conversation.context.assembly.get_dimension",
+            new_callable=AsyncMock,
+            return_value=dim,
+        ),
+    ):
+        result = await assemble(
+            session_id=_SESSION,
+            latest_message="Analyze this",
+            speed="deliberative",
+        )
+
+    assert "keep it tight" in result.system_prompt
+
+
+async def test_assemble_reactive_speed_brief_guidelines() -> None:
+    """Reactive speed tier gets minimal guidelines."""
+    core_docs = _all_core_docs()
+
+    with (
+        patch(
+            "theo.conversation.context.assembly.core.read_all",
+            new_callable=AsyncMock,
+            return_value=core_docs,
+        ),
+        patch(
+            "theo.conversation.context.assembly.hybrid_search",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "theo.conversation.context.assembly.list_episodes",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
+    ):
+        result = await assemble(
+            session_id=_SESSION,
+            latest_message="hi",
+            speed="reactive",
+        )
+
+    assert "## Response Guidelines" in result.system_prompt
+    assert "Recommendation" not in result.system_prompt
+    assert "brief" in result.system_prompt.lower()
+
+
+async def test_assemble_transparency_after_persona() -> None:
+    """Response guidelines appear after persona but before goals."""
+    core_docs = _all_core_docs()
+
+    with (
+        patch(
+            "theo.conversation.context.assembly.core.read_all",
+            new_callable=AsyncMock,
+            return_value=core_docs,
+        ),
+        patch(
+            "theo.conversation.context.assembly.hybrid_search",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "theo.conversation.context.assembly.list_episodes",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
+    ):
+        result = await assemble(
+            session_id=_SESSION,
+            latest_message="Hello",
+            speed="reflective",
+        )
+
+    prompt = result.system_prompt
+    persona_pos = prompt.index("## Persona")
+    guidelines_pos = prompt.index("## Response Guidelines")
+    goals_pos = prompt.index("## Goals")
+    assert persona_pos < guidelines_pos < goals_pos

@@ -14,7 +14,8 @@ from theo.onboarding.flow import dict_to_state
 
 if TYPE_CHECKING:
     from theo.config import Settings
-    from theo.memory._types import EpisodeResult, NodeResult
+    from theo.llm import Speed
+    from theo.memory._types import DimensionResult, EpisodeResult, NodeResult
     from theo.memory.core import CoreDocument, CoreMemoryLabel
     from theo.onboarding.flow import OnboardingState
 
@@ -176,6 +177,7 @@ def join_system_prompt(
     memory_section: str,
     *,
     onboarding_section: str = "",
+    transparency_section: str = "",
     deliberation_section: str = "",
 ) -> str:
     """Join non-empty sections in canonical order."""
@@ -184,6 +186,8 @@ def join_system_prompt(
         parts.append(onboarding_section)
     if sections.persona:
         parts.append(sections.persona)
+    if transparency_section:
+        parts.append(transparency_section)
     if sections.goals:
         parts.append(sections.goals)
     if sections.user_model:
@@ -217,3 +221,69 @@ def extract_onboarding_state(context_doc: CoreDocument | None) -> OnboardingStat
             extra={"raw": raw},
         )
         return None
+
+
+# ---------------------------------------------------------------------------
+# Reasoning transparency
+# ---------------------------------------------------------------------------
+
+type Verbosity = str | None
+
+_DELIBERATIVE_INSTRUCTIONS = """\
+## Response Guidelines
+Structure your response as follows:
+1. **Recommendation** — lead with a clear, actionable answer.
+2. **Reasoning** — explain the key factors behind your conclusion.
+3. **Confidence** — state your confidence level and what it's based on.
+4. **Alternatives** — mention what else you considered and why it's less preferred."""
+
+_DELIBERATIVE_CONCISE_INSTRUCTIONS = """\
+## Response Guidelines
+Structure your response as follows:
+1. **Recommendation** — lead with a clear, actionable answer.
+2. **Reasoning** — briefly state the key factors (keep it tight).
+3. **Confidence** — one sentence on confidence level.
+4. **Alternatives** — mention alternatives only when meaningfully different."""
+
+_REFLECTIVE_INSTRUCTIONS = """\
+## Response Guidelines
+Be direct — answer first, then share relevant context from memory when it adds value."""
+
+_REFLECTIVE_CONCISE_INSTRUCTIONS = """\
+## Response Guidelines
+Be direct and concise. Answer first. Add context only when essential."""
+
+_REACTIVE_INSTRUCTIONS = """\
+## Response Guidelines
+Be brief. Match the energy of the message — no over-explaining."""
+
+
+def _resolve_verbosity(dimension: DimensionResult | None) -> Verbosity:
+    """Extract the verbosity preference string from a dimension result."""
+    if dimension is None:
+        return None
+    raw = dimension.value.get("verbosity")
+    if isinstance(raw, str):
+        return raw
+    return None
+
+
+def build_transparency_instructions(
+    speed: Speed,
+    verbosity_dimension: DimensionResult | None = None,
+) -> str:
+    """Build speed-tier-specific reasoning transparency instructions.
+
+    When a user model *verbosity* dimension is available and its value is
+    ``"concise"``, the deliberative and reflective tiers use shorter variants
+    that still preserve structure but reduce detail.
+    """
+    verbosity = _resolve_verbosity(verbosity_dimension)
+    is_concise = verbosity == "concise"
+
+    if speed == "deliberative":
+        return _DELIBERATIVE_CONCISE_INSTRUCTIONS if is_concise else _DELIBERATIVE_INSTRUCTIONS
+    if speed == "reflective":
+        return _REFLECTIVE_CONCISE_INSTRUCTIONS if is_concise else _REFLECTIVE_INSTRUCTIONS
+    # reactive
+    return _REACTIVE_INSTRUCTIONS

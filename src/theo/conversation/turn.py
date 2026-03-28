@@ -220,6 +220,7 @@ async def _build_initial_messages(
     ctx = await assemble(
         session_id=state.session_id,
         latest_message=state.event.body,
+        speed=state.speed,
     )
     messages: list[dict[str, object]] = [dict(m) for m in ctx.messages]
     messages.append({"role": "user", "content": state.event.body})

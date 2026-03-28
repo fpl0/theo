@@ -30,6 +30,7 @@ from theo.config import get_settings
 from theo.conversation.context.formatting import (
     apply_eviction,
     build_core_sections,
+    build_transparency_instructions,
     episodes_to_messages,
     extract_onboarding_state,
     format_relevant_memories,
@@ -40,10 +41,13 @@ from theo.conversation.deliberation import deliver_pending
 from theo.memory import core
 from theo.memory.episodes import list_episodes
 from theo.memory.retrieval import hybrid_search
+from theo.memory.user_model import get_dimension
 from theo.onboarding.prompts import get_phase_system_prompt
 
 if TYPE_CHECKING:
     from uuid import UUID
+
+    from theo.llm import Speed
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -92,6 +96,7 @@ async def assemble(
     *,
     session_id: UUID,
     latest_message: str,
+    speed: Speed = "reflective",
 ) -> AssembledContext:
     """Assemble the full context window for a conversation turn.
 
@@ -101,6 +106,9 @@ async def assemble(
         The current session, used to fetch recent episodes.
     latest_message:
         Text of the newest user message, used for archival retrieval.
+    speed:
+        Classified speed tier for this turn, used to select reasoning
+        transparency instructions.
 
     Returns
     -------
@@ -149,6 +157,12 @@ async def assemble(
                 onboarding_tokens = estimate_tokens(onboarding_section)
                 span.set_attribute("context.onboarding_phase", onboarding_state.phase)
 
+        # Build reasoning transparency instructions for the current speed tier.
+        verbosity_dim = await get_dimension("communication", "verbosity")
+        transparency_section = build_transparency_instructions(speed, verbosity_dim)
+        transparency_tokens = estimate_tokens(transparency_section)
+        span.set_attribute("context.speed_tier", speed)
+
         # Check for completed deliberations awaiting delivery.
         deliberation_section = ""
         deliberation_tokens = 0
@@ -167,6 +181,7 @@ async def assemble(
             sections,
             memory_section,
             onboarding_section=onboarding_section,
+            transparency_section=transparency_section,
             deliberation_section=deliberation_section,
         )
 
@@ -182,48 +197,82 @@ async def assemble(
             memory=memory_tokens,
             history=history_tokens,
         )
-        total_tokens = (
-            section_tokens.persona
-            + section_tokens.goals
-            + section_tokens.user_model
-            + section_tokens.current_task
-            + section_tokens.memory
-            + section_tokens.history
-            + onboarding_tokens
-            + deliberation_tokens
+        telemetry = _ContextTelemetry(
+            sections=section_tokens,
+            onboarding=onboarding_tokens,
+            transparency=transparency_tokens,
+            deliberation=deliberation_tokens,
+            message_count=len(messages),
         )
-
-        span.set_attribute("context.persona_tokens", section_tokens.persona)
-        span.set_attribute("context.goals_tokens", section_tokens.goals)
-        span.set_attribute("context.user_model_tokens", section_tokens.user_model)
-        span.set_attribute("context.task_tokens", section_tokens.current_task)
-        span.set_attribute("context.memory_tokens", section_tokens.memory)
-        span.set_attribute("context.history_tokens", section_tokens.history)
-        span.set_attribute("context.onboarding_tokens", onboarding_tokens)
-        span.set_attribute("context.total_tokens", total_tokens)
-        span.set_attribute("context.message_count", len(messages))
-
-        log.info(
-            "assembled context",
-            extra={
-                "session_id": str(session_id),
-                "persona_tokens": section_tokens.persona,
-                "goals_tokens": section_tokens.goals,
-                "user_model_tokens": section_tokens.user_model,
-                "task_tokens": section_tokens.current_task,
-                "memory_tokens": section_tokens.memory,
-                "history_tokens": section_tokens.history,
-                "onboarding_tokens": onboarding_tokens,
-                "total_tokens": total_tokens,
-                "message_count": len(messages),
-            },
-        )
+        _record_telemetry(span, session_id, telemetry)
 
         _duration.record(time.monotonic() - t0)
 
         return AssembledContext(
             system_prompt=system_prompt,
             messages=messages,
-            token_estimate=total_tokens,
+            token_estimate=telemetry.total,
             section_tokens=section_tokens,
         )
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class _ContextTelemetry:
+    """All token counts needed for observability."""
+
+    sections: SectionTokens
+    onboarding: int = 0
+    transparency: int = 0
+    deliberation: int = 0
+    message_count: int = 0
+
+    @property
+    def total(self) -> int:
+        s = self.sections
+        return (
+            s.persona
+            + s.goals
+            + s.user_model
+            + s.current_task
+            + s.memory
+            + s.history
+            + self.onboarding
+            + self.transparency
+            + self.deliberation
+        )
+
+
+def _record_telemetry(
+    span: trace.Span,
+    session_id: UUID,
+    t: _ContextTelemetry,
+) -> None:
+    """Write per-section token counts to the active span and structured log."""
+    s = t.sections
+    span.set_attribute("context.persona_tokens", s.persona)
+    span.set_attribute("context.goals_tokens", s.goals)
+    span.set_attribute("context.user_model_tokens", s.user_model)
+    span.set_attribute("context.task_tokens", s.current_task)
+    span.set_attribute("context.memory_tokens", s.memory)
+    span.set_attribute("context.history_tokens", s.history)
+    span.set_attribute("context.onboarding_tokens", t.onboarding)
+    span.set_attribute("context.transparency_tokens", t.transparency)
+    span.set_attribute("context.total_tokens", t.total)
+    span.set_attribute("context.message_count", t.message_count)
+
+    log.info(
+        "assembled context",
+        extra={
+            "session_id": str(session_id),
+            "persona_tokens": s.persona,
+            "goals_tokens": s.goals,
+            "user_model_tokens": s.user_model,
+            "task_tokens": s.current_task,
+            "memory_tokens": s.memory,
+            "history_tokens": s.history,
+            "onboarding_tokens": t.onboarding,
+            "transparency_tokens": t.transparency,
+            "total_tokens": t.total,
+            "message_count": t.message_count,
+        },
+    )
