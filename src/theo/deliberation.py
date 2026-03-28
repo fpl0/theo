@@ -48,6 +48,7 @@ type DeliberationPhase = Literal[
 ]
 type DeliberationStatus = Literal["running", "completed", "failed", "cancelled"]
 
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class DeliberationState:
     """Immutable snapshot of a deliberation row."""
