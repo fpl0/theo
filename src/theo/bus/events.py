@@ -59,6 +59,16 @@ class SystemEvent(Event):
 # ── Ephemeral events (dispatch only, no persistence) ─────────────────
 
 
+class MetacognitionAlert(Event):
+    """Metacognition detected a pathological pattern in deliberation."""
+
+    durable: ClassVar[bool] = False
+
+    deliberation_id: UUID
+    action: Literal["redirect", "escalate", "abort"]
+    reasoning: str
+
+
 class ResponseChunk(Event):
     """Streaming text fragment — ephemeral, not persisted."""
 

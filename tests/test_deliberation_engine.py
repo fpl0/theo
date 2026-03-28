@@ -65,6 +65,7 @@ def _make_settings(**overrides: Any) -> MagicMock:
     settings.deliberation_max_phases = overrides.get("deliberation_max_phases", 5)
     settings.deliberation_phase_timeout_s = overrides.get("deliberation_phase_timeout_s", 120)
     settings.deliberation_budget_tokens = overrides.get("deliberation_budget_tokens", 20_000)
+    settings.metacognition_enabled = overrides.get("metacognition_enabled", False)
     return settings
 
 

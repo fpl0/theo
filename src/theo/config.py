@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     deliberation_phase_timeout_s: int = 120
     deliberation_budget_tokens: int = 20_000
 
+    # Metacognition
+    metacognition_enabled: bool = True
+    metacognition_spinning_threshold: float = 0.85
+    metacognition_drift_threshold: float = 0.7
+    metacognition_min_evidence_for_high_confidence: int = 3
+
     # Embeddings
     embedding_model: str = "BAAI/bge-base-en-v1.5"
     embedding_dim: int = 768

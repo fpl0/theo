@@ -17,13 +17,14 @@ import asyncio
 import contextlib
 import logging
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from opentelemetry import metrics, trace
 
 from theo.bus import bus
-from theo.bus.events import MessageReceived
+from theo.bus.events import MessageReceived, MetacognitionAlert
 from theo.config import get_settings
+from theo.conversation.metacognition import MonitorDecision, extract_node_ids, monitor
 from theo.conversation.stream import stream_and_collect
 from theo.deliberation import (
     DeliberationPhase,
@@ -34,11 +35,15 @@ from theo.deliberation import (
     mark_delivered,
     update_phase,
 )
+from theo.embeddings import embedder
 from theo.errors import DeliberationError
 from theo.memory.tools import TOOL_DEFINITIONS
 
 if TYPE_CHECKING:
     from uuid import UUID
+
+    import numpy as np
+    from numpy.typing import NDArray
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -225,6 +230,14 @@ async def _run_deliberation(
         phase_outputs: dict[str, str] = {}
         phases_to_run = list(_PHASE_ORDER)
 
+        # Precompute question embedding for metacognition drift detection.
+        question_embedding: NDArray[np.float32] | None = None
+        if cfg.metacognition_enabled:
+            question_embedding = await embedder.embed_one(question)
+
+        # Track all node IDs referenced across phases for diminishing returns.
+        all_nodes_referenced: list[int] = []
+
         for phase in phases_to_run:
             # Check deliberation is still running (may have been cancelled).
             current = await get_deliberation(deliberation_id)
@@ -264,6 +277,41 @@ async def _run_deliberation(
                 )
                 phase_outputs["synthesize"] = synth_output
                 break
+
+            # Metacognition: check for pathological patterns after each phase.
+            if cfg.metacognition_enabled and question_embedding is not None:
+                decision = await _check_metacognition(
+                    deliberation_id,
+                    question_embedding,
+                    phase_outputs,
+                    phase,
+                    all_nodes_referenced,
+                )
+                if decision.action == "abort":
+                    span.set_attribute("deliberation.aborted_by_metacognition", "true")
+                    await complete_deliberation(deliberation_id)
+                    elapsed = time.monotonic() - t0
+                    _duration.record(elapsed)
+                    # Deliver best-effort answer with abort notice.
+                    await _try_deliver(deliberation_id, session_id, phase_outputs)
+                    return
+                if decision.action == "escalate":
+                    span.set_attribute("deliberation.escalated", "true")
+                    await _publish_alert(
+                        deliberation_id,
+                        session_id,
+                        "escalate",
+                        decision.reasoning,
+                    )
+                    # Continue deliberation — escalation is advisory.
+                if decision.action == "redirect" and decision.redirect_prompt:
+                    span.set_attribute("deliberation.redirected", "true")
+                    # Prepend the redirect instruction to the next phase's output
+                    # by storing it so _build_phase_system picks it up.
+                    phase_outputs[f"_redirect_{phase}"] = decision.redirect_prompt
+
+            # Update cumulative node references.
+            all_nodes_referenced.extend(extract_node_ids(output))
 
         await complete_deliberation(deliberation_id)
         elapsed = time.monotonic() - t0
@@ -396,6 +444,65 @@ _NEXT_PHASE: dict[DeliberationPhase, DeliberationPhase] = {
 
 def _next_phase(current: DeliberationPhase) -> DeliberationPhase:
     return _NEXT_PHASE[current]
+
+
+# ---------------------------------------------------------------------------
+# Metacognition integration
+# ---------------------------------------------------------------------------
+
+
+async def _check_metacognition(
+    deliberation_id: UUID,
+    question_embedding: NDArray[np.float32],
+    phase_outputs: dict[str, str],
+    current_phase: str,
+    all_prior_nodes: list[int],
+) -> MonitorDecision:
+    """Run the metacognition monitor, returning continue on failure."""
+    current_output = phase_outputs.get(current_phase, "")
+    current_nodes = extract_node_ids(current_output)
+
+    try:
+        return await monitor(
+            question_embedding=question_embedding,
+            phase_outputs=phase_outputs,
+            current_phase=current_phase,
+            nodes_referenced=current_nodes,
+            prior_nodes_referenced=all_prior_nodes,
+        )
+    except Exception:  # noqa: BLE001
+        log.warning(
+            "metacognition check failed, continuing",
+            extra={"deliberation_id": str(deliberation_id)},
+            exc_info=True,
+        )
+        return MonitorDecision(
+            action="continue", reasoning="Monitor error — defaulting to continue."
+        )
+
+
+async def _publish_alert(
+    deliberation_id: UUID,
+    session_id: UUID,
+    action: Literal["redirect", "escalate", "abort"],
+    reasoning: str,
+) -> None:
+    """Publish a MetacognitionAlert event for escalation."""
+    try:
+        await bus.publish(
+            MetacognitionAlert(
+                session_id=session_id,
+                deliberation_id=deliberation_id,
+                action=action,
+                reasoning=reasoning,
+            )
+        )
+    except Exception:  # noqa: BLE001
+        log.warning(
+            "failed to publish metacognition alert",
+            extra={"deliberation_id": str(deliberation_id)},
+            exc_info=True,
+        )
 
 
 # ---------------------------------------------------------------------------
