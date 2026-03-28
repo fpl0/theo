@@ -22,6 +22,12 @@ from theo.bus import bus
 from theo.bus.events import MessageReceived, ResponseChunk, ResponseComplete
 from theo.config import get_settings
 from theo.errors import GateConfigError, TranscriptionError
+from theo.onboarding.flow import (
+    complete_onboarding,
+    get_onboarding_state,
+    is_onboarding_completed,
+    start_onboarding,
+)
 from theo.transcription import transcriber
 
 if TYPE_CHECKING:
@@ -101,7 +107,7 @@ def session_id_for_chat(chat_id: int) -> UUID:
 
 
 class TelegramGate:
-    """Bridges Telegram ↔ Theo event bus.
+    """Bridges Telegram <-> Theo event bus.
 
     Incoming owner messages become :class:`MessageReceived` events.
     :class:`ResponseChunk` and :class:`ResponseComplete` events are
@@ -132,14 +138,15 @@ class TelegramGate:
         self._dp.message.register(self._on_cmd_stop, Command("stop"))
         self._dp.message.register(self._on_cmd_kill, Command("kill"))
         self._dp.message.register(self._on_cmd_status, Command("status"))
+        self._dp.message.register(self._on_cmd_onboard, Command("onboard"))
         self._dp.message.register(self._on_message)
 
         # Track the in-flight streamed message per session so chunks can edit it.
-        self._streaming: dict[UUID, int] = {}  # session_id → telegram message_id
+        self._streaming: dict[UUID, int] = {}  # session_id -> telegram message_id
         self._polling_task: asyncio.Task[None] | None = None
         self._start_time: float | None = None
 
-    # ── lifecycle ────────────────────────────────────────────────────
+    # -- lifecycle --------------------------------------------------------
 
     async def start(self) -> None:
         """Subscribe to bus events and start polling Telegram."""
@@ -163,13 +170,13 @@ class TelegramGate:
         await self._bot.session.close()
         log.info("telegram gate stopped")
 
-    # ── commands ──────────────────────────────────────────────────────
+    # -- commands ---------------------------------------------------------
 
     def _is_owner(self, message: Message) -> bool:
         return message.chat.id == self._owner_chat_id
 
     async def _on_cmd_start(self, message: Message) -> None:
-        """Handle /start — welcome message."""
+        """Handle /start -- welcome message."""
         if not self._is_owner(message):
             return
         with tracer.start_as_current_span("telegram.command", attributes={"command": "start"}):
@@ -180,7 +187,7 @@ class TelegramGate:
             )
 
     async def _on_cmd_pause(self, message: Message) -> None:
-        """Handle /pause — pause processing, queue incoming messages."""
+        """Handle /pause -- pause processing, queue incoming messages."""
         if not self._is_owner(message):
             return
         with tracer.start_as_current_span("telegram.command", attributes={"command": "pause"}):
@@ -191,7 +198,7 @@ class TelegramGate:
             log.info("owner issued /pause")
 
     async def _on_cmd_resume(self, message: Message) -> None:
-        """Handle /resume — resume processing and drain queue."""
+        """Handle /resume -- resume processing and drain queue."""
         if not self._is_owner(message):
             return
         with tracer.start_as_current_span("telegram.command", attributes={"command": "resume"}):
@@ -202,7 +209,7 @@ class TelegramGate:
             log.info("owner issued /resume")
 
     async def _on_cmd_stop(self, message: Message) -> None:
-        """Handle /stop — finish current turn then idle."""
+        """Handle /stop -- finish current turn then idle."""
         if not self._is_owner(message):
             return
         with tracer.start_as_current_span("telegram.command", attributes={"command": "stop"}):
@@ -218,7 +225,7 @@ class TelegramGate:
             log.info("owner issued /stop")
 
     async def _on_cmd_kill(self, message: Message) -> None:
-        """Handle /kill — immediately halt all processing."""
+        """Handle /kill -- immediately halt all processing."""
         if not self._is_owner(message):
             return
         with tracer.start_as_current_span("telegram.command", attributes={"command": "kill"}):
@@ -229,7 +236,7 @@ class TelegramGate:
             log.info("owner issued /kill")
 
     async def _on_cmd_status(self, message: Message) -> None:
-        """Handle /status — report engine state, uptime, queue depth."""
+        """Handle /status -- report engine state, uptime, queue depth."""
         if not self._is_owner(message):
             return
         with tracer.start_as_current_span("telegram.command", attributes={"command": "status"}):
@@ -248,7 +255,54 @@ class TelegramGate:
             await message.answer(text, parse_mode=None)
             log.info("owner issued /status")
 
-    # ── inbound: Telegram → bus ──────────────────────────────────────
+    async def _on_cmd_onboard(self, message: Message) -> None:
+        """Handle /onboard -- start, check status, or reset onboarding."""
+        if not self._is_owner(message):
+            return
+        with tracer.start_as_current_span("telegram.command", attributes={"command": "onboard"}):
+            _commands_counter.add(1, {"command": "onboard"})
+
+            # Parse optional argument (e.g. "/onboard reset").
+            arg = (message.text or "").partition(" ")[2].strip().lower()
+
+            state = await get_onboarding_state()
+
+            if arg == "reset":
+                if state is not None:
+                    await complete_onboarding()
+                new_state = await start_onboarding()
+                await message.answer(
+                    f"Onboarding reset. Starting fresh at phase: {new_state.phase}",
+                    parse_mode=None,
+                )
+                log.info("owner issued /onboard reset")
+                return
+
+            if state is not None:
+                phase_name = state.phase.replace("_", " ").title()
+                await message.answer(
+                    f"Onboarding in progress — phase {state.phase_index + 1}: {phase_name}. "
+                    "Just keep chatting to continue.",
+                    parse_mode=None,
+                )
+                return
+
+            if await is_onboarding_completed():
+                await message.answer(
+                    "Onboarding already complete. Send /onboard reset to redo.",
+                    parse_mode=None,
+                )
+                return
+
+            new_state = await start_onboarding()
+            await message.answer(
+                f"Starting onboarding! Phase: {new_state.phase.replace('_', ' ').title()}. "
+                "Let's get to know each other.",
+                parse_mode=None,
+            )
+            log.info("owner issued /onboard")
+
+    # -- inbound: Telegram -> bus -----------------------------------------
 
     async def _on_message(self, message: Message) -> None:
         """Handle an incoming Telegram message (text or voice)."""
@@ -373,7 +427,7 @@ class TelegramGate:
                 ),
             )
 
-    # ── outbound: bus → Telegram ─────────────────────────────────────
+    # -- outbound: bus -> Telegram ----------------------------------------
 
     async def _on_response_chunk(self, event: ResponseChunk) -> None:
         """Stream a response chunk to Telegram (send or edit)."""
@@ -387,7 +441,7 @@ class TelegramGate:
             existing_msg_id = self._streaming.get(event.session_id)
 
             if existing_msg_id is None:
-                # First chunk — send a new message.
+                # First chunk -- send a new message.
                 escaped = escape_markdownv2(event.body)
                 sent = await self._bot.send_message(
                     chat_id=self._owner_chat_id,
@@ -395,7 +449,7 @@ class TelegramGate:
                 )
                 self._streaming[event.session_id] = sent.message_id
             else:
-                # Subsequent chunk — edit the existing message.
+                # Subsequent chunk -- edit the existing message.
                 escaped = escape_markdownv2(event.body)
                 if escaped:
                     await self._bot.edit_message_text(

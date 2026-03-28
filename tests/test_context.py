@@ -407,7 +407,7 @@ async def test_assemble_persona_never_truncated() -> None:
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hello")
 
-    # Full persona content must be present — never truncated
+    # Full persona content must be present -- never truncated
     assert "x " * 100 in result.system_prompt
 
 

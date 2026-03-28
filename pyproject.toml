@@ -82,7 +82,7 @@ rules = { unresolved-attribute = "ignore" }
 # pydantic-settings constructors accept str for SecretStr and dynamic kwargs
 # like _env_file that ty cannot model.
 [[tool.ty.overrides]]
-include = ["tests/test_config.py", "tests/test_llm.py"]
+include = ["tests/test_config.py", "tests/test_llm.py", "tests/test_onboarding.py"]
 rules = { invalid-argument-type = "ignore", missing-argument = "ignore" }
 
 # test_retrieval also needs unknown-argument for _env_file kwarg.

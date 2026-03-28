@@ -31,6 +31,8 @@ from theo.config import get_settings
 from theo.memory import core
 from theo.memory.episodes import list_episodes
 from theo.memory.retrieval import hybrid_search
+from theo.onboarding.flow import OnboardingState, dict_to_state
+from theo.onboarding.prompts import get_phase_system_prompt
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -185,6 +187,28 @@ def _episodes_to_messages(
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _extract_onboarding_state(context_doc: CoreDocument | None) -> OnboardingState | None:
+    """Parse onboarding state from the context core document, if present."""
+    if context_doc is None:
+        return None
+    raw = context_doc.body.get("onboarding")
+    if not isinstance(raw, dict):
+        return None
+    try:
+        return dict_to_state(raw)
+    except KeyError, ValueError:
+        log.warning(
+            "corrupted onboarding state in core memory, skipping prompt injection",
+            extra={"raw": raw},
+        )
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Core section assembly
 # ---------------------------------------------------------------------------
 
@@ -247,9 +271,16 @@ def _apply_eviction(sections: _CoreSections, cfg: Settings) -> None:
         )
 
 
-def _join_system_prompt(sections: _CoreSections, memory_section: str) -> str:
+def _join_system_prompt(
+    sections: _CoreSections,
+    memory_section: str,
+    *,
+    onboarding_section: str = "",
+) -> str:
     """Join non-empty sections in canonical order."""
     parts: list[str] = []
+    if onboarding_section:
+        parts.append(onboarding_section)
     if sections.persona:
         parts.append(sections.persona)
     if sections.goals:
@@ -307,7 +338,33 @@ async def assemble(
         )
         memory_tokens = estimate_tokens(memory_section) if memory_section else 0
 
-        system_prompt = _join_system_prompt(sections, memory_section)
+        # Check for active onboarding from already-fetched core docs
+        onboarding_section = ""
+        onboarding_tokens = 0
+        onboarding_state = _extract_onboarding_state(core_docs.get("context"))
+
+        if onboarding_state is not None:
+            try:
+                phase_prompt = get_phase_system_prompt(onboarding_state.phase)
+            except KeyError:
+                log.warning(
+                    "unknown onboarding phase, skipping prompt injection",
+                    extra={"phase": onboarding_state.phase},
+                )
+            else:
+                phase_num = onboarding_state.phase_index + 1
+                phase_name = onboarding_state.phase.replace("_", " ").title()
+                onboarding_section = (
+                    f"## Onboarding (Phase {phase_num}: {phase_name})\n{phase_prompt}"
+                )
+                onboarding_tokens = estimate_tokens(onboarding_section)
+                span.set_attribute("context.onboarding_phase", onboarding_state.phase)
+
+        system_prompt = _join_system_prompt(
+            sections,
+            memory_section,
+            onboarding_section=onboarding_section,
+        )
 
         eps = await list_episodes(session_id)
         messages = _episodes_to_messages(eps, budget=cfg.context_history_budget)
@@ -328,6 +385,7 @@ async def assemble(
             + section_tokens.current_task
             + section_tokens.memory
             + section_tokens.history
+            + onboarding_tokens
         )
 
         span.set_attribute("context.persona_tokens", section_tokens.persona)
@@ -336,6 +394,7 @@ async def assemble(
         span.set_attribute("context.task_tokens", section_tokens.current_task)
         span.set_attribute("context.memory_tokens", section_tokens.memory)
         span.set_attribute("context.history_tokens", section_tokens.history)
+        span.set_attribute("context.onboarding_tokens", onboarding_tokens)
         span.set_attribute("context.total_tokens", total_tokens)
         span.set_attribute("context.message_count", len(messages))
 
@@ -349,6 +408,7 @@ async def assemble(
                 "task_tokens": section_tokens.current_task,
                 "memory_tokens": section_tokens.memory,
                 "history_tokens": section_tokens.history,
+                "onboarding_tokens": onboarding_tokens,
                 "total_tokens": total_tokens,
                 "message_count": len(messages),
             },

@@ -1,6 +1,6 @@
 """Memory tools exposed to Claude via Anthropic tool-use.
 
-Six tools give Claude autonomous control over Theo's memory:
+Seven tools give Claude autonomous control over Theo's memory:
 
 - ``store_memory`` — persist a new observation or fact as a knowledge node.
 - ``search_memory`` — search the knowledge graph by semantic similarity.
@@ -8,6 +8,7 @@ Six tools give Claude autonomous control over Theo's memory:
 - ``update_core_memory`` — update a core memory document with changelog.
 - ``link_memories`` — create an explicit relationship between two memories.
 - ``update_user_model`` — update a structured user model dimension.
+- ``advance_onboarding`` — move to the next onboarding phase.
 """
 
 from __future__ import annotations
@@ -21,13 +22,14 @@ from opentelemetry import trace
 
 from theo.memory import core, edges, nodes, user_model
 from theo.memory.auto_edges import record_mention
+from theo.onboarding import flow as onboarding_flow
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
 type _ToolHandler = Callable[[dict[str, object]], Coroutine[Any, Any, str]]
 
-# ── Anthropic tool schemas ───────────────────────────────────────────
+# -- Anthropic tool schemas ------------------------------------------------
 
 TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
@@ -195,9 +197,26 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "required": ["framework", "dimension", "value"],
         },
     },
+    {
+        "name": "advance_onboarding",
+        "description": (
+            "Mark the current onboarding phase as complete and move to the next. "
+            "Call this when you feel you have enough information for the current phase."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "summary": {
+                    "type": "string",
+                    "description": "Brief summary of what was learned in this phase.",
+                },
+            },
+            "required": ["summary"],
+        },
+    },
 ]
 
-# ── Tool execution ───────────────────────────────────────────────────
+# -- Tool execution --------------------------------------------------------
 
 
 _TOOL_DISPATCH: dict[str, _ToolHandler] = {}
@@ -213,6 +232,7 @@ def _register_dispatch() -> None:
             "update_core_memory": _update_core_memory,
             "link_memories": _link_memories,
             "update_user_model": _update_user_model,
+            "advance_onboarding": _advance_onboarding,
         }
     )
 
@@ -228,7 +248,7 @@ async def execute_tool(
     *episode_id*, when provided, enables cross-referencing stored nodes back
     to the episode that triggered the tool call (via ``episode_node``).
 
-    Errors are returned as descriptive strings so Claude can adapt — they are
+    Errors are returned as descriptive strings so Claude can adapt -- they are
     never raised to the caller.
     """
     with tracer.start_as_current_span(
@@ -247,7 +267,7 @@ async def execute_tool(
             return f"Error executing {name}: {exc}"
 
 
-# ── Tool implementations ─────────────────────────────────────────────
+# -- Tool implementations -------------------------------------------------
 
 
 async def _store_memory(
@@ -366,6 +386,19 @@ async def _update_user_model(tool_input: dict[str, object]) -> str:
     )
 
 
-# ── Bootstrap ─────────────────────────────────────────────────────────
+async def _advance_onboarding(tool_input: dict[str, object]) -> str:
+    summary = str(tool_input.get("summary", ""))
+    state = await onboarding_flow.get_onboarding_state()
+    if state is None:
+        return json.dumps({"error": "No active onboarding session."})
+
+    log.info("advancing onboarding", extra={"from_phase": state.phase, "summary": summary})
+    new_state = await onboarding_flow.advance_phase(state)
+    if new_state is None:
+        return json.dumps({"completed": True, "message": "Onboarding complete!"})
+    return json.dumps({"phase": new_state.phase, "phase_index": new_state.phase_index})
+
+
+# -- Bootstrap -------------------------------------------------------------
 
 _register_dispatch()

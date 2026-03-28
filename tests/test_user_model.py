@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from theo.errors import DimensionNotFoundError
 from theo.memory._types import DimensionResult
 from theo.memory.tools import TOOL_DEFINITIONS, execute_tool
 from theo.memory.user_model import get_dimension, read_dimensions, update_dimension
@@ -153,7 +154,7 @@ class TestUpdateDimension:
 
         with (
             patch("theo.memory.user_model.db", pool=mock_pool),
-            pytest.raises(LookupError, match="not found"),
+            pytest.raises(DimensionNotFoundError, match="not found"),
         ):
             await update_dimension("unknown", "missing", value={"x": 1})
 
@@ -227,7 +228,7 @@ class TestUpdateUserModelTool:
             "boundaries",
         }
 
-    def test_all_six_tools_defined(self) -> None:
+    def test_all_tools_defined(self) -> None:
         names = {t["name"] for t in TOOL_DEFINITIONS}
         expected = {
             "store_memory",
@@ -236,6 +237,7 @@ class TestUpdateUserModelTool:
             "link_memories",
             "update_core_memory",
             "update_user_model",
+            "advance_onboarding",
         }
         assert names == expected
 
@@ -321,7 +323,7 @@ class TestUpdateUserModelExecution:
     async def test_error_returns_string(self) -> None:
         with patch(
             "theo.memory.tools.user_model.update_dimension",
-            AsyncMock(side_effect=LookupError("not found")),
+            AsyncMock(side_effect=DimensionNotFoundError("not found")),
         ):
             result = await execute_tool(
                 "update_user_model",
