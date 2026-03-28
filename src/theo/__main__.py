@@ -37,6 +37,13 @@ async def _run() -> None:
         await migrate(db)
         log.info("database ready")
 
+        # Start intent evaluator if enabled.
+        if cfg.intent_evaluator_enabled:
+            from theo.intent import intent_evaluator  # noqa: PLC0415
+
+            await intent_evaluator.start()
+            log.info("intent evaluator ready")
+
         stop = asyncio.Event()
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
@@ -46,6 +53,13 @@ async def _run() -> None:
         await stop.wait()
     finally:
         log.info("shutting down")
+
+        # Stop intent evaluator before closing the pool.
+        if cfg.intent_evaluator_enabled:
+            from theo.intent import intent_evaluator  # noqa: PLC0415
+
+            await intent_evaluator.stop()
+
         await db.close()
         shutdown_telemetry()
 

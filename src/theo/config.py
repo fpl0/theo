@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     telegram_bot_token: SecretStr | None = None
     telegram_owner_chat_id: int | None = None
 
+    # Intent evaluator
+    intent_evaluator_enabled: bool = True
+    intent_evaluator_interval_s: int = 30
+    intent_max_daily_budget_tokens: int = 50_000
+    intent_deadline_horizon_days: int = 7
+
     @model_validator(mode="after")
     def _validate_pool_bounds(self) -> Self:
         if self.db_pool_min > self.db_pool_max:

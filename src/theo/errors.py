@@ -23,3 +23,11 @@ class ConversationNotRunningError(TheoError):
 
 class GateConfigError(TheoError):
     """Raised when a gate is missing required configuration."""
+
+
+class IntentExpiredError(TheoError):
+    """Raised when an intent has passed its expiry or deadline."""
+
+
+class IntentBudgetExhaustedError(TheoError):
+    """Raised when the daily intent token budget has been exceeded."""

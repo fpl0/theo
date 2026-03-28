@@ -127,6 +127,27 @@ class ConversationEngine:
             event = self._paused_queue.get_nowait()
             await self._process_message(event)
 
+    # ── evaluator integration ────────────────────────────────────────
+
+    @staticmethod
+    def _notify_evaluator_message() -> None:
+        """Tell the intent evaluator a user message arrived."""
+        import contextlib  # noqa: PLC0415
+
+        with contextlib.suppress(Exception):
+            from theo.intent import intent_evaluator  # noqa: PLC0415
+
+            intent_evaluator.notify_message()
+
+    def _notify_evaluator_inflight(self) -> None:
+        """Update the intent evaluator with the current inflight count."""
+        import contextlib  # noqa: PLC0415
+
+        with contextlib.suppress(Exception):
+            from theo.intent import intent_evaluator  # noqa: PLC0415
+
+            intent_evaluator.update_inflight(self._inflight)
+
     # ── core turn logic ───────────────────────────────────────────────
 
     async def _process_message(self, event: MessageReceived) -> None:
@@ -138,13 +159,18 @@ class ConversationEngine:
 
         lock = self._session_locks.setdefault(session_id, asyncio.Lock())
 
+        # Notify the intent evaluator that a message arrived.
+        self._notify_evaluator_message()
+
         async with lock:
             self._inflight += 1
             self._drained.clear()
+            self._notify_evaluator_inflight()
             try:
                 await self._execute_turn(event, session_id)
             finally:
                 self._inflight -= 1
+                self._notify_evaluator_inflight()
                 if self._inflight == 0:
                     self._drained.set()
 
