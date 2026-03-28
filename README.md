@@ -70,7 +70,7 @@ All code under `src/theo/`. Each module owns one concern.
 
 ## Decisions
 
-Architectural decisions are documented in [`docs/decisions/`](docs/decisions/). 24 records covering memory, conversation, infrastructure, and interface design.
+Architectural decisions are documented in [`docs/decisions/`](docs/decisions/).
 
 ## Development
 
