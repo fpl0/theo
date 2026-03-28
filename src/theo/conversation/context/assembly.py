@@ -31,13 +31,13 @@ from theo.config import get_settings
 from theo.conversation.context.formatting import (
     apply_eviction,
     build_core_sections,
-    build_transparency_instructions,
     episodes_to_messages,
     extract_onboarding_state,
     format_relevant_memories,
     join_system_prompt,
 )
 from theo.conversation.context.tokens import estimate_tokens
+from theo.conversation.context.transparency import build_transparency_instructions
 from theo.conversation.deliberation import deliver_pending
 from theo.memory import core
 from theo.memory.episodes import list_episodes

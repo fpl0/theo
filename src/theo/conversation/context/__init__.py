@@ -9,7 +9,6 @@ from theo.conversation.context.formatting import (
     CoreSections,
     apply_eviction,
     build_core_sections,
-    build_transparency_instructions,
     episodes_to_messages,
     extract_onboarding_state,
     format_core_section,
@@ -17,6 +16,7 @@ from theo.conversation.context.formatting import (
     join_system_prompt,
 )
 from theo.conversation.context.tokens import estimate_tokens, truncate_section
+from theo.conversation.context.transparency import build_transparency_instructions
 
 __all__ = [
     "AssembledContext",

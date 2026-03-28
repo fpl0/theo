@@ -990,6 +990,44 @@ async def test_assemble_reactive_speed_brief_guidelines() -> None:
     assert "brief" in result.system_prompt.lower()
 
 
+async def test_assemble_reflective_concise_preference() -> None:
+    """When user prefers concise, reflective uses the concise variant."""
+    core_docs = _all_core_docs()
+    dim = _dimension(value={"verbosity": "concise"})
+
+    with (
+        patch(
+            "theo.conversation.context.assembly.core.read_all",
+            new_callable=AsyncMock,
+            return_value=core_docs,
+        ),
+        patch(
+            "theo.conversation.context.assembly.hybrid_search",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "theo.conversation.context.assembly.list_episodes",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
+        patch(
+            "theo.conversation.context.assembly.get_dimension",
+            new_callable=AsyncMock,
+            return_value=dim,
+        ),
+    ):
+        result = await assemble(
+            session_id=_SESSION,
+            latest_message="Tell me about that",
+            speed="reflective",
+        )
+
+    assert "concise" in result.system_prompt.lower()
+    assert "essential" in result.system_prompt.lower()
+
+
 async def test_assemble_transparency_after_persona() -> None:
     """Response guidelines appear after persona but before goals."""
     core_docs = _all_core_docs()

@@ -32,8 +32,10 @@ Adding the transparency section pushed `assemble()` past the 50-statement lint l
 
 ## Files changed
 
-- `src/theo/conversation/context/formatting.py` — added `build_transparency_instructions()`, `_resolve_verbosity()`, and per-tier instruction constants
+- `src/theo/conversation/context/transparency.py` — new module with `build_transparency_instructions()`, `_resolve_verbosity()`, and per-tier instruction constants
 - `src/theo/conversation/context/assembly.py` — added `speed` parameter to `assemble()`, verbosity dimension fetch, transparency section wiring, extracted `_record_telemetry()` with `_ContextTelemetry`
 - `src/theo/conversation/context/__init__.py` — re-exported `build_transparency_instructions`
 - `src/theo/conversation/turn.py` — passes `speed` to `assemble()`
-- `tests/test_context.py` — 13 new tests covering all speed tiers, verbosity variants, malformed input, and section ordering
+- `tests/test_context.py` — 14 tests covering all speed tiers, verbosity variants, malformed input, and section ordering
+- `tests/test_conversation.py` — updated `TestContextAssembly` to assert `speed` kwarg forwarding
+- `tests/test_onboarding.py` — patched `get_dimension` in onboarding integration tests
