@@ -19,6 +19,7 @@ from theo.conversation import ConversationEngine
 from theo.db import db
 from theo.db.migrate import migrate
 from theo.gates.telegram import TelegramGate
+from theo.memory.nodes import drain_background_tasks
 from theo.resilience import circuit_breaker, health_check, retry_queue
 from theo.telemetry import init_telemetry, shutdown_telemetry
 
@@ -110,6 +111,7 @@ async def _shutdown(
                 log.warning("engine drain timed out after %.0fs, killing", _DRAIN_TIMEOUT_S)
                 engine.kill()
 
+        await drain_background_tasks()
         await bus.stop()
         await db.close()
         shutdown_telemetry()

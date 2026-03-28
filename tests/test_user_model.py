@@ -227,12 +227,13 @@ class TestUpdateUserModelTool:
             "boundaries",
         }
 
-    def test_all_five_tools_defined(self) -> None:
+    def test_all_six_tools_defined(self) -> None:
         names = {t["name"] for t in TOOL_DEFINITIONS}
         expected = {
             "store_memory",
             "search_memory",
             "read_core_memory",
+            "link_memories",
             "update_core_memory",
             "update_user_model",
         }
