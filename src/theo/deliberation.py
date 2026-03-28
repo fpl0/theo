@@ -48,16 +48,6 @@ type DeliberationPhase = Literal[
 ]
 type DeliberationStatus = Literal["running", "completed", "failed", "cancelled"]
 
-_PHASE_ORDER: tuple[DeliberationPhase, ...] = (
-    "frame",
-    "gather",
-    "generate",
-    "evaluate",
-    "synthesize",
-    "complete",
-)
-
-
 @dataclasses.dataclass(frozen=True, slots=True)
 class DeliberationState:
     """Immutable snapshot of a deliberation row."""
@@ -117,7 +107,7 @@ _UPDATE_PHASE = """
 UPDATE deliberation
 SET
     phase = $2,
-    phase_outputs = phase_outputs || jsonb_build_object($3, $4::jsonb)
+    phase_outputs = phase_outputs || jsonb_build_object($3, to_jsonb($4::text))
 WHERE deliberation_id = $1
   AND status = 'running'
 RETURNING id
@@ -156,6 +146,7 @@ SELECT
 FROM deliberation
 WHERE status = 'completed' AND NOT delivered
 ORDER BY created_at
+LIMIT $1
 """
 
 _LIST_ACTIVE = """
@@ -174,6 +165,7 @@ SELECT
 FROM deliberation
 WHERE session_id = $1 AND status = 'running'
 ORDER BY created_at
+LIMIT $2
 """
 
 # ---------------------------------------------------------------------------
@@ -217,11 +209,11 @@ async def update_phase(
     phase: DeliberationPhase,
     output: str,
 ) -> None:
-    """Store a phase output and advance the deliberation to *phase*.
+    """Store *output* under the *phase* key and advance the deliberation.
 
-    The previous phase's output is stored under its name in ``phase_outputs``.
-    Only running deliberations can be advanced; completed/failed/cancelled ones
-    are silently skipped.
+    The output is stored in ``phase_outputs[phase]`` — i.e., the key matches
+    the phase that produced the output.  Only running deliberations can be
+    advanced.
 
     Raises :class:`LookupError` if no running deliberation matches.
     """
@@ -301,27 +293,26 @@ async def mark_delivered(deliberation_id: UUID) -> None:
         )
 
 
-async def list_pending_delivery() -> list[DeliberationState]:
+async def list_pending_delivery(*, limit: int = 100) -> list[DeliberationState]:
     """Return all completed but undelivered deliberations, oldest first."""
     with tracer.start_as_current_span("list_pending_delivery"):
-        rows = await db.pool.fetch(_LIST_PENDING_DELIVERY)
+        rows = await db.pool.fetch(_LIST_PENDING_DELIVERY, limit)
         results = [_row_to_state(r) for r in rows]
-        log.debug("found %d pending deliberation(s)", len(results))
+        log.debug("found pending deliberations", extra={"count": len(results)})
         return results
 
 
-async def list_active(session_id: UUID) -> list[DeliberationState]:
+async def list_active(session_id: UUID, *, limit: int = 100) -> list[DeliberationState]:
     """Return all running deliberations for a session, oldest first."""
     with tracer.start_as_current_span(
         "list_active_deliberations",
         attributes={"session.id": str(session_id)},
     ):
-        rows = await db.pool.fetch(_LIST_ACTIVE, session_id)
+        rows = await db.pool.fetch(_LIST_ACTIVE, session_id, limit)
         results = [_row_to_state(r) for r in rows]
         log.debug(
-            "found %d active deliberation(s) for session",
-            len(results),
-            extra={"session_id": str(session_id)},
+            "found active deliberations",
+            extra={"count": len(results), "session_id": str(session_id)},
         )
         return results
 

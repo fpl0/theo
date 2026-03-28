@@ -253,6 +253,16 @@ async def test_list_pending_delivery_returns_empty(mock_pool: AsyncMock) -> None
     assert result == []
 
 
+async def test_list_pending_delivery_default_limit(mock_pool: AsyncMock) -> None:
+    mock_pool.fetch.return_value = []
+
+    with patch("theo.deliberation.db", pool=mock_pool):
+        await list_pending_delivery()
+
+    args = mock_pool.fetch.call_args.args
+    assert args[1] == 100  # default limit
+
+
 # ---------------------------------------------------------------------------
 # list_active
 # ---------------------------------------------------------------------------
@@ -272,14 +282,15 @@ async def test_list_active_returns_running_for_session(mock_pool: AsyncMock) -> 
     assert result[1].phase == "gather"
 
 
-async def test_list_active_passes_session_id(mock_pool: AsyncMock) -> None:
+async def test_list_active_passes_session_id_and_limit(mock_pool: AsyncMock) -> None:
     mock_pool.fetch.return_value = []
 
     with patch("theo.deliberation.db", pool=mock_pool):
-        await list_active(_SESSION_ID)
+        await list_active(_SESSION_ID, limit=10)
 
     args = mock_pool.fetch.call_args.args
     assert args[1] == _SESSION_ID
+    assert args[2] == 10
 
 
 async def test_list_active_returns_empty_for_no_running(mock_pool: AsyncMock) -> None:
