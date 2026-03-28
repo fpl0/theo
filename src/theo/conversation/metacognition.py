@@ -20,6 +20,7 @@ import numpy as np
 from opentelemetry import metrics, trace
 
 from theo.config import get_settings
+from theo.deliberation import PHASE_ORDER
 from theo.embeddings import embedder
 
 if TYPE_CHECKING:
@@ -156,8 +157,6 @@ def _detect_diminishing_returns(
 # Matches "id": 42 or "node_id": 42 in tool result JSON embedded in text.
 _NODE_ID_RE = re.compile(r'"(?:id|node_id)":\s*(\d+)')
 
-_PHASE_ORDER = ("frame", "gather", "generate", "evaluate", "synthesize")
-
 
 def extract_node_ids(text: str) -> list[int]:
     """Extract memory node IDs from text containing tool result JSON."""
@@ -167,10 +166,10 @@ def extract_node_ids(text: str) -> list[int]:
 def _previous_phase(current: str) -> str | None:
     """Return the phase that ran before *current*, or None for frame."""
     try:
-        idx = _PHASE_ORDER.index(current)
+        idx = PHASE_ORDER.index(current)
     except ValueError:
         return None
-    return _PHASE_ORDER[idx - 1] if idx > 0 else None
+    return PHASE_ORDER[idx - 1] if idx > 0 else None
 
 
 async def monitor(
@@ -210,7 +209,12 @@ async def monitor(
         _checks.add(1, {"deliberation.phase": current_phase})
 
         # Embed all available phase outputs for comparison.
-        texts_to_embed = {phase: text for phase, text in phase_outputs.items() if text}
+        # Filter out _redirect_ keys — those are injected constraints, not phase text.
+        texts_to_embed = {
+            phase: text
+            for phase, text in phase_outputs.items()
+            if text and not phase.startswith("_")
+        }
         phase_embeddings: dict[str, NDArray[np.float32]] = {}
         if texts_to_embed:
             phases = list(texts_to_embed.keys())

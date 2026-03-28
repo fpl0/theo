@@ -108,6 +108,19 @@ class Settings(BaseSettings):
             raise ValueError(msg)
         return self
 
+    @model_validator(mode="after")
+    def _validate_metacognition(self) -> Self:
+        if not (0.0 < self.metacognition_spinning_threshold <= 1.0):
+            msg = "metacognition_spinning_threshold must be in (0, 1]"
+            raise ValueError(msg)
+        if not (0.0 < self.metacognition_drift_threshold <= 1.0):
+            msg = "metacognition_drift_threshold must be in (0, 1]"
+            raise ValueError(msg)
+        if self.metacognition_min_evidence_for_high_confidence < 1:
+            msg = "metacognition_min_evidence_for_high_confidence must be >= 1"
+            raise ValueError(msg)
+        return self
+
 
 @cache
 def get_settings() -> Settings:

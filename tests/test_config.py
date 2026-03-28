@@ -50,3 +50,18 @@ def test_context_budget_zero_rejected() -> None:
 def test_retrieval_seed_exceeds_candidate_rejected() -> None:
     with pytest.raises(ValidationError, match="retrieval_graph_seed_count"):
         _settings(retrieval_graph_seed_count=100, retrieval_candidate_limit=10)
+
+
+def test_metacognition_spinning_threshold_above_one_rejected() -> None:
+    with pytest.raises(ValidationError, match="metacognition_spinning_threshold"):
+        _settings(metacognition_spinning_threshold=1.5)
+
+
+def test_metacognition_drift_threshold_zero_rejected() -> None:
+    with pytest.raises(ValidationError, match="metacognition_drift_threshold"):
+        _settings(metacognition_drift_threshold=0.0)
+
+
+def test_metacognition_min_evidence_zero_rejected() -> None:
+    with pytest.raises(ValidationError, match="metacognition_min_evidence"):
+        _settings(metacognition_min_evidence_for_high_confidence=0)

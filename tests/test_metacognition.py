@@ -485,8 +485,8 @@ class TestDeliberationMetacognitionIntegration:
 
         # Only 1 phase ran before abort.
         assert mock_update.await_count == 1
-        # Deliberation still gets completed (with whatever phases ran).
-        mock_complete.assert_awaited_once_with(delib_id)
+        # Deliberation gets cancelled by metacognition.
+        mock_complete.assert_awaited_once_with(delib_id, status="cancelled")
 
     async def test_escalate_publishes_alert_and_continues(self) -> None:
         """Escalation publishes an alert but doesn't stop the deliberation."""
@@ -552,6 +552,77 @@ class TestDeliberationMetacognitionIntegration:
 
         # Alert was published for the escalation.
         mock_alert.assert_awaited_once()
+
+    async def test_redirect_stores_prompt_in_phase_outputs(self) -> None:
+        """Redirect injects constraint for the next phase's system prompt."""
+        from uuid import UUID
+
+        session_id = UUID("00000000-0000-0000-0000-000000000001")
+        delib_id = UUID("00000000-0000-0000-0000-000000000099")
+
+        call_count = 0
+
+        async def mock_monitor(**kwargs):  # noqa: ARG001
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return MonitorDecision(
+                    action="redirect",
+                    reasoning="Spinning detected.",
+                    redirect_prompt="Take a different angle.",
+                )
+            return MonitorDecision(action="continue", reasoning="OK.")
+
+        captured_systems: list[str] = []
+
+        async def mock_stream(messages, **kwargs):  # noqa: ARG001
+            if kwargs.get("system"):
+                captured_systems.append(kwargs["system"])
+            return _stream_result()
+
+        with (
+            patch(
+                "theo.conversation.deliberation.stream_and_collect",
+                side_effect=mock_stream,
+            ),
+            patch(
+                "theo.conversation.deliberation.get_deliberation",
+                new_callable=AsyncMock,
+                return_value=self._make_state(),
+            ),
+            patch(
+                "theo.conversation.deliberation.update_phase",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "theo.conversation.deliberation.complete_deliberation",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "theo.conversation.deliberation.monitor",
+                new_callable=AsyncMock,
+                side_effect=mock_monitor,
+            ),
+            patch(
+                "theo.conversation.deliberation.embedder",
+            ) as mock_embedder,
+            patch(
+                "theo.conversation.deliberation._try_deliver",
+                new_callable=AsyncMock,
+            ),
+        ):
+            mock_embedder.embed_one = AsyncMock(
+                return_value=np.array([1.0, 0.0, 0.0], dtype=np.float32)
+            )
+
+            from theo.conversation.deliberation import _run_deliberation
+
+            await _run_deliberation(delib_id, session_id, "test")
+
+        # The second phase's system prompt should contain the redirect.
+        assert any("Take a different angle" in s for s in captured_systems)
+        # Redirect should be in a metacognition section.
+        assert any("Metacognition redirect" in s for s in captured_systems)
 
     async def test_monitor_failure_does_not_crash_deliberation(self) -> None:
         """If the monitor raises, deliberation continues."""
