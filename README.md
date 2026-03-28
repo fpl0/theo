@@ -21,7 +21,12 @@ Most AI assistants forget everything between sessions. Theo doesn't. It maintain
 
 ## Stack
 
-Python 3.14+ · asyncpg · PostgreSQL 18 + pgvector · MLX · Claude API · aiogram 3.x · OpenTelemetry → OpenObserve
+- **Language**: Python 3.14+, async-native
+- **Database**: PostgreSQL 18 + pgvector (asyncpg, raw SQL)
+- **LLM**: Claude API (Anthropic)
+- **Local inference**: MLX — embeddings (BGE-base) + speech-to-text (Whisper)
+- **Interface**: Telegram (aiogram 3.x)
+- **Observability**: OpenTelemetry → OpenObserve
 
 ## Quick start
 
