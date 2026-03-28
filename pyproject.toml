@@ -148,6 +148,12 @@ rules = { invalid-assignment = "ignore" }
 include = ["tests/test_conversation.py"]
 rules = { invalid-assignment = "ignore" }
 
+# test_autonomy passes str dicts where ty expects Literal types, and assigns
+# to frozen dataclasses to verify they raise.
+[[tool.ty.overrides]]
+include = ["tests/test_autonomy.py"]
+rules = { invalid-argument-type = "ignore", invalid-assignment = "ignore" }
+
 # conftest stubs MLX modules on non-Apple-Silicon CI by setting attributes on
 # dynamically created ModuleType instances — ty cannot resolve those attributes.
 [[tool.ty.overrides]]

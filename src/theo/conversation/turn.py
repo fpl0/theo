@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, cast
 
 from opentelemetry import metrics, trace
 
+from theo.autonomy import classify_tool, log_action, requires_approval
 from theo.bus import bus
 from theo.bus.events import ResponseChunk, ResponseComplete
 from theo.conversation.context import assemble
@@ -272,12 +273,36 @@ async def _execute_tools(
     messages: list[dict[str, object]],
     tool_requests: list[ToolUseRequest],
 ) -> None:
-    """Execute each tool request and append results to messages."""
+    """Execute each tool request, classify autonomy, and append results."""
     tool_results: list[dict[str, object]] = []
     for req in tool_requests:
         state.tool_call_count += 1
         _tool_call_counter.add(1, {"tool.name": req.name})
+
+        classification = classify_tool(req.name)
+
+        # Propose/consult actions will route to approval gateway (FPL-37).
+        # For now all actions execute and get logged.
+        if requires_approval(classification.autonomy_level):
+            log.info(
+                "action requires approval (executing pending gateway)",
+                extra={
+                    "tool": req.name,
+                    "autonomy_level": classification.autonomy_level,
+                    "action_type": classification.action_type,
+                },
+            )
+
         result = await execute_tool(req.name, req.input, episode_id=state.user_episode_id)
+
+        await log_action(
+            classification.action_type,
+            classification.autonomy_level,
+            "executed",
+            context={"tool": req.name, "tool_use_id": req.id},
+            session_id=state.session_id,
+        )
+
         tool_results.append(
             {"type": "tool_result", "tool_use_id": req.id, "content": result},
         )

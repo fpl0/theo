@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import pytest
 
+from theo.autonomy import ActionLogEntry, Classification
 from theo.bus import EventBus
 from theo.bus.events import MessageReceived, ResponseChunk, ResponseComplete
 from theo.conversation import ConversationEngine
@@ -54,6 +55,30 @@ def _isolate_resilience():
         patch("theo.conversation.turn.circuit_breaker", fresh_cb),
         patch("theo.conversation.turn.retry_queue", fresh_rq),
         patch("theo.conversation.engine.retry_queue", fresh_rq),
+    ):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def _stub_autonomy():
+    """Stub autonomy classification so tool-loop tests don't hit the DB."""
+    stub_classification = Classification(
+        action_type="memory_search",
+        autonomy_level="autonomous",
+        reason="test stub",
+    )
+    stub_entry = ActionLogEntry(
+        id=1,
+        action_type="memory_search",
+        autonomy_level="autonomous",
+        decision="executed",
+        context={},
+        session_id=None,
+        intent_id=None,
+    )
+    with (
+        patch("theo.conversation.turn.classify_tool", return_value=stub_classification),
+        patch("theo.conversation.turn.log_action", AsyncMock(return_value=stub_entry)),
     ):
         yield
 
