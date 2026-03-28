@@ -34,9 +34,24 @@ class Settings(BaseSettings):
     embedding_model: str = "BAAI/bge-base-en-v1.5"
     embedding_dim: int = 768
 
-    # Context assembly budgets (approximate token counts)
+    whisper_model: str = "mlx-community/whisper-small"
+
+    # Context assembly budgets (approximate token counts).
+    # Persona and goals are never truncated — no budget field needed.
+    # User model and current task are capped at their budget when they exceed it.
+    context_user_model_budget: int = 400
+    context_current_task_budget: int = 300
     context_memory_budget: int = 2000
     context_history_budget: int = 4000
+
+    # Retrieval (hybrid search / RRF fusion)
+    retrieval_rrf_k: int = 60
+    retrieval_candidate_limit: int = 50
+    retrieval_graph_seed_count: int = 5
+    retrieval_graph_max_depth: int = 2
+
+    # Privacy filtering
+    privacy_filter_enabled: bool = True
 
     # Telegram gate
     telegram_bot_token: SecretStr | None = None
@@ -46,6 +61,35 @@ class Settings(BaseSettings):
     def _validate_pool_bounds(self) -> Self:
         if self.db_pool_min > self.db_pool_max:
             msg = f"db_pool_min ({self.db_pool_min}) must be <= db_pool_max ({self.db_pool_max})"
+            raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
+    def _validate_context_budgets(self) -> Self:
+        for name in (
+            "context_user_model_budget",
+            "context_current_task_budget",
+            "context_memory_budget",
+            "context_history_budget",
+        ):
+            if getattr(self, name) <= 0:
+                msg = f"{name} must be > 0"
+                raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
+    def _validate_retrieval_bounds(self) -> Self:
+        if self.retrieval_candidate_limit < 1:
+            msg = "retrieval_candidate_limit must be >= 1"
+            raise ValueError(msg)
+        if self.retrieval_graph_seed_count < 1:
+            msg = "retrieval_graph_seed_count must be >= 1"
+            raise ValueError(msg)
+        if self.retrieval_graph_max_depth < 1:
+            msg = "retrieval_graph_max_depth must be >= 1"
+            raise ValueError(msg)
+        if self.retrieval_graph_seed_count > self.retrieval_candidate_limit:
+            msg = "retrieval_graph_seed_count must be <= retrieval_candidate_limit"
             raise ValueError(msg)
         return self
 

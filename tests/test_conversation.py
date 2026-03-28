@@ -10,8 +10,8 @@ import pytest
 
 from theo.bus import EventBus
 from theo.bus.events import MessageReceived, ResponseChunk, ResponseComplete
-from theo.conversation.context import AssembledContext
 from theo.conversation import _MAX_TOOL_ITERATIONS, ConversationEngine
+from theo.conversation.context import AssembledContext, SectionTokens
 from theo.errors import ConversationNotRunningError
 from theo.llm import StreamDone, TextDelta, ToolUseRequest
 from theo.resilience import CircuitBreaker, RetryQueue
@@ -20,10 +20,13 @@ from theo.resilience import CircuitBreaker, RetryQueue
 
 _SESSION = uuid4()
 
+_ZERO_TOKENS = SectionTokens(persona=0, goals=0, user_model=0, current_task=0, memory=0, history=0)
+
 _EMPTY_CONTEXT = AssembledContext(
     system_prompt="You are Theo.",
     messages=[],
     token_estimate=10,
+    section_tokens=_ZERO_TOKENS,
 )
 
 
@@ -236,7 +239,12 @@ class TestContextAssembly:
 
     async def test_empty_system_prompt_passed_as_none(self, mock_bus, mock_store_episode) -> None:
         _ = mock_bus, mock_store_episode  # activate fixtures
-        empty_ctx = AssembledContext(system_prompt="", messages=[], token_estimate=0)
+        empty_ctx = AssembledContext(
+            system_prompt="",
+            messages=[],
+            token_estimate=0,
+            section_tokens=_ZERO_TOKENS,
+        )
         streamed_kwargs: list[dict] = []
 
         async def capture_stream(_messages, **kwargs):
@@ -592,7 +600,7 @@ class TestToolLoop:
                 yield TextDelta(text="Done")
                 yield StreamDone(input_tokens=20, output_tokens=3, stop_reason="end_turn")
 
-        async def tracking_execute(name, _tool_input):
+        async def tracking_execute(name, _tool_input, **_kwargs):
             tool_calls.append(name)
             return '{"ok": true}'
 
@@ -692,7 +700,9 @@ class TestToolLoop:
 
         with (
             patch("theo.conversation.turn.stream_response", text_and_tool),
-            patch("theo.conversation.turn.execute_tool", AsyncMock(return_value='{"results": []}')),
+            patch(
+                "theo.conversation.turn.execute_tool", AsyncMock(return_value='{"results": []}')
+            ),
         ):
             eng = ConversationEngine()
             eng._state = "running"

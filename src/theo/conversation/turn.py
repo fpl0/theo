@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import TYPE_CHECKING, cast
@@ -11,8 +12,9 @@ from opentelemetry import metrics, trace
 from theo.bus import bus
 from theo.bus.events import ResponseChunk, ResponseComplete
 from theo.conversation.context import assemble
-from theo.errors import APIUnavailableError, CircuitOpenError
+from theo.errors import APIUnavailableError, CircuitOpenError, PrivacyViolationError
 from theo.llm import StreamDone, TextDelta, ToolUseRequest, classify_speed, stream_response
+from theo.memory.auto_edges import extract_and_link
 from theo.memory.episodes import store_episode
 from theo.memory.tools import TOOL_DEFINITIONS, execute_tool
 from theo.resilience import circuit_breaker, retry_queue
@@ -44,10 +46,13 @@ _tool_call_counter = _meter.create_counter(
 
 _API_DOWN_ACK = "Got your message \u2014 having trouble reaching Claude. I'll get back to you."
 
+# Background tasks must be referenced to avoid garbage collection (RUF006).
+_background_tasks: set[asyncio.Task[None]] = set()
+
 _MAX_TOOL_ITERATIONS = 10
 
 
-async def execute_turn(  # noqa: C901, PLR0915
+async def execute_turn(  # noqa: C901, PLR0912, PLR0915
     event: MessageReceived,
     session_id: UUID,
     *,
@@ -67,14 +72,23 @@ async def execute_turn(  # noqa: C901, PLR0915
     ) as span:
         try:
             # 1. Persist incoming message as episode (skip on retry).
+            user_episode_id: int | None = None
             if persist_user_message:
-                await store_episode(
-                    session_id=session_id,
-                    channel=event.channel or "message",
-                    role="user",
-                    body=event.body,
-                    trust=event.trust,
-                )
+                try:
+                    user_episode_id = await store_episode(
+                        session_id=session_id,
+                        channel=event.channel or "message",
+                        role="user",
+                        body=event.body,
+                        trust=event.trust,
+                    )
+                except PrivacyViolationError:
+                    log.warning(
+                        "privacy filter rejected user message episode",
+                        extra={"session_id": str(session_id), "trust": event.trust},
+                    )
+                    span.set_attribute("turn.privacy_rejected", "true")
+                    return
 
             # 2. Assemble context window.
             ctx = await assemble(
@@ -142,7 +156,7 @@ async def execute_turn(  # noqa: C901, PLR0915
                 for req in tool_requests:
                     tool_call_count += 1
                     _tool_call_counter.add(1, {"tool.name": req.name})
-                    result = await execute_tool(req.name, req.input)
+                    result = await execute_tool(req.name, req.input, episode_id=user_episode_id)
                     tool_results.append(
                         {
                             "type": "tool_result",
@@ -165,14 +179,29 @@ async def execute_turn(  # noqa: C901, PLR0915
 
         # 5. Persist assistant response as episode.
         full_response = "".join(chunks)
-        episode_id = await store_episode(
-            session_id=session_id,
-            channel=event.channel or "message",
-            role="assistant",
-            body=full_response,
-        )
+        try:
+            episode_id = await store_episode(
+                session_id=session_id,
+                channel=event.channel or "message",
+                role="assistant",
+                body=full_response,
+            )
+        except PrivacyViolationError:
+            log.warning(
+                "privacy filter rejected assistant episode",
+                extra={"session_id": str(session_id)},
+            )
+            episode_id = None
 
-        # 6. Publish completion event.
+        # 6. Fire-and-forget: create co-occurrence edges from this session.
+        task = asyncio.create_task(
+            _safe_extract_and_link(session_id),
+            name=f"auto-edge-{session_id}",
+        )
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
+
+        # 7. Publish completion event.
         await bus.publish(
             ResponseComplete(
                 session_id=session_id,
@@ -200,6 +229,18 @@ async def execute_turn(  # noqa: C901, PLR0915
                 "response_length": len(full_response),
                 "tool_calls": tool_call_count,
             },
+        )
+
+
+async def _safe_extract_and_link(session_id: UUID) -> None:
+    """Run ``extract_and_link`` without propagating errors."""
+    try:
+        await extract_and_link(session_id)
+    except Exception:  # noqa: BLE001
+        log.warning(
+            "auto-edge extraction failed",
+            extra={"session_id": str(session_id)},
+            exc_info=True,
         )
 
 

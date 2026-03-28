@@ -1,11 +1,12 @@
 """Memory tools exposed to Claude via Anthropic tool-use.
 
-Six tools give Claude autonomous control over Theo's memory:
+Seven tools give Claude autonomous control over Theo's memory:
 
 - ``store_memory`` — persist a new observation or fact as a knowledge node.
 - ``search_memory`` — search the knowledge graph by semantic similarity.
 - ``read_core_memory`` — read the always-on core memory documents.
 - ``update_core_memory`` — update a core memory document with changelog.
+- ``link_memories`` — create an explicit relationship between two memories.
 - ``update_user_model`` — update a structured user model dimension.
 - ``advance_onboarding`` — move to the next onboarding phase.
 """
@@ -19,7 +20,8 @@ from typing import Any, cast
 
 from opentelemetry import trace
 
-from theo.memory import core, nodes, user_model
+from theo.memory import core, edges, nodes, user_model
+from theo.memory.auto_edges import record_mention
 from theo.onboarding import flow as onboarding_flow
 
 log = logging.getLogger(__name__)
@@ -27,7 +29,7 @@ tracer = trace.get_tracer(__name__)
 
 type _ToolHandler = Callable[[dict[str, object]], Coroutine[Any, Any, str]]
 
-# ── Anthropic tool schemas ───────────────────────────────────────────
+# -- Anthropic tool schemas ------------------------------------------------
 
 TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
@@ -90,6 +92,39 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "input_schema": {
             "type": "object",
             "properties": {},
+        },
+    },
+    {
+        "name": "link_memories",
+        "description": (
+            "Create an explicit relationship between two memories in the knowledge graph. "
+            "Use this when you notice two memories are related (e.g. a person and their "
+            "project, an event and its location)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "source_id": {
+                    "type": "integer",
+                    "description": "ID of the first memory (from search results).",
+                },
+                "target_id": {
+                    "type": "integer",
+                    "description": "ID of the second memory.",
+                },
+                "label": {
+                    "type": "string",
+                    "description": (
+                        "Relationship type (e.g. 'works_on', 'located_in', "
+                        "'related_to', 'part_of')."
+                    ),
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Why these memories are related.",
+                },
+            },
+            "required": ["source_id", "target_id", "label"],
         },
     },
     {
@@ -181,7 +216,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     },
 ]
 
-# ── Tool execution ───────────────────────────────────────────────────
+# -- Tool execution --------------------------------------------------------
 
 
 _TOOL_DISPATCH: dict[str, _ToolHandler] = {}
@@ -195,16 +230,25 @@ def _register_dispatch() -> None:
             "search_memory": _search_memory,
             "read_core_memory": _read_core_memory_wrapper,
             "update_core_memory": _update_core_memory,
+            "link_memories": _link_memories,
             "update_user_model": _update_user_model,
             "advance_onboarding": _advance_onboarding,
         }
     )
 
 
-async def execute_tool(name: str, tool_input: dict[str, object]) -> str:
+async def execute_tool(
+    name: str,
+    tool_input: dict[str, object],
+    *,
+    episode_id: int | None = None,
+) -> str:
     """Execute a memory tool and return the result as a string.
 
-    Errors are returned as descriptive strings so Claude can adapt — they are
+    *episode_id*, when provided, enables cross-referencing stored nodes back
+    to the episode that triggered the tool call (via ``episode_node``).
+
+    Errors are returned as descriptive strings so Claude can adapt -- they are
     never raised to the caller.
     """
     with tracer.start_as_current_span(
@@ -212,6 +256,8 @@ async def execute_tool(name: str, tool_input: dict[str, object]) -> str:
         attributes={"tool.name": name},
     ):
         try:
+            if name == "store_memory":
+                return await _store_memory(tool_input, episode_id=episode_id)
             handler = _TOOL_DISPATCH.get(name)
             if handler is None:
                 return f"Unknown tool: {name}"
@@ -221,10 +267,14 @@ async def execute_tool(name: str, tool_input: dict[str, object]) -> str:
             return f"Error executing {name}: {exc}"
 
 
-# ── Tool implementations ─────────────────────────────────────────────
+# -- Tool implementations -------------------------------------------------
 
 
-async def _store_memory(tool_input: dict[str, object]) -> str:
+async def _store_memory(
+    tool_input: dict[str, object],
+    *,
+    episode_id: int | None = None,
+) -> str:
     kind = str(tool_input.get("kind", "fact"))
     body = str(tool_input.get("body", ""))
     raw_importance = tool_input.get("importance", 0.5)
@@ -235,6 +285,10 @@ async def _store_memory(tool_input: dict[str, object]) -> str:
         body=body,
         importance=importance,
     )
+
+    if episode_id is not None:
+        await record_mention(episode_id, node_id)
+
     return json.dumps({"stored": True, "node_id": node_id})
 
 
@@ -280,6 +334,32 @@ async def _update_core_memory(tool_input: dict[str, object]) -> str:
     return json.dumps({"updated": True, "label": label, "version": new_version})
 
 
+async def _link_memories(tool_input: dict[str, object]) -> str:
+    raw_source = tool_input.get("source_id")
+    raw_target = tool_input.get("target_id")
+    if not isinstance(raw_source, int) or not isinstance(raw_target, int):
+        return "Error: source_id and target_id must be integers."
+    if raw_source <= 0 or raw_target <= 0:
+        return "Error: source_id and target_id must be positive."
+    source_id = raw_source
+    target_id = raw_target
+    label = str(tool_input.get("label", "related_to"))
+    reason = tool_input.get("reason")
+
+    meta: dict[str, Any] = {"source": "llm_tool"}
+    if reason is not None:
+        meta["reason"] = str(reason)
+
+    edge_id = await edges.store_edge(
+        source_id=source_id,
+        target_id=target_id,
+        label=label,
+        weight=0.8,
+        meta=meta,
+    )
+    return json.dumps({"linked": True, "edge_id": edge_id})
+
+
 async def _update_user_model(tool_input: dict[str, object]) -> str:
     framework = str(tool_input.get("framework", ""))
     dimension = str(tool_input.get("dimension", ""))
@@ -319,6 +399,6 @@ async def _advance_onboarding(tool_input: dict[str, object]) -> str:
     return json.dumps({"phase": new_state.phase, "phase_index": new_state.phase_index})
 
 
-# ── Bootstrap ─────────────────────────────────────────────────────────
+# -- Bootstrap -------------------------------------------------------------
 
 _register_dispatch()

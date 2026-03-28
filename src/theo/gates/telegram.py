@@ -6,7 +6,9 @@ import asyncio
 import contextlib
 import logging
 import re
+import tempfile
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid5
 
@@ -19,13 +21,14 @@ from opentelemetry import metrics, trace
 from theo.bus import bus
 from theo.bus.events import MessageReceived, ResponseChunk, ResponseComplete
 from theo.config import get_settings
-from theo.errors import GateConfigError
+from theo.errors import GateConfigError, TranscriptionError
 from theo.onboarding.flow import (
     complete_onboarding,
     get_onboarding_state,
     is_onboarding_completed,
     start_onboarding,
 )
+from theo.transcription import transcriber
 
 if TYPE_CHECKING:
     from aiogram.types import Message
@@ -47,6 +50,10 @@ _messages_sent_counter = meter.create_counter(
 _messages_ignored_counter = meter.create_counter(
     "theo.telegram.messages_ignored",
     description="Total messages ignored (non-owner)",
+)
+_voice_received_counter = meter.create_counter(
+    "theo.telegram.voice_received",
+    description="Total voice messages received and transcribed",
 )
 _commands_counter = meter.create_counter(
     "theo.telegram.commands",
@@ -100,7 +107,7 @@ def session_id_for_chat(chat_id: int) -> UUID:
 
 
 class TelegramGate:
-    """Bridges Telegram ↔ Theo event bus.
+    """Bridges Telegram <-> Theo event bus.
 
     Incoming owner messages become :class:`MessageReceived` events.
     :class:`ResponseChunk` and :class:`ResponseComplete` events are
@@ -135,11 +142,11 @@ class TelegramGate:
         self._dp.message.register(self._on_message)
 
         # Track the in-flight streamed message per session so chunks can edit it.
-        self._streaming: dict[UUID, int] = {}  # session_id → telegram message_id
+        self._streaming: dict[UUID, int] = {}  # session_id -> telegram message_id
         self._polling_task: asyncio.Task[None] | None = None
         self._start_time: float | None = None
 
-    # ── lifecycle ────────────────────────────────────────────────────
+    # -- lifecycle --------------------------------------------------------
 
     async def start(self) -> None:
         """Subscribe to bus events and start polling Telegram."""
@@ -163,13 +170,13 @@ class TelegramGate:
         await self._bot.session.close()
         log.info("telegram gate stopped")
 
-    # ── commands ──────────────────────────────────────────────────────
+    # -- commands ---------------------------------------------------------
 
     def _is_owner(self, message: Message) -> bool:
         return message.chat.id == self._owner_chat_id
 
     async def _on_cmd_start(self, message: Message) -> None:
-        """Handle /start — welcome message."""
+        """Handle /start -- welcome message."""
         if not self._is_owner(message):
             return
         with tracer.start_as_current_span("telegram.command", attributes={"command": "start"}):
@@ -180,7 +187,7 @@ class TelegramGate:
             )
 
     async def _on_cmd_pause(self, message: Message) -> None:
-        """Handle /pause — pause processing, queue incoming messages."""
+        """Handle /pause -- pause processing, queue incoming messages."""
         if not self._is_owner(message):
             return
         with tracer.start_as_current_span("telegram.command", attributes={"command": "pause"}):
@@ -191,7 +198,7 @@ class TelegramGate:
             log.info("owner issued /pause")
 
     async def _on_cmd_resume(self, message: Message) -> None:
-        """Handle /resume — resume processing and drain queue."""
+        """Handle /resume -- resume processing and drain queue."""
         if not self._is_owner(message):
             return
         with tracer.start_as_current_span("telegram.command", attributes={"command": "resume"}):
@@ -202,7 +209,7 @@ class TelegramGate:
             log.info("owner issued /resume")
 
     async def _on_cmd_stop(self, message: Message) -> None:
-        """Handle /stop — finish current turn then idle."""
+        """Handle /stop -- finish current turn then idle."""
         if not self._is_owner(message):
             return
         with tracer.start_as_current_span("telegram.command", attributes={"command": "stop"}):
@@ -218,7 +225,7 @@ class TelegramGate:
             log.info("owner issued /stop")
 
     async def _on_cmd_kill(self, message: Message) -> None:
-        """Handle /kill — immediately halt all processing."""
+        """Handle /kill -- immediately halt all processing."""
         if not self._is_owner(message):
             return
         with tracer.start_as_current_span("telegram.command", attributes={"command": "kill"}):
@@ -229,7 +236,7 @@ class TelegramGate:
             log.info("owner issued /kill")
 
     async def _on_cmd_status(self, message: Message) -> None:
-        """Handle /status — report engine state, uptime, queue depth."""
+        """Handle /status -- report engine state, uptime, queue depth."""
         if not self._is_owner(message):
             return
         with tracer.start_as_current_span("telegram.command", attributes={"command": "status"}):
@@ -249,7 +256,7 @@ class TelegramGate:
             log.info("owner issued /status")
 
     async def _on_cmd_onboard(self, message: Message) -> None:
-        """Handle /onboard — start, check status, or reset onboarding."""
+        """Handle /onboard -- start, check status, or reset onboarding."""
         if not self._is_owner(message):
             return
         with tracer.start_as_current_span("telegram.command", attributes={"command": "onboard"}):
@@ -295,10 +302,10 @@ class TelegramGate:
             )
             log.info("owner issued /onboard")
 
-    # ── inbound: Telegram → bus ──────────────────────────────────────
+    # -- inbound: Telegram -> bus -----------------------------------------
 
     async def _on_message(self, message: Message) -> None:
-        """Handle an incoming Telegram message."""
+        """Handle an incoming Telegram message (text or voice)."""
         chat_id = message.chat.id
 
         if chat_id != self._owner_chat_id:
@@ -307,6 +314,12 @@ class TelegramGate:
                 "ignored message from non-owner",
                 extra={"chat_id": chat_id},
             )
+            return
+
+        # Voice message path: download, transcribe, publish.
+        voice = message.voice or message.audio
+        if voice is not None:
+            await self._handle_voice(message, chat_id)
             return
 
         body = message.text
@@ -338,7 +351,83 @@ class TelegramGate:
                 ),
             )
 
-    # ── outbound: bus → Telegram ─────────────────────────────────────
+    async def _handle_voice(self, message: Message, chat_id: int) -> None:
+        """Download a voice/audio message, transcribe it, and publish the text."""
+        voice = message.voice or message.audio
+        if voice is None:
+            return
+
+        session_id = session_id_for_chat(chat_id)
+        duration_s: int = getattr(voice, "duration", 0)
+
+        with tracer.start_as_current_span(
+            "telegram.voice_received",
+            attributes={
+                "telegram.chat_id": chat_id,
+                "session.id": str(session_id),
+                "voice.duration_s": duration_s,
+            },
+        ) as span:
+            tmp: Path | None = None
+            try:
+                file = await self._bot.get_file(voice.file_id)
+                if file.file_path is None:
+                    log.warning(
+                        "voice file has no download path",
+                        extra={"file_id": voice.file_id},
+                    )
+                    return
+                suffix = Path(file.file_path).suffix or ".ogg"
+                tmp = Path(tempfile.mkstemp(suffix=suffix)[1])
+                await self._bot.download_file(file.file_path, destination=tmp)
+                body = await transcriber.transcribe(tmp)
+            except TranscriptionError:
+                log.exception(
+                    "voice transcription failed",
+                    extra={"chat_id": chat_id, "file_id": voice.file_id},
+                )
+                return
+            except Exception:
+                log.exception(
+                    "voice message handling failed",
+                    extra={"chat_id": chat_id},
+                )
+                return
+            finally:
+                if tmp is not None:
+                    tmp.unlink(missing_ok=True)
+
+            if not body:
+                return
+
+            span.set_attribute("transcription.length", len(body))
+            _voice_received_counter.add(1)
+            _messages_received_counter.add(1)
+            log.info(
+                "received voice message",
+                extra={
+                    "chat_id": chat_id,
+                    "session_id": str(session_id),
+                    "voice_duration_s": duration_s,
+                    "transcription_length": len(body),
+                },
+            )
+            await bus.publish(
+                MessageReceived(
+                    body=body,
+                    session_id=session_id,
+                    channel="message",
+                    trust="owner",
+                    meta={
+                        "telegram_chat_id": chat_id,
+                        "telegram_message_id": message.message_id,
+                        "source": "voice",
+                        "duration_s": duration_s,
+                    },
+                ),
+            )
+
+    # -- outbound: bus -> Telegram ----------------------------------------
 
     async def _on_response_chunk(self, event: ResponseChunk) -> None:
         """Stream a response chunk to Telegram (send or edit)."""
@@ -352,7 +441,7 @@ class TelegramGate:
             existing_msg_id = self._streaming.get(event.session_id)
 
             if existing_msg_id is None:
-                # First chunk — send a new message.
+                # First chunk -- send a new message.
                 escaped = escape_markdownv2(event.body)
                 sent = await self._bot.send_message(
                     chat_id=self._owner_chat_id,
@@ -360,7 +449,7 @@ class TelegramGate:
                 )
                 self._streaming[event.session_id] = sent.message_id
             else:
-                # Subsequent chunk — edit the existing message.
+                # Subsequent chunk -- edit the existing message.
                 escaped = escape_markdownv2(event.body)
                 if escaped:
                     await self._bot.edit_message_text(

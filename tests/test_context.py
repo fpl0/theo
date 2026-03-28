@@ -1,4 +1,4 @@
-"""Tests for theo.context — context assembly for conversation turns."""
+"""Tests for theo.conversation.context — context assembly for conversation turns."""
 
 from __future__ import annotations
 
@@ -9,17 +9,18 @@ from uuid import UUID
 
 import pytest
 
+from theo.config import Settings
 from theo.conversation.context import (
     AssembledContext,
+    SectionTokens,
     _episodes_to_messages,
-    _format_core_memory,
     _format_relevant_memories,
+    _truncate_section,
     assemble,
     estimate_tokens,
 )
 from theo.memory._types import EpisodeResult, NodeResult
 from theo.memory.core import CoreDocument
-
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
@@ -94,6 +95,16 @@ def _episode(
     )
 
 
+def _settings(**overrides: Any) -> Settings:
+    """Create a real Settings instance with test defaults."""
+    defaults: dict[str, Any] = {
+        "database_url": "postgresql://x:x@localhost/x",
+        "anthropic_api_key": "sk-test",
+        "_env_file": None,
+    }
+    return Settings(**(defaults | overrides))
+
+
 # ---------------------------------------------------------------------------
 # estimate_tokens
 # ---------------------------------------------------------------------------
@@ -114,49 +125,28 @@ def test_estimate_tokens_scales_with_words() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _format_core_memory
+# _truncate_section
 # ---------------------------------------------------------------------------
 
 
-def test_format_core_memory_all_sections() -> None:
-    docs = _all_core_docs()
-    result = _format_core_memory(docs)
-
-    assert "## Persona" in result
-    assert "## Goals" in result
-    assert "## User Model" in result
-    assert "## Current Context" in result
+def test_truncate_section_within_budget() -> None:
+    text = "Short text here"
+    assert _truncate_section(text, budget=500) == text
 
 
-def test_format_core_memory_preserves_section_order() -> None:
-    docs = _all_core_docs()
-    result = _format_core_memory(docs)
-
-    persona_pos = result.index("## Persona")
-    goals_pos = result.index("## Goals")
-    user_model_pos = result.index("## User Model")
-    context_pos = result.index("## Current Context")
-    assert persona_pos < goals_pos < user_model_pos < context_pos
+def test_truncate_section_exceeding_budget() -> None:
+    text = "word " * 200
+    result = _truncate_section(text, budget=10)
+    assert result != ""
+    assert estimate_tokens(result) <= 10
 
 
-def test_format_core_memory_includes_body_content() -> None:
-    docs = _all_core_docs()
-    result = _format_core_memory(docs)
-
-    assert "Theo is a personal AI agent." in result
+def test_truncate_section_empty_text() -> None:
+    assert _truncate_section("", budget=500) == ""
 
 
-def test_format_core_memory_partial_documents() -> None:
-    docs = {"persona": _core_doc("persona")}
-    result = _format_core_memory(docs)
-
-    assert "## Persona" in result
-    assert "## Goals" not in result
-
-
-def test_format_core_memory_empty() -> None:
-    result = _format_core_memory({})
-    assert result == ""
+def test_truncate_section_zero_budget() -> None:
+    assert _truncate_section("Some text", budget=0) == ""
 
 
 # ---------------------------------------------------------------------------
@@ -316,9 +306,12 @@ async def test_assemble_full_context() -> None:
             return_value=core_docs,
         ),
         patch(
-            "theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=nodes
+            "theo.conversation.context.hybrid_search",
+            new_callable=AsyncMock,
+            return_value=nodes,
         ),
         patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=eps),
+        patch("theo.conversation.context.get_settings", return_value=_settings()),
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hello Theo")
 
@@ -330,13 +323,15 @@ async def test_assemble_full_context() -> None:
     assert result.messages[0]["role"] == "user"
     assert result.messages[1]["role"] == "assistant"
     assert result.token_estimate > 0
+    assert isinstance(result.section_tokens, SectionTokens)
 
 
 async def test_assemble_empty_memory() -> None:
     with (
         patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value={}),
-        patch("theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.hybrid_search", new_callable=AsyncMock, return_value=[]),
         patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.get_settings", return_value=_settings()),
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hello")
 
@@ -354,8 +349,9 @@ async def test_assemble_no_relevant_memories() -> None:
             new_callable=AsyncMock,
             return_value=core_docs,
         ),
-        patch("theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.hybrid_search", new_callable=AsyncMock, return_value=[]),
         patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.get_settings", return_value=_settings()),
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hello")
 
@@ -368,28 +364,31 @@ async def test_assemble_passes_session_to_list_episodes() -> None:
 
     with (
         patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value={}),
-        patch("theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.hybrid_search", new_callable=AsyncMock, return_value=[]),
         patch("theo.conversation.context.list_episodes", mock_list),
+        patch("theo.conversation.context.get_settings", return_value=_settings()),
     ):
         await assemble(session_id=_SESSION, latest_message="Hello")
 
     mock_list.assert_awaited_once_with(_SESSION)
 
 
-async def test_assemble_passes_message_to_search() -> None:
+async def test_assemble_passes_message_to_hybrid_search() -> None:
     mock_search = AsyncMock(return_value=[])
 
     with (
         patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value={}),
-        patch("theo.conversation.context.search_nodes", mock_search),
+        patch("theo.conversation.context.hybrid_search", mock_search),
         patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.get_settings", return_value=_settings()),
     ):
         await assemble(session_id=_SESSION, latest_message="find me relevant stuff")
 
     mock_search.assert_awaited_once_with("find me relevant stuff", limit=20)
 
 
-async def test_assemble_core_memory_never_truncated() -> None:
+async def test_assemble_persona_never_truncated() -> None:
+    """Persona is protected even under extreme budget pressure."""
     large_body = {"summary": "x " * 5000}
     core_docs = {"persona": _core_doc("persona", large_body)}
 
@@ -399,17 +398,40 @@ async def test_assemble_core_memory_never_truncated() -> None:
             new_callable=AsyncMock,
             return_value=core_docs,
         ),
-        patch("theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.hybrid_search", new_callable=AsyncMock, return_value=[]),
         patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
+        patch(
+            "theo.conversation.context.get_settings",
+            return_value=_settings(context_memory_budget=10, context_history_budget=10),
+        ),
     ):
-        result = await assemble(
-            session_id=_SESSION,
-            latest_message="Hello",
-            memory_budget=10,
-            history_budget=10,
-        )
+        result = await assemble(session_id=_SESSION, latest_message="Hello")
 
+    # Full persona content must be present -- never truncated
     assert "x " * 100 in result.system_prompt
+
+
+async def test_assemble_goals_never_truncated() -> None:
+    """Goals are protected even under extreme budget pressure."""
+    large_goals = {"active": ["goal " * 1000]}
+    core_docs = {"goals": _core_doc("goals", large_goals)}
+
+    with (
+        patch(
+            "theo.conversation.context.core.read_all",
+            new_callable=AsyncMock,
+            return_value=core_docs,
+        ),
+        patch("theo.conversation.context.hybrid_search", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
+        patch(
+            "theo.conversation.context.get_settings",
+            return_value=_settings(context_memory_budget=10, context_history_budget=10),
+        ),
+    ):
+        result = await assemble(session_id=_SESSION, latest_message="Hello")
+
+    assert "goal " * 100 in result.system_prompt
 
 
 async def test_assemble_token_estimate_sums_sections() -> None:
@@ -424,18 +446,24 @@ async def test_assemble_token_estimate_sums_sections() -> None:
             return_value=core_docs,
         ),
         patch(
-            "theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=nodes
+            "theo.conversation.context.hybrid_search",
+            new_callable=AsyncMock,
+            return_value=nodes,
         ),
         patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=eps),
+        patch("theo.conversation.context.get_settings", return_value=_settings()),
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hi")
 
-    # Token estimate should be positive and roughly equal to sum of parts
+    # Token estimate should be positive and equal to the sum of all sections
     assert result.token_estimate > 0
+    st = result.section_tokens
+    expected = st.persona + st.goals + st.user_model + st.current_task + st.memory + st.history
+    assert result.token_estimate == expected
 
 
 async def test_assemble_respects_history_budget() -> None:
-    core_docs = {}
+    core_docs: dict[str, CoreDocument] = {}
     eps = [
         _episode(episode_id=1, role="user", body="Old " * 500),
         _episode(episode_id=2, role="assistant", body="Old reply " * 500),
@@ -448,17 +476,162 @@ async def test_assemble_respects_history_budget() -> None:
             new_callable=AsyncMock,
             return_value=core_docs,
         ),
-        patch("theo.conversation.context.search_nodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.hybrid_search", new_callable=AsyncMock, return_value=[]),
         patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=eps),
+        patch(
+            "theo.conversation.context.get_settings",
+            return_value=_settings(context_history_budget=50),
+        ),
     ):
-        result = await assemble(
-            session_id=_SESSION,
-            latest_message="Recent",
-            history_budget=50,
-        )
+        result = await assemble(session_id=_SESSION, latest_message="Recent")
 
     # The old large messages should have been dropped
     assert len(result.messages) < 3
+
+
+async def test_assemble_section_ordering() -> None:
+    """System prompt sections appear in the canonical order."""
+    core_docs = _all_core_docs()
+    nodes = [_node(body="A retrieved memory")]
+
+    with (
+        patch(
+            "theo.conversation.context.core.read_all",
+            new_callable=AsyncMock,
+            return_value=core_docs,
+        ),
+        patch(
+            "theo.conversation.context.hybrid_search",
+            new_callable=AsyncMock,
+            return_value=nodes,
+        ),
+        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.get_settings", return_value=_settings()),
+    ):
+        result = await assemble(session_id=_SESSION, latest_message="Hello")
+
+    prompt = result.system_prompt
+    persona_pos = prompt.index("## Persona")
+    goals_pos = prompt.index("## Goals")
+    user_model_pos = prompt.index("## User Model")
+    context_pos = prompt.index("## Current Context")
+    memory_pos = prompt.index("## Relevant Memories")
+    assert persona_pos < goals_pos < user_model_pos < context_pos < memory_pos
+
+
+async def test_assemble_memories_trimmed_before_history() -> None:
+    """When budget is tight, memories are trimmed before history."""
+    core_docs: dict[str, CoreDocument] = {}
+    many_nodes = [_node(node_id=i, body=f"Memory {i} " * 20) for i in range(50)]
+    eps = [
+        _episode(episode_id=1, role="user", body="Recent user message"),
+        _episode(episode_id=2, role="assistant", body="Recent assistant reply"),
+    ]
+
+    with (
+        patch(
+            "theo.conversation.context.core.read_all",
+            new_callable=AsyncMock,
+            return_value=core_docs,
+        ),
+        patch(
+            "theo.conversation.context.hybrid_search",
+            new_callable=AsyncMock,
+            return_value=many_nodes,
+        ),
+        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=eps),
+        patch(
+            "theo.conversation.context.get_settings",
+            return_value=_settings(context_memory_budget=50),
+        ),
+    ):
+        result = await assemble(session_id=_SESSION, latest_message="Hello")
+
+    # History should be preserved (small messages fit in budget)
+    assert len(result.messages) == 2
+    # Memories should be trimmed (50 nodes won't fit in budget=50 tokens)
+    assert result.section_tokens.memory < estimate_tokens(
+        "".join(f"Memory {i} " * 20 for i in range(50))
+    )
+
+
+async def test_assemble_user_model_trimmed_when_exceeds_budget() -> None:
+    """User model is capped at context_user_model_budget when it exceeds it."""
+    large_user_model = {"preferences": {"pref": "x " * 2000}}
+    core_docs = {
+        "persona": _core_doc("persona"),
+        "user_model": _core_doc("user_model", large_user_model),
+    }
+
+    with (
+        patch(
+            "theo.conversation.context.core.read_all",
+            new_callable=AsyncMock,
+            return_value=core_docs,
+        ),
+        patch("theo.conversation.context.hybrid_search", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
+        patch(
+            "theo.conversation.context.get_settings",
+            return_value=_settings(context_user_model_budget=50),
+        ),
+    ):
+        result = await assemble(session_id=_SESSION, latest_message="Hello")
+
+    # User model should be trimmed to ~50 tokens
+    assert result.section_tokens.user_model <= 50
+    assert result.section_tokens.user_model > 0
+    # Persona should be untouched
+    assert result.section_tokens.persona > 0
+
+
+async def test_assemble_task_trimmed_when_exceeds_budget() -> None:
+    """Current task is capped at context_current_task_budget when it exceeds it."""
+    large_task = {"current_task": "task " * 2000, "focus": None}
+    core_docs = {"context": _core_doc("context", large_task)}
+
+    with (
+        patch(
+            "theo.conversation.context.core.read_all",
+            new_callable=AsyncMock,
+            return_value=core_docs,
+        ),
+        patch("theo.conversation.context.hybrid_search", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
+        patch(
+            "theo.conversation.context.get_settings",
+            return_value=_settings(context_current_task_budget=50),
+        ),
+    ):
+        result = await assemble(session_id=_SESSION, latest_message="Hello")
+
+    assert result.section_tokens.current_task <= 50
+    assert result.section_tokens.current_task > 0
+
+
+async def test_assemble_section_tokens_populated() -> None:
+    """AssembledContext.section_tokens has correct per-section counts."""
+    core_docs = _all_core_docs()
+
+    with (
+        patch(
+            "theo.conversation.context.core.read_all",
+            new_callable=AsyncMock,
+            return_value=core_docs,
+        ),
+        patch("theo.conversation.context.hybrid_search", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
+        patch("theo.conversation.context.get_settings", return_value=_settings()),
+    ):
+        result = await assemble(session_id=_SESSION, latest_message="Hello")
+
+    st = result.section_tokens
+    assert st.persona > 0
+    assert st.goals > 0
+    assert st.user_model > 0
+    assert st.current_task > 0
+    assert st.memory == 0  # no nodes returned
+    assert st.history == 0  # no episodes returned
 
 
 # ---------------------------------------------------------------------------
@@ -467,6 +640,24 @@ async def test_assemble_respects_history_budget() -> None:
 
 
 def test_assembled_context_is_frozen() -> None:
-    ctx = AssembledContext(system_prompt="test", messages=[], token_estimate=0)
+    ctx = AssembledContext(
+        system_prompt="test",
+        messages=[],
+        token_estimate=0,
+        section_tokens=SectionTokens(
+            persona=0,
+            goals=0,
+            user_model=0,
+            current_task=0,
+            memory=0,
+            history=0,
+        ),
+    )
     with pytest.raises(AttributeError):
         ctx.system_prompt = "changed"  # type: ignore[misc]
+
+
+def test_section_tokens_is_frozen() -> None:
+    st = SectionTokens(persona=10, goals=10, user_model=5, current_task=5, memory=0, history=0)
+    with pytest.raises(AttributeError):
+        st.persona = 99  # type: ignore[misc]

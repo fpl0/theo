@@ -31,3 +31,11 @@ class GateConfigError(TheoError):
 
 class DimensionNotFoundError(TheoError):
     """Raised when a user model dimension does not exist."""
+
+
+class PrivacyViolationError(TheoError):
+    """Raised when the privacy filter rejects a storage operation."""
+
+
+class TranscriptionError(TheoError):
+    """Raised when audio transcription fails."""

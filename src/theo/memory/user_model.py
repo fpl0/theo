@@ -96,7 +96,7 @@ async def update_dimension(
 ) -> DimensionResult:
     """Update a dimension's value, increment evidence, and recompute confidence.
 
-    Raises ``LookupError`` if the framework/dimension pair does not exist.
+    Raises ``DimensionNotFoundError`` if the framework/dimension pair does not exist.
     """
     with tracer.start_as_current_span(
         "update_user_model_dimension",

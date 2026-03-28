@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 from theo.memory.tools import TOOL_DEFINITIONS, execute_tool
 
-# ── Fake types for testing ───────────────────────────────────────────
+# -- Fake types for testing ------------------------------------------------
 
 
 @dataclasses.dataclass(frozen=True)
@@ -35,17 +35,18 @@ class _FakeDoc:
     updated_at: datetime
 
 
-# ── Tool definition tests ───────────────────────────────────────────
+# -- Tool definition tests -------------------------------------------------
 
 
 class TestToolDefinitions:
-    def test_all_six_tools_defined(self) -> None:
+    def test_all_tools_defined(self) -> None:
         names = {t["name"] for t in TOOL_DEFINITIONS}
         expected = {
             "store_memory",
             "search_memory",
             "read_core_memory",
             "update_core_memory",
+            "link_memories",
             "update_user_model",
             "advance_onboarding",
         }
@@ -85,7 +86,7 @@ class TestToolDefinitions:
         }
 
 
-# ── store_memory tests ──────────────────────────────────────────────
+# -- store_memory tests ----------------------------------------------------
 
 
 class TestStoreMemory:
@@ -123,7 +124,7 @@ class TestStoreMemory:
         assert kwargs["importance"] == 0.5
 
 
-# ── search_memory tests ─────────────────────────────────────────────
+# -- search_memory tests ---------------------------------------------------
 
 
 class TestSearchMemory:
@@ -155,7 +156,7 @@ class TestSearchMemory:
         mock.assert_awaited_once_with("test", limit=5)
 
 
-# ── read_core_memory tests ──────────────────────────────────────────
+# -- read_core_memory tests ------------------------------------------------
 
 
 class TestReadCoreMemory:
@@ -175,7 +176,7 @@ class TestReadCoreMemory:
         assert parsed["persona"]["version"] == 1
 
 
-# ── update_core_memory tests ────────────────────────────────────────
+# -- update_core_memory tests ----------------------------------------------
 
 
 class TestUpdateCoreMemory:
@@ -218,7 +219,7 @@ class TestUpdateCoreMemory:
         assert "Error" in result
 
 
-# ── Error handling tests ─────────────────────────────────────────────
+# -- Error handling tests ---------------------------------------------------
 
 
 class TestErrorHandling:

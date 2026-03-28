@@ -11,8 +11,8 @@ import pytest
 from theo import resilience
 from theo.bus import EventBus
 from theo.bus.events import MessageReceived, ResponseComplete
-from theo.conversation.context import AssembledContext
 from theo.conversation import _API_DOWN_ACK, ConversationEngine
+from theo.conversation.context import AssembledContext, SectionTokens
 from theo.errors import APIUnavailableError, CircuitOpenError
 from theo.llm import StreamDone, TextDelta
 from theo.resilience import CircuitBreaker, HealthStatus, RetryQueue, health_check
@@ -21,10 +21,13 @@ from theo.resilience import CircuitBreaker, HealthStatus, RetryQueue, health_che
 
 _SESSION = uuid4()
 
+_ZERO_TOKENS = SectionTokens(persona=0, goals=0, user_model=0, current_task=0, memory=0, history=0)
+
 _EMPTY_CONTEXT = AssembledContext(
     system_prompt="You are Theo.",
     messages=[],
     token_estimate=10,
+    section_tokens=_ZERO_TOKENS,
 )
 
 

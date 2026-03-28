@@ -15,10 +15,10 @@ from theo.memory.core import CoreDocument
 from theo.memory.tools import TOOL_DEFINITIONS, execute_tool
 from theo.onboarding.flow import (
     OnboardingState,
-    dict_to_state,
     _state_to_dict,
     advance_phase,
     complete_onboarding,
+    dict_to_state,
     get_onboarding_state,
     is_onboarding_completed,
     start_onboarding,
