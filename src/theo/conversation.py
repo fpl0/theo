@@ -11,6 +11,7 @@ executes them and feeds results back in a loop (max 10 iterations).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from typing import TYPE_CHECKING, Literal
@@ -132,8 +133,6 @@ class ConversationEngine:
     @staticmethod
     def _notify_evaluator_message() -> None:
         """Tell the intent evaluator a user message arrived."""
-        import contextlib  # noqa: PLC0415
-
         with contextlib.suppress(Exception):
             from theo.intent import intent_evaluator  # noqa: PLC0415
 
@@ -141,8 +140,6 @@ class ConversationEngine:
 
     def _notify_evaluator_inflight(self) -> None:
         """Update the intent evaluator with the current inflight count."""
-        import contextlib  # noqa: PLC0415
-
         with contextlib.suppress(Exception):
             from theo.intent import intent_evaluator  # noqa: PLC0415
 

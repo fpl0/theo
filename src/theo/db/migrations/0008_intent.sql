@@ -51,6 +51,6 @@ ON intent (expires_at ASC)
 WHERE expires_at IS NOT NULL AND state IN ('proposed', 'approved');
 
 -- Auto-update updated_at on row modification.
-CREATE TRIGGER intent_set_updated_at
+CREATE OR REPLACE TRIGGER intent_set_updated_at
 BEFORE UPDATE ON intent
 FOR EACH ROW EXECUTE FUNCTION _set_updated_at();

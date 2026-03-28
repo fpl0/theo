@@ -1,40 +1,46 @@
 """Intent subsystem: priority queue for proactive actions."""
 
-from opentelemetry import metrics
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING, Any
 
 from theo.intent._types import IntentResult, IntentState
 from theo.intent.evaluator import IntentEvaluator, scan_approaching_dates
 from theo.intent.store import create_intent, get_queue_depth
 
+if TYPE_CHECKING:
+    from datetime import datetime
+
+log = logging.getLogger(__name__)
+
 intent_evaluator = IntentEvaluator()
 
-_meter = metrics.get_meter(__name__)
 
-
-def _observe_queue_depth() -> int:
-    """Synchronous callback for the observable gauge.
-
-    Falls back to 0 when the pool is unavailable (e.g. during startup).
-    """
-    # Queue depth is fetched async; the gauge callback cannot await.
-    # We report 0 here and rely on the evaluator loop for accurate metrics.
-    return 0
-
-
-_meter.create_observable_gauge(
-    "theo.intent.queue_depth",
-    callbacks=[lambda _options: [metrics.Observation(value=_observe_queue_depth())]],
-    description="Number of actionable intents in the queue",
-)
-
-
-async def publish_intent(**kwargs: object) -> int:
-    """Convenience wrapper around :func:`store.create_intent`.
-
-    Wakes the evaluator after publishing so the intent is processed
-    without waiting for the next poll interval.
-    """
-    intent_id: int = await create_intent(**kwargs)  # type: ignore[arg-type]
+async def publish_intent(  # noqa: PLR0913
+    *,
+    intent_type: str,
+    source_module: str,
+    base_priority: int = 50,
+    payload: dict[str, Any] | None = None,
+    deadline: datetime | None = None,
+    budget_tokens: int | None = None,
+    max_attempts: int = 3,
+    expires_at: datetime | None = None,
+    state: IntentState = "proposed",
+) -> int:
+    """Create an intent and wake the evaluator for immediate processing."""
+    intent_id = await create_intent(
+        intent_type=intent_type,
+        source_module=source_module,
+        base_priority=base_priority,
+        payload=payload,
+        deadline=deadline,
+        budget_tokens=budget_tokens,
+        max_attempts=max_attempts,
+        expires_at=expires_at,
+        state=state,
+    )
     intent_evaluator.wake()
     return intent_id
 

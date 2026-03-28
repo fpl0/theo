@@ -33,6 +33,7 @@ RETURNING id
 # Dynamic priority: base + recency boost + deadline urgency.
 # Recency boost: intents created within the last hour get up to +10.
 # Deadline urgency: intents approaching deadline get up to +30.
+# NULLIF guards against division by zero when deadline == created_at.
 _FETCH_NEXT = """
 SELECT
     id, type, state, base_priority, source_module, payload,
@@ -47,7 +48,7 @@ SELECT
             WHEN deadline IS NOT NULL AND deadline > now()
             THEN LEAST(30, GREATEST(0,
                 30 * (1 - EXTRACT(EPOCH FROM (deadline - now()))
-                    / EXTRACT(EPOCH FROM (deadline - created_at)))))
+                    / NULLIF(EXTRACT(EPOCH FROM (deadline - created_at)), 0))))
             ELSE 0
           END
     ) AS effective_priority
@@ -58,12 +59,6 @@ WHERE state IN ('proposed', 'approved')
 ORDER BY effective_priority DESC, created_at ASC
 LIMIT 1
 FOR UPDATE SKIP LOCKED
-"""
-
-_UPDATE_STATE = """
-UPDATE intent
-SET state = $2
-WHERE id = $1
 """
 
 _START_INTENT = """
@@ -91,13 +86,22 @@ _DAILY_BUDGET_USAGE = """
 SELECT COALESCE(SUM((result->>'tokens_used')::int), 0) AS total
 FROM intent
 WHERE state = 'completed'
-  AND completed_at >= date_trunc('day', now())
+  AND completed_at >= date_trunc('day', now() AT TIME ZONE 'UTC')
 """
 
 _QUEUE_DEPTH = """
 SELECT count(*) AS depth
 FROM intent
 WHERE state IN ('proposed', 'approved')
+"""
+
+_INTENT_EXISTS = """
+SELECT 1
+FROM intent
+WHERE type = $1
+  AND payload->>'date' = $2
+  AND state NOT IN ('completed', 'cancelled', 'expired', 'failed')
+LIMIT 1
 """
 
 # ---------------------------------------------------------------------------
@@ -152,27 +156,21 @@ async def create_intent(  # noqa: PLR0913
         return row_id
 
 
-async def fetch_next() -> IntentResult | None:
-    """Fetch the highest-priority actionable intent, locking the row.
+async def fetch_and_start() -> IntentResult | None:
+    """Atomically fetch the highest-priority intent and transition to executing.
 
-    Must be called within a transaction for the ``FOR UPDATE SKIP LOCKED``
-    to take effect. Returns ``None`` when the queue is empty.
+    Uses ``FOR UPDATE SKIP LOCKED`` within a transaction so the row lock
+    persists through the state transition. Returns ``None`` when the queue
+    is empty.
     """
-    with tracer.start_as_current_span("intent.fetch_next"):
-        row = await db.pool.fetchrow(_FETCH_NEXT)
-        if row is None:
-            return None
-        return _row_to_result(row, with_priority=True)
-
-
-async def start_intent(intent_id: int) -> None:
-    """Transition an intent to ``executing``."""
-    with tracer.start_as_current_span(
-        "intent.start",
-        attributes={"intent.id": intent_id},
-    ):
-        await db.pool.execute(_START_INTENT, intent_id)
-        log.info("started intent", extra={"intent_id": intent_id})
+    with tracer.start_as_current_span("intent.fetch_and_start"):
+        async with db.pool.acquire() as conn, conn.transaction():
+            row = await conn.fetchrow(_FETCH_NEXT)
+            if row is None:
+                return None
+            await conn.execute(_START_INTENT, row["id"])
+            log.info("started intent", extra={"intent_id": row["id"]})
+            return _row_to_result(row, with_priority=True)
 
 
 async def complete_intent(
@@ -213,7 +211,7 @@ async def expire_overdue() -> list[int]:
 
 
 async def get_daily_token_usage() -> int:
-    """Sum of ``result.tokens_used`` for intents completed today."""
+    """Sum of ``result.tokens_used`` for intents completed today (UTC)."""
     with tracer.start_as_current_span("intent.daily_token_usage"):
         total: int = await db.pool.fetchval(_DAILY_BUDGET_USAGE)
         return total
@@ -221,8 +219,19 @@ async def get_daily_token_usage() -> int:
 
 async def get_queue_depth() -> int:
     """Count of actionable intents in the queue."""
-    depth: int = await db.pool.fetchval(_QUEUE_DEPTH)
-    return depth
+    with tracer.start_as_current_span("intent.queue_depth"):
+        depth: int = await db.pool.fetchval(_QUEUE_DEPTH)
+        return depth
+
+
+async def intent_exists(intent_type: str, date_key: str) -> bool:
+    """Check if an active intent already exists for a type+date combination."""
+    with tracer.start_as_current_span(
+        "intent.exists",
+        attributes={"intent.type": intent_type},
+    ):
+        row = await db.pool.fetchval(_INTENT_EXISTS, intent_type, date_key)
+        return row is not None
 
 
 # ---------------------------------------------------------------------------

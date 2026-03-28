@@ -6,12 +6,13 @@ signal or interval, and processes one intent at a time.
 Three-tier throttle based on conversation state:
 - **Foreground active** (engine.inflight > 0): defer LLM-requiring intents
 - **Foreground idle** (inflight == 0): run normally
-- **Foreground absent** (>15 min since last message): higher throughput
+- **Foreground absent** (>15 min since last message): reduced interval
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import re
 import time
@@ -49,6 +50,7 @@ _expired_counter = meter.create_counter(
 )
 
 _ABSENT_THRESHOLD_S = 900  # 15 minutes
+_STOP_TIMEOUT_S = 30
 
 # Date patterns for the approaching-dates scanner.
 _DATE_PATTERN = re.compile(
@@ -113,7 +115,14 @@ class IntentEvaluator:
         self._running = False
         self._wakeup.set()
         if self._task is not None:
-            await self._task
+            try:
+                async with asyncio.timeout(_STOP_TIMEOUT_S):
+                    await self._task
+            except TimeoutError:
+                log.warning("intent evaluator stop timed out, cancelling")
+                self._task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await self._task
             self._task = None
         log.info("intent evaluator stopped")
 
@@ -127,6 +136,8 @@ class IntentEvaluator:
         """Continuously evaluate intents from the queue."""
         cfg = get_settings()
         interval = cfg.intent_evaluator_interval_s
+        # Absent tier uses a reduced interval for higher throughput.
+        absent_interval = max(1, interval // 3)
 
         while self._running:
             try:
@@ -152,12 +163,15 @@ class IntentEvaluator:
                     await self._wait(interval)
                     continue
 
-                # Fetch and process next intent.
-                intent = await store.fetch_next()
+                # Atomically fetch and start the next intent.
+                intent = await store.fetch_and_start()
                 if intent is None:
-                    await self._wait(interval)
+                    wait_s = absent_interval if tier == "absent" else interval
+                    await self._wait(wait_s)
                     continue
 
+                # Process the intent. Loop back immediately after
+                # to drain the queue without waiting.
                 await self._evaluate_one(intent.id, intent.type, intent.payload)
 
             except Exception:
@@ -167,7 +181,7 @@ class IntentEvaluator:
     async def _evaluate_one(
         self, intent_id: int, intent_type: str, payload: dict[str, Any]
     ) -> None:
-        """Evaluate a single intent."""
+        """Evaluate a single intent (already in 'executing' state)."""
         t0 = time.monotonic()
 
         with tracer.start_as_current_span(
@@ -178,8 +192,6 @@ class IntentEvaluator:
                 "intent.throttle_tier": self.throttle_tier,
             },
         ):
-            await store.start_intent(intent_id)
-
             handler = self._handlers.get(intent_type)
             if handler is None:
                 log.warning(
@@ -218,8 +230,6 @@ class IntentEvaluator:
 
     async def _wait(self, seconds: int) -> None:
         """Wait for the given interval or until woken."""
-        import contextlib  # noqa: PLC0415
-
         self._wakeup.clear()
         with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(self._wakeup.wait(), timeout=seconds)
@@ -233,6 +243,7 @@ class IntentEvaluator:
 async def scan_approaching_dates() -> int:
     """Scan core memory context for approaching dates and publish intents.
 
+    Skips dates that already have an active intent to prevent duplicates.
     Returns the number of intents created.
     """
     from theo.memory import core as core_memory  # noqa: PLC0415
@@ -264,6 +275,9 @@ async def scan_approaching_dates() -> int:
                 continue
 
             if now < parsed <= cutoff:
+                # Skip if an active intent already exists for this date.
+                if await store.intent_exists("deadline_approaching", date_str):
+                    continue
                 await store.create_intent(
                     intent_type="deadline_approaching",
                     source_module="intent.evaluator",

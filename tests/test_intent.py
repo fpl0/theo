@@ -17,7 +17,7 @@ from theo.intent.store import (
     complete_intent,
     create_intent,
     expire_overdue,
-    fetch_next,
+    fetch_and_start,
     get_daily_token_usage,
 )
 
@@ -103,9 +103,17 @@ class TestIntentStore:
         assert call_args[0][3] == 50  # base_priority
         assert json.loads(call_args[0][5]) == {"key": "value"}  # payload
 
-    async def test_fetch_next_empty(self, mock_db: MagicMock) -> None:
-        _ = mock_db
-        result = await fetch_next()
+    async def test_fetch_and_start_empty(self, mock_db: MagicMock) -> None:
+        # acquire() returns an async context manager yielding a mock connection.
+        mock_conn = MagicMock()
+        mock_conn.fetchrow = AsyncMock(return_value=None)
+        mock_conn.transaction = MagicMock(return_value=MagicMock())
+        mock_conn.transaction.return_value.__aenter__ = AsyncMock(return_value=None)
+        mock_conn.transaction.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_db.acquire = MagicMock(return_value=MagicMock())
+        mock_db.acquire.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_db.acquire.return_value.__aexit__ = AsyncMock(return_value=False)
+        result = await fetch_and_start()
         assert result is None
 
     async def test_expire_overdue(self, mock_db: MagicMock) -> None:
@@ -178,7 +186,7 @@ class TestEvaluatorLifecycle:
             mock_settings.return_value = cfg
             mock_store.expire_overdue = AsyncMock(return_value=[])
             mock_store.get_daily_token_usage = AsyncMock(return_value=0)
-            mock_store.fetch_next = AsyncMock(return_value=None)
+            mock_store.fetch_and_start = AsyncMock(return_value=None)
 
             await ev.start()
             assert ev._running
@@ -200,7 +208,7 @@ class TestEvaluatorLifecycle:
             mock_settings.return_value = cfg
             mock_store.expire_overdue = AsyncMock(return_value=[])
             mock_store.get_daily_token_usage = AsyncMock(return_value=0)
-            mock_store.fetch_next = AsyncMock(return_value=None)
+            mock_store.fetch_and_start = AsyncMock(return_value=None)
 
             await ev.start()
             first_task = ev._task
@@ -230,7 +238,7 @@ class TestEvaluatorLifecycle:
             mock_settings.return_value = cfg
             mock_store.expire_overdue = AsyncMock(return_value=[])
             mock_store.get_daily_token_usage = AsyncMock(return_value=0)
-            mock_store.fetch_next = AsyncMock(side_effect=counting_fetch)
+            mock_store.fetch_and_start = AsyncMock(side_effect=counting_fetch)
 
             await ev.start()
             # Give the loop a moment to start.
@@ -257,7 +265,6 @@ class TestEvaluatorProcessing:
         ev.register_handler("test_intent", handler)
 
         with patch("theo.intent.evaluator.store") as mock_store:
-            mock_store.start_intent = AsyncMock()
             mock_store.complete_intent = AsyncMock()
             await ev._evaluate_one(1, "test_intent", {"key": "value"})
 
@@ -271,7 +278,6 @@ class TestEvaluatorProcessing:
         ev = IntentEvaluator()
 
         with patch("theo.intent.evaluator.store") as mock_store:
-            mock_store.start_intent = AsyncMock()
             mock_store.complete_intent = AsyncMock()
             await ev._evaluate_one(1, "unknown_type", {})
 
@@ -290,7 +296,6 @@ class TestEvaluatorProcessing:
         ev.register_handler("test_intent", handler)
 
         with patch("theo.intent.evaluator.store") as mock_store:
-            mock_store.start_intent = AsyncMock()
             mock_store.complete_intent = AsyncMock()
             await ev._evaluate_one(1, "test_intent", {})
 
@@ -307,7 +312,6 @@ class TestEvaluatorProcessing:
         ev.register_handler("test_intent", handler)
 
         with patch("theo.intent.evaluator.store") as mock_store:
-            mock_store.start_intent = AsyncMock()
             mock_store.complete_intent = AsyncMock()
             await ev._evaluate_one(1, "test_intent", {})
 
@@ -324,7 +328,6 @@ class TestEvaluatorProcessing:
         ev.register_handler("test_intent", handler)
 
         with patch("theo.intent.evaluator.store") as mock_store:
-            mock_store.start_intent = AsyncMock()
             mock_store.complete_intent = AsyncMock()
             await ev._evaluate_one(1, "test_intent", {})
 
@@ -346,14 +349,14 @@ class TestEvaluatorProcessing:
             mock_settings.return_value = cfg
             mock_store.expire_overdue = AsyncMock(return_value=[])
             mock_store.get_daily_token_usage = AsyncMock(return_value=1500)  # over budget
-            mock_store.fetch_next = AsyncMock(return_value=None)
+            mock_store.fetch_and_start = AsyncMock(return_value=None)
 
             await ev.start()
             await asyncio.sleep(0.1)
             await ev.stop()
 
             # fetch_next should never be called when over budget.
-            mock_store.fetch_next.assert_not_called()
+            mock_store.fetch_and_start.assert_not_called()
 
     async def test_active_throttle_defers_intents(self) -> None:
         """When foreground is active, evaluator defers intent processing."""
@@ -370,14 +373,14 @@ class TestEvaluatorProcessing:
             mock_settings.return_value = cfg
             mock_store.expire_overdue = AsyncMock(return_value=[])
             mock_store.get_daily_token_usage = AsyncMock(return_value=0)
-            mock_store.fetch_next = AsyncMock(return_value=None)
+            mock_store.fetch_and_start = AsyncMock(return_value=None)
 
             await ev.start()
             await asyncio.sleep(0.1)
             await ev.stop()
 
             # fetch_next should not be called when active.
-            mock_store.fetch_next.assert_not_called()
+            mock_store.fetch_and_start.assert_not_called()
 
 
 # ── Date scanner tests ────────────────────────────────────────────────
@@ -400,6 +403,7 @@ class TestDateScanner:
             doc = MagicMock()
             doc.body = context_body
             mock_read.return_value = doc
+            mock_store.intent_exists = AsyncMock(return_value=False)
             mock_store.create_intent = AsyncMock(return_value=1)
 
             count = await scan_approaching_dates()
@@ -452,6 +456,30 @@ class TestDateScanner:
             count = await scan_approaching_dates()
             assert count == 0
 
+    async def test_skips_existing_active_intents(self) -> None:
+        """Date scanner skips dates that already have an active intent."""
+        tomorrow = (datetime.now(UTC) + timedelta(days=1)).strftime("%Y-%m-%d")
+        context_body = {"upcoming": f"Meeting on {tomorrow}"}
+
+        with (
+            patch("theo.memory.core.read_one", new_callable=AsyncMock) as mock_read,
+            patch("theo.intent.evaluator.store") as mock_store,
+            patch("theo.intent.evaluator.get_settings") as mock_settings,
+        ):
+            cfg = MagicMock()
+            cfg.intent_deadline_horizon_days = 7
+            mock_settings.return_value = cfg
+
+            doc = MagicMock()
+            doc.body = context_body
+            mock_read.return_value = doc
+            mock_store.intent_exists = AsyncMock(return_value=True)
+            mock_store.create_intent = AsyncMock(return_value=1)
+
+            count = await scan_approaching_dates()
+            assert count == 0
+            mock_store.create_intent.assert_not_called()
+
     async def test_handles_missing_context_doc(self) -> None:
         with (
             patch("theo.memory.core.read_one", new_callable=AsyncMock) as mock_read,
@@ -474,21 +502,10 @@ class TestPublishIntent:
         _ = mock_db
         from theo.intent import intent_evaluator, publish_intent  # noqa: PLC0415
 
-        wake_called = False
-        original_wake = intent_evaluator.wake
-
-        def tracking_wake() -> None:
-            nonlocal wake_called
-            wake_called = True
-            original_wake()
-
-        intent_evaluator.wake = tracking_wake  # type: ignore[assignment]
-        try:
+        with patch.object(intent_evaluator, "wake", wraps=intent_evaluator.wake) as mock_wake:
             intent_id = await publish_intent(
                 intent_type="test",
                 source_module="tests",
             )
             assert intent_id == 1
-            assert wake_called
-        finally:
-            intent_evaluator.wake = original_wake
+            mock_wake.assert_called_once()
