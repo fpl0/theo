@@ -89,6 +89,11 @@ rules = { invalid-argument-type = "ignore", missing-argument = "ignore" }
 include = ["tests/test_retrieval.py"]
 rules = { invalid-argument-type = "ignore", missing-argument = "ignore", unknown-argument = "ignore" }
 
+# test_contradictions intentionally assigns to frozen dataclass to verify it raises.
+[[tool.ty.overrides]]
+include = ["tests/test_contradictions.py"]
+rules = { invalid-assignment = "ignore" }
+
 [tool.sqlfluff.core]
 dialect = "postgres"
 max_line_length = 99

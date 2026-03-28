@@ -169,6 +169,21 @@ def _row_to_result(
     )
 
 
+async def drain_background_tasks(*, drain_timeout: float = 5.0) -> None:
+    """Wait for in-flight contradiction checks to finish.
+
+    Called during shutdown before the database pool is closed.
+    """
+    if not _background_tasks:
+        return
+    log.info("draining %d background task(s)", len(_background_tasks))
+    _done, pending = await asyncio.wait(_background_tasks, timeout=drain_timeout)
+    if pending:
+        log.warning("timed out draining %d background task(s)", len(pending))
+        for task in pending:
+            task.cancel()
+
+
 async def _run_contradiction_check(node_id: int, body: str, kind: str) -> None:
     """Fire-and-forget contradiction check — errors are logged, never raised."""
     try:
@@ -177,7 +192,7 @@ async def _run_contradiction_check(node_id: int, body: str, kind: str) -> None:
             resolve_contradiction,
         )
 
-        conflict = await check_contradiction(body, kind)
+        conflict = await check_contradiction(body, kind, exclude_id=node_id)
         if conflict is not None:
             await resolve_contradiction(node_id, conflict)
     except Exception:

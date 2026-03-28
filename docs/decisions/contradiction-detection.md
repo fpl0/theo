@@ -14,7 +14,7 @@ Semantic similarity alone cannot distinguish contradictions from related-but-com
 
 ## Decision: Confidence reduction with database-level floor
 
-Both the new node and the conflicting node have their confidence reduced by 0.3. The SQL uses `GREATEST($2, 0.1)` to floor confidence at 0.1, ensuring nodes are never fully discredited — they remain available for future manual resolution. The reduction and floor values are constants rather than config to keep the initial implementation simple.
+Both the new node and the conflicting node have their confidence reduced by 0.3. The SQL uses `GREATEST(confidence - $2, 0.1)` to floor confidence at 0.1 atomically, ensuring nodes are never fully discredited — they remain available for future manual resolution. The reduction and floor values are constants rather than config to keep the initial implementation simple.
 
 ## Decision: Deferred import to avoid circular dependency
 
@@ -28,6 +28,7 @@ Both the new node and the conflicting node have their confidence reduced by 0.3.
 
 - `src/theo/config.py` — added `contradiction_check_enabled: bool` to Settings
 - `src/theo/memory/contradictions.py` — new module with `check_contradiction`, `resolve_contradiction`, `ConflictResult`
-- `src/theo/memory/nodes.py` — fire-and-forget integration in `store_node()`
+- `src/theo/memory/nodes.py` — fire-and-forget integration in `store_node()`, `drain_background_tasks()` for shutdown
+- `src/theo/__main__.py` — calls `drain_background_tasks()` before closing the database pool
 - `tests/test_contradictions.py` — unit tests for detection, resolution, config toggle, edge cases
 - `docs/decisions/contradiction-detection.md` — this file

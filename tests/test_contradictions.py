@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -18,12 +17,6 @@ from theo.memory.nodes import store_node
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-_NOW = datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)
 
 
 def _node_result(
@@ -72,6 +65,14 @@ async def _fake_stream_invalid_json(
     yield StreamDone(input_tokens=10, output_tokens=20, stop_reason="end_turn")
 
 
+async def _passthrough_circuit_breaker(
+    stream: Any,
+) -> AsyncIterator[Any]:
+    """Pass through the stream unchanged — stands in for circuit_breaker.call."""
+    async for event in stream:
+        yield event
+
+
 def _make_pool_with_conn(mock_conn: AsyncMock) -> MagicMock:
     """Create a pool mock whose ``acquire()`` yields *mock_conn* as an async CM."""
     pool = AsyncMock()
@@ -114,7 +115,9 @@ async def test_check_contradiction_finds_conflict() -> None:
     with (
         patch("theo.memory.contradictions.search_nodes", mock_search),
         patch("theo.memory.contradictions.stream_response", _fake_stream_contradicts),
+        patch("theo.memory.contradictions.circuit_breaker") as mock_cb,
     ):
+        mock_cb.call = _passthrough_circuit_breaker
         result = await check_contradiction("Alice works at Meta", kind="fact")
 
     assert result is not None
@@ -131,7 +134,9 @@ async def test_check_contradiction_returns_none_when_no_conflict() -> None:
     with (
         patch("theo.memory.contradictions.search_nodes", mock_search),
         patch("theo.memory.contradictions.stream_response", _fake_stream_no_contradiction),
+        patch("theo.memory.contradictions.circuit_breaker") as mock_cb,
     ):
+        mock_cb.call = _passthrough_circuit_breaker
         result = await check_contradiction("Alice works at Google", kind="fact")
 
     assert result is None
@@ -163,7 +168,9 @@ async def test_check_contradiction_handles_invalid_llm_json() -> None:
     with (
         patch("theo.memory.contradictions.search_nodes", mock_search),
         patch("theo.memory.contradictions.stream_response", _fake_stream_invalid_json),
+        patch("theo.memory.contradictions.circuit_breaker") as mock_cb,
     ):
+        mock_cb.call = _passthrough_circuit_breaker
         result = await check_contradiction("Some statement", kind="fact")
 
     assert result is None
@@ -176,9 +183,8 @@ async def test_check_contradiction_handles_invalid_llm_json() -> None:
 
 async def test_resolve_contradiction_reduces_confidence_and_creates_edge() -> None:
     mock_conn = AsyncMock()
-    # fetchval: only the edge insert returns an id now (no confidence lookups)
-    mock_conn.fetchval.return_value = 1
     pool = _make_pool_with_conn(mock_conn)
+    mock_store_edge = AsyncMock(return_value=1)
 
     conflict = ConflictResult(
         conflicting_node_id=42,
@@ -186,11 +192,14 @@ async def test_resolve_contradiction_reduces_confidence_and_creates_edge() -> No
         explanation="Conflicting employers",
     )
 
-    with patch("theo.memory.contradictions.db", pool=pool):
+    with (
+        patch("theo.memory.contradictions.db", pool=pool),
+        patch("theo.memory.contradictions.store_edge", mock_store_edge),
+    ):
         await resolve_contradiction(new_node_id=100, conflict=conflict)
 
-    # Two confidence updates + one expire edge = 3 execute calls
-    assert mock_conn.execute.await_count == 3
+    # Two confidence updates
+    assert mock_conn.execute.await_count == 2
 
     # First execute: atomic confidence reduction for new_node_id=100
     first_call = mock_conn.execute.call_args_list[0]
@@ -202,26 +211,20 @@ async def test_resolve_contradiction_reduces_confidence_and_creates_edge() -> No
     assert second_call.args[1] == 42
     assert second_call.args[2] == pytest.approx(0.3)
 
-    # Third execute: expire active edge
-    third_call = mock_conn.execute.call_args_list[2]
-    assert third_call.args[1] == 100
-    assert third_call.args[2] == 42
-    assert third_call.args[3] == "contradicts"
-
-    # Edge insert via fetchval
-    edge_call = mock_conn.fetchval.call_args_list[0]
-    assert edge_call.args[1] == 100  # source_id
-    assert edge_call.args[2] == 42  # target_id
-    assert edge_call.args[3] == "contradicts"  # label
-    assert edge_call.args[4] == 1.0  # weight
-    assert edge_call.args[5] == {"explanation": "Conflicting employers"}
+    # Edge created via store_edge
+    mock_store_edge.assert_awaited_once_with(
+        source_id=100,
+        target_id=42,
+        label="contradicts",
+        weight=1.0,
+        meta={"explanation": "Conflicting employers"},
+    )
 
 
 async def test_resolve_contradiction_passes_raw_reduced_value_to_db() -> None:
     mock_conn = AsyncMock()
-    # fetchval: only edge insert id (no confidence lookups with atomic SQL)
-    mock_conn.fetchval.return_value = 1
     pool = _make_pool_with_conn(mock_conn)
+    mock_store_edge = AsyncMock(return_value=1)
 
     conflict = ConflictResult(
         conflicting_node_id=42,
@@ -229,7 +232,10 @@ async def test_resolve_contradiction_passes_raw_reduced_value_to_db() -> None:
         explanation="Test",
     )
 
-    with patch("theo.memory.contradictions.db", pool=pool):
+    with (
+        patch("theo.memory.contradictions.db", pool=pool),
+        patch("theo.memory.contradictions.store_edge", mock_store_edge),
+    ):
         await resolve_contradiction(new_node_id=100, conflict=conflict)
 
     # The SQL uses GREATEST(confidence - $2, 0.1), so the reduction amount is
@@ -282,7 +288,7 @@ async def test_store_node_triggers_contradiction_check_when_enabled(
         await asyncio.sleep(0)
 
         assert result == 99
-    mock_check.assert_awaited_once_with("Earth is round", "fact")
+    mock_check.assert_awaited_once_with("Earth is round", "fact", exclude_id=99)
 
 
 async def test_store_node_skips_contradiction_check_when_disabled(
@@ -304,3 +310,85 @@ async def test_store_node_skips_contradiction_check_when_disabled(
 
     assert result == 99
     mock_check.assert_not_awaited()
+
+
+async def test_check_contradiction_excludes_self() -> None:
+    """Verify that exclude_id filters out the just-inserted node."""
+    self_node = _node_result(node_id=99, similarity=0.99)
+    other_node = _node_result(node_id=42, similarity=0.85)
+    mock_search = AsyncMock(return_value=[self_node, other_node])
+
+    with (
+        patch("theo.memory.contradictions.search_nodes", mock_search),
+        patch("theo.memory.contradictions.stream_response", _fake_stream_contradicts),
+        patch("theo.memory.contradictions.circuit_breaker") as mock_cb,
+    ):
+        mock_cb.call = _passthrough_circuit_breaker
+        result = await check_contradiction("Alice works at Meta", kind="fact", exclude_id=99)
+
+    assert result is not None
+    # Should find the contradiction with node 42, not compare against self (99)
+    assert result.conflicting_node_id == 42
+
+
+async def test_check_contradiction_skips_exact_threshold() -> None:
+    """Similarity exactly at 0.7 should NOT pass the > 0.7 threshold."""
+    candidate = _node_result(node_id=5, similarity=0.7)
+    mock_search = AsyncMock(return_value=[candidate])
+
+    with patch("theo.memory.contradictions.search_nodes", mock_search):
+        result = await check_contradiction("Boundary test", kind="fact")
+
+    assert result is None
+
+
+async def test_run_contradiction_check_swallows_exceptions(
+    mock_pool: AsyncMock,
+    mock_embedder: AsyncMock,
+) -> None:
+    """Verify the fire-and-forget wrapper logs but does not raise."""
+    mock_pool.fetchval.return_value = 99
+    mock_check = AsyncMock(side_effect=RuntimeError("boom"))
+
+    with (
+        patch("theo.memory.nodes.db", pool=mock_pool),
+        patch("theo.memory.nodes.embedder", mock_embedder),
+        patch("theo.memory.nodes.get_settings") as mock_settings,
+        patch("theo.memory.contradictions.check_contradiction", mock_check),
+    ):
+        mock_settings.return_value = MagicMock(contradiction_check_enabled=True)
+        result = await store_node(kind="fact", body="Boom test")
+        await asyncio.sleep(0)
+
+    # store_node still returns successfully despite background failure
+    assert result == 99
+
+
+async def test_store_node_resolves_when_conflict_found(
+    mock_pool: AsyncMock,
+    mock_embedder: AsyncMock,
+) -> None:
+    """Verify fire-and-forget path calls resolve_contradiction when a conflict is found."""
+    mock_pool.fetchval.return_value = 99
+
+    conflict = ConflictResult(
+        conflicting_node_id=42,
+        confidence_reduction=0.3,
+        explanation="Test conflict",
+    )
+    mock_check = AsyncMock(return_value=conflict)
+    mock_resolve = AsyncMock()
+
+    with (
+        patch("theo.memory.nodes.db", pool=mock_pool),
+        patch("theo.memory.nodes.embedder", mock_embedder),
+        patch("theo.memory.nodes.get_settings") as mock_settings,
+        patch("theo.memory.contradictions.check_contradiction", mock_check),
+        patch("theo.memory.contradictions.resolve_contradiction", mock_resolve),
+    ):
+        mock_settings.return_value = MagicMock(contradiction_check_enabled=True)
+        result = await store_node(kind="fact", body="Alice works at Meta")
+        await asyncio.sleep(0)
+
+    assert result == 99
+    mock_resolve.assert_awaited_once_with(99, conflict)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -11,7 +12,9 @@ from opentelemetry import metrics, trace
 
 from theo.db import db
 from theo.llm import TextDelta, stream_response
+from theo.memory.edges import store_edge
 from theo.memory.nodes import search_nodes
+from theo.resilience import circuit_breaker
 
 if TYPE_CHECKING:
     from anthropic.types import MessageParam
@@ -25,6 +28,11 @@ _checks_total = meter.create_counter(
     "theo.contradiction.checks",
     description="Total contradiction checks performed",
 )
+_check_duration = meter.create_histogram(
+    "theo.contradiction.duration",
+    description="Contradiction check latency in seconds",
+    unit="s",
+)
 
 # ---------------------------------------------------------------------------
 # SQL
@@ -34,21 +42,6 @@ _UPDATE_CONFIDENCE = """
 UPDATE node
 SET confidence = GREATEST(confidence - $2, 0.1)
 WHERE id = $1
-"""
-
-_EXPIRE_ACTIVE_EDGE = """
-UPDATE edge
-SET valid_to = now()
-WHERE source_id = $1
-    AND target_id = $2
-    AND label = $3
-    AND valid_to IS NULL
-"""
-
-_INSERT_EDGE = """
-INSERT INTO edge (source_id, target_id, label, weight, meta)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id
 """
 
 # ---------------------------------------------------------------------------
@@ -74,19 +67,31 @@ class ConflictResult:
 # ---------------------------------------------------------------------------
 
 
-async def check_contradiction(body: str, kind: str) -> ConflictResult | None:
+async def check_contradiction(
+    body: str,
+    kind: str,
+    *,
+    exclude_id: int | None = None,
+) -> ConflictResult | None:
     """Check whether *body* contradicts an existing node of the same *kind*.
 
     Searches for semantically similar nodes and asks the LLM to judge
     whether the statements are contradictory.  Returns a `ConflictResult`
-    for the first contradiction found, or ``None``.
+    for the **first** contradiction found, or ``None`` — subsequent
+    contradicting candidates are not checked.
+
+    Pass *exclude_id* to skip the just-inserted node (which would otherwise
+    appear as a near-perfect match against itself).
     """
     with tracer.start_as_current_span("check_contradiction") as span:
+        t0 = time.monotonic()
         candidates = await search_nodes(body, kind=kind, limit=5)
         high_sim = [
             c
             for c in candidates
-            if c.similarity is not None and c.similarity > _SIMILARITY_THRESHOLD
+            if c.similarity is not None
+            and c.similarity > _SIMILARITY_THRESHOLD
+            and (exclude_id is None or c.id != exclude_id)
         ]
 
         span.set_attribute("contradiction.candidates_checked", len(high_sim))
@@ -95,24 +100,26 @@ async def check_contradiction(body: str, kind: str) -> ConflictResult | None:
             is_conflict, explanation = await _ask_llm_contradiction(body, candidate)
             if is_conflict:
                 span.set_attribute("contradiction.found", value=True)
-                result = ConflictResult(
+                _checks_total.add(1, {"contradiction.found": "true"})
+                _check_duration.record(time.monotonic() - t0)
+                return ConflictResult(
                     conflicting_node_id=candidate.id,
                     confidence_reduction=_CONFIDENCE_REDUCTION,
                     explanation=explanation,
                 )
-                _checks_total.add(1, {"contradiction.found": "true"})
-                return result
 
         span.set_attribute("contradiction.found", value=False)
         _checks_total.add(1, {"contradiction.found": "false"})
+        _check_duration.record(time.monotonic() - t0)
         return None
 
 
 async def resolve_contradiction(new_node_id: int, conflict: ConflictResult) -> None:
     """Reduce confidence on both nodes and create a ``contradicts`` edge.
 
-    All three writes (two confidence updates + edge insert) run in a single
-    transaction so they commit or roll back atomically.
+    Confidence updates run in a single transaction for atomicity.
+    The edge is created via :func:`edges.store_edge` to avoid duplicating
+    its expire-then-insert logic.
     """
     with tracer.start_as_current_span(
         "resolve_contradiction",
@@ -132,20 +139,14 @@ async def resolve_contradiction(new_node_id: int, conflict: ConflictResult) -> N
                 conflict.conflicting_node_id,
                 conflict.confidence_reduction,
             )
-            await conn.execute(
-                _EXPIRE_ACTIVE_EDGE,
-                new_node_id,
-                conflict.conflicting_node_id,
-                "contradicts",
-            )
-            await conn.fetchval(
-                _INSERT_EDGE,
-                new_node_id,
-                conflict.conflicting_node_id,
-                "contradicts",
-                1.0,
-                {"explanation": conflict.explanation},
-            )
+
+        await store_edge(
+            source_id=new_node_id,
+            target_id=conflict.conflicting_node_id,
+            label="contradicts",
+            weight=1.0,
+            meta={"explanation": conflict.explanation},
+        )
 
         log.info(
             "resolved contradiction",
@@ -179,13 +180,14 @@ async def _ask_llm_contradiction(new_body: str, candidate: NodeResult) -> tuple[
         prompt = _build_prompt(new_body, candidate.body)
         messages: list[MessageParam] = [{"role": "user", "content": prompt}]
 
+        raw_stream = stream_response(
+            messages,
+            speed="reactive",
+            max_tokens=_CONTRADICTION_MAX_TOKENS,
+        )
         chunks = [
             event.text
-            async for event in stream_response(
-                messages,
-                speed="reactive",
-                max_tokens=_CONTRADICTION_MAX_TOKENS,
-            )
+            async for event in circuit_breaker.call(raw_stream)
             if isinstance(event, TextDelta)
         ]
 
