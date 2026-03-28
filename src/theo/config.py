@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     llm_model_reflective: str = "claude-sonnet-4-6-20250514"
     llm_model_deliberative: str = "claude-opus-4-6-20250514"
     llm_max_tokens: int = 4096
+    session_ratchet_enabled: bool = True
 
     # Embeddings
     embedding_model: str = "BAAI/bge-base-en-v1.5"
