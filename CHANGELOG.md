@@ -3,16 +3,9 @@
 All notable changes to Theo are documented here.
 Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
-## M3 — 2026-03-28
+## M2: Theo remembers — 2026-03-28
 
-### Added
-
-- Voice message input via MLX Whisper — local transcription on Apple Silicon, no cloud APIs
-- Privacy filter pipeline — trust tiers, content classification, PII detection at storage boundary
-- Contradiction detection — conflicting facts flagged at storage time, confidence reduced
-- Onboarding conversation — structured user-model seeding via multi-phase flow
-
-## M2 — 2026-03-27
+Theo becomes personal. Hybrid retrieval fuses full-text, vector, and graph signals via RRF in a single PostgreSQL query. The onboarding conversation seeds the user model from day one. Trust provenance and privacy filtering enforce data boundaries. After onboarding, Theo's responses feel informed — it references things you told it weeks ago and doesn't ask questions it should know the answer to.
 
 ### Added
 
@@ -23,8 +16,14 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 - Auto-edge creation from entity co-occurrence in conversations
 - Enhanced context assembly with per-section token budgets and tiered eviction
 - OpenObserve dashboard and alert provisioning via `just dashboards`
+- Voice message input via MLX Whisper — local transcription on Apple Silicon
+- Privacy filter pipeline — trust tiers, content classification, PII detection at storage boundary
+- Contradiction detection — conflicting facts flagged at storage time, confidence reduced
+- Onboarding conversation — structured user-model seeding via multi-phase flow
 
-## M1 — 2026-03-26
+## M1: Theo talks back — 2026-03-26
+
+The core loop works end to end. Message Theo on Telegram, it processes through the persistent event bus, assembles context from memory, calls Claude with memory tools, and replies. Basic memory CRUD operational — Theo can store and retrieve facts. Claude controls its own memory via the MemGPT/AgeMem pattern. Not smart yet, but alive.
 
 ### Added
 
