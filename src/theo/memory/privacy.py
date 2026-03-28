@@ -245,7 +245,7 @@ def evaluate(
                 "privacy.trust": trust,
                 "privacy.category": category,
                 "privacy.decision": decision,
-                "privacy.sensitivity": final_sens,
+                "privacy.sensitivity": recommended_sens if not allowed else final_sens,
             }
         )
 

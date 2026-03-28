@@ -6,7 +6,9 @@ import asyncio
 import contextlib
 import logging
 import re
+import tempfile
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid5
 
@@ -19,7 +21,8 @@ from opentelemetry import metrics, trace
 from theo.bus import bus
 from theo.bus.events import MessageReceived, ResponseChunk, ResponseComplete
 from theo.config import get_settings
-from theo.errors import GateConfigError
+from theo.errors import GateConfigError, TranscriptionError
+from theo.transcription import transcriber
 
 if TYPE_CHECKING:
     from aiogram.types import Message
@@ -41,6 +44,10 @@ _messages_sent_counter = meter.create_counter(
 _messages_ignored_counter = meter.create_counter(
     "theo.telegram.messages_ignored",
     description="Total messages ignored (non-owner)",
+)
+_voice_received_counter = meter.create_counter(
+    "theo.telegram.voice_received",
+    description="Total voice messages received and transcribed",
 )
 _commands_counter = meter.create_counter(
     "theo.telegram.commands",
@@ -244,7 +251,7 @@ class TelegramGate:
     # ── inbound: Telegram → bus ──────────────────────────────────────
 
     async def _on_message(self, message: Message) -> None:
-        """Handle an incoming Telegram message."""
+        """Handle an incoming Telegram message (text or voice)."""
         chat_id = message.chat.id
 
         if chat_id != self._owner_chat_id:
@@ -253,6 +260,12 @@ class TelegramGate:
                 "ignored message from non-owner",
                 extra={"chat_id": chat_id},
             )
+            return
+
+        # Voice message path: download, transcribe, publish.
+        voice = message.voice or message.audio
+        if voice is not None:
+            await self._handle_voice(message, chat_id)
             return
 
         body = message.text
@@ -281,6 +294,82 @@ class TelegramGate:
                     channel="message",
                     trust="owner",
                     meta={"telegram_chat_id": chat_id, "telegram_message_id": message.message_id},
+                ),
+            )
+
+    async def _handle_voice(self, message: Message, chat_id: int) -> None:
+        """Download a voice/audio message, transcribe it, and publish the text."""
+        voice = message.voice or message.audio
+        if voice is None:
+            return
+
+        session_id = session_id_for_chat(chat_id)
+        duration_s: int = getattr(voice, "duration", 0)
+
+        with tracer.start_as_current_span(
+            "telegram.voice_received",
+            attributes={
+                "telegram.chat_id": chat_id,
+                "session.id": str(session_id),
+                "voice.duration_s": duration_s,
+            },
+        ) as span:
+            tmp: Path | None = None
+            try:
+                file = await self._bot.get_file(voice.file_id)
+                if file.file_path is None:
+                    log.warning(
+                        "voice file has no download path",
+                        extra={"file_id": voice.file_id},
+                    )
+                    return
+                suffix = Path(file.file_path).suffix or ".ogg"
+                tmp = Path(tempfile.mkstemp(suffix=suffix)[1])
+                await self._bot.download_file(file.file_path, destination=tmp)
+                body = await transcriber.transcribe(tmp)
+            except TranscriptionError:
+                log.exception(
+                    "voice transcription failed",
+                    extra={"chat_id": chat_id, "file_id": voice.file_id},
+                )
+                return
+            except Exception:
+                log.exception(
+                    "voice message handling failed",
+                    extra={"chat_id": chat_id},
+                )
+                return
+            finally:
+                if tmp is not None:
+                    tmp.unlink(missing_ok=True)
+
+            if not body:
+                return
+
+            span.set_attribute("transcription.length", len(body))
+            _voice_received_counter.add(1)
+            _messages_received_counter.add(1)
+            log.info(
+                "received voice message",
+                extra={
+                    "chat_id": chat_id,
+                    "session_id": str(session_id),
+                    "voice_duration_s": duration_s,
+                    "transcription_length": len(body),
+                },
+            )
+            await bus.publish(
+                MessageReceived(
+                    body=body,
+                    session_id=session_id,
+                    channel="message",
+                    trust="owner",
+                    meta={
+                        "telegram_chat_id": chat_id,
+                        "telegram_message_id": message.message_id,
+                        "source": "voice",
+                        "duration_s": duration_s,
+                    },
                 ),
             )
 

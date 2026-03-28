@@ -12,7 +12,7 @@ from opentelemetry import metrics, trace
 from theo.bus import bus
 from theo.bus.events import ResponseChunk, ResponseComplete
 from theo.conversation.context import assemble
-from theo.errors import APIUnavailableError, CircuitOpenError
+from theo.errors import APIUnavailableError, CircuitOpenError, PrivacyViolationError
 from theo.llm import StreamDone, TextDelta, ToolUseRequest, classify_speed, stream_response
 from theo.memory.auto_edges import extract_and_link
 from theo.memory.episodes import store_episode
@@ -52,7 +52,7 @@ _background_tasks: set[asyncio.Task[None]] = set()
 _MAX_TOOL_ITERATIONS = 10
 
 
-async def execute_turn(  # noqa: C901, PLR0915
+async def execute_turn(  # noqa: C901, PLR0912, PLR0915
     event: MessageReceived,
     session_id: UUID,
     *,
@@ -74,13 +74,21 @@ async def execute_turn(  # noqa: C901, PLR0915
             # 1. Persist incoming message as episode (skip on retry).
             user_episode_id: int | None = None
             if persist_user_message:
-                user_episode_id = await store_episode(
-                    session_id=session_id,
-                    channel=event.channel or "message",
-                    role="user",
-                    body=event.body,
-                    trust=event.trust,
-                )
+                try:
+                    user_episode_id = await store_episode(
+                        session_id=session_id,
+                        channel=event.channel or "message",
+                        role="user",
+                        body=event.body,
+                        trust=event.trust,
+                    )
+                except PrivacyViolationError:
+                    log.warning(
+                        "privacy filter rejected user message episode",
+                        extra={"session_id": str(session_id), "trust": event.trust},
+                    )
+                    span.set_attribute("turn.privacy_rejected", "true")
+                    return
 
             # 2. Assemble context window.
             ctx = await assemble(
@@ -171,12 +179,19 @@ async def execute_turn(  # noqa: C901, PLR0915
 
         # 5. Persist assistant response as episode.
         full_response = "".join(chunks)
-        episode_id = await store_episode(
-            session_id=session_id,
-            channel=event.channel or "message",
-            role="assistant",
-            body=full_response,
-        )
+        try:
+            episode_id = await store_episode(
+                session_id=session_id,
+                channel=event.channel or "message",
+                role="assistant",
+                body=full_response,
+            )
+        except PrivacyViolationError:
+            log.warning(
+                "privacy filter rejected assistant episode",
+                extra={"session_id": str(session_id)},
+            )
+            episode_id = None
 
         # 6. Fire-and-forget: create co-occurrence edges from this session.
         task = asyncio.create_task(

@@ -31,3 +31,7 @@ class GateConfigError(TheoError):
 
 class PrivacyViolationError(TheoError):
     """Raised when the privacy filter rejects a storage operation."""
+
+
+class TranscriptionError(TheoError):
+    """Raised when audio transcription fails."""
