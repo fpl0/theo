@@ -17,7 +17,7 @@ User  ──▶  Telegram  ──▶  Conversation Engine  ──▶  Claude API
 
 ## Why
 
-Most AI assistants forget everything between sessions. Theo doesn't. It maintains a knowledge graph that grows with every conversation — facts, relationships, and episodes searchable via vector similarity, full-text, and graph traversal, fused through Reciprocal Rank Fusion. All inference (embeddings, speech-to-text) runs on-device via MLX. No data leaves your machine.
+Most AI assistants forget everything between sessions. Theo doesn't. It maintains a knowledge graph that grows with every conversation — facts, relationships, and episodes searchable via vector similarity, full-text, and graph traversal, fused through Reciprocal Rank Fusion. Embeddings and speech-to-text run on-device via MLX; reasoning goes through the Claude API.
 
 ## Stack
 
