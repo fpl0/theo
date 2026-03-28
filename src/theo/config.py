@@ -68,6 +68,14 @@ class Settings(BaseSettings):
     # Privacy filtering
     privacy_filter_enabled: bool = True
 
+    # Budget controls
+    budget_cost_reactive_per_1k: float = 0.25
+    budget_cost_reflective_per_1k: float = 3.0
+    budget_cost_deliberative_per_1k: float = 15.0
+    budget_daily_cap_tokens: int = 2_000_000
+    budget_session_cap_tokens: int = 500_000
+    budget_warning_threshold: float = 0.8
+
     # Telegram gate
     telegram_bot_token: SecretStr | None = None
     telegram_owner_chat_id: int | None = None
@@ -90,6 +98,19 @@ class Settings(BaseSettings):
             if getattr(self, name) <= 0:
                 msg = f"{name} must be > 0"
                 raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
+    def _validate_budget_bounds(self) -> Self:
+        if self.budget_daily_cap_tokens < 1:
+            msg = "budget_daily_cap_tokens must be >= 1"
+            raise ValueError(msg)
+        if self.budget_session_cap_tokens < 1:
+            msg = "budget_session_cap_tokens must be >= 1"
+            raise ValueError(msg)
+        if not 0 < self.budget_warning_threshold < 1:
+            msg = "budget_warning_threshold must be between 0 and 1 (exclusive)"
+            raise ValueError(msg)
         return self
 
     @model_validator(mode="after")

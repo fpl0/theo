@@ -83,6 +83,16 @@ def _stub_autonomy():
         yield
 
 
+@pytest.fixture(autouse=True)
+def _isolate_budget():
+    """Stub budget checks and recording so turn tests don't need a DB."""
+    with (
+        patch("theo.conversation.turn.check_budget", AsyncMock()),
+        patch("theo.conversation.turn.record_usage", AsyncMock()),
+    ):
+        yield
+
+
 @pytest.fixture
 def mock_bus():
     """Provide a mock EventBus that tracks published events."""
