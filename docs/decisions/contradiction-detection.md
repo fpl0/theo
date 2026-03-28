@@ -24,6 +24,10 @@ Both the new node and the conflicting node have their confidence reduced by 0.3.
 
 `resolve_contradiction` creates an edge with `label="contradicts"` and `weight=1.0` between the two nodes, with the LLM's explanation in `meta`. This makes contradictions visible in graph traversal and queryable via `get_edges(node_id, label="contradicts")`, enabling future UI or automated resolution workflows.
 
+## Decision: Separate transactions for confidence and edge (accepted tradeoff)
+
+Confidence reduction runs in its own transaction, followed by edge creation via `store_edge` in a separate transaction. If `store_edge` fails after confidences have been reduced, nodes will have lower confidence without a linking `contradicts` edge. This is an accepted tradeoff: combining them into a single transaction would require duplicating the expire-then-insert logic from `store_edge`, coupling the two modules. The confidence reduction is still correct (a contradiction was detected), and the missing edge only affects discoverability, not data correctness. The fire-and-forget context means partial failures are logged and tolerated.
+
 ## Files changed
 
 - `src/theo/config.py` — added `contradiction_check_enabled: bool` to Settings

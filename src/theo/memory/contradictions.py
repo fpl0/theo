@@ -23,12 +23,12 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
-meter = metrics.get_meter(__name__)
-_checks_total = meter.create_counter(
+_meter = metrics.get_meter(__name__)
+_checks_total = _meter.create_counter(
     "theo.contradiction.checks",
     description="Total contradiction checks performed",
 )
-_check_duration = meter.create_histogram(
+_check_duration = _meter.create_histogram(
     "theo.contradiction.duration",
     description="Contradiction check latency in seconds",
     unit="s",
@@ -84,6 +84,7 @@ async def check_contradiction(
     appear as a near-perfect match against itself).
     """
     with tracer.start_as_current_span("check_contradiction") as span:
+        span.set_attribute("node.kind", kind)
         t0 = time.monotonic()
         candidates = await search_nodes(body, kind=kind, limit=5)
         high_sim = [
@@ -120,6 +121,13 @@ async def resolve_contradiction(new_node_id: int, conflict: ConflictResult) -> N
     Confidence updates run in a single transaction for atomicity.
     The edge is created via :func:`edges.store_edge` to avoid duplicating
     its expire-then-insert logic.
+
+    **Atomicity tradeoff:** confidence reduction and edge creation are
+    separate transactions.  If ``store_edge`` fails after confidences have
+    already been reduced, the two nodes will have lower confidence without
+    a linking ``contradicts`` edge.  This is an accepted tradeoff — the
+    confidence reduction is still correct (a contradiction was detected),
+    and the missing edge only affects discoverability, not correctness.
     """
     with tracer.start_as_current_span(
         "resolve_contradiction",
@@ -176,7 +184,8 @@ def _build_prompt(new_body: str, existing_body: str) -> str:
 
 async def _ask_llm_contradiction(new_body: str, candidate: NodeResult) -> tuple[bool, str]:
     """Ask the LLM whether two statements contradict each other."""
-    with tracer.start_as_current_span("contradiction.llm_check"):
+    with tracer.start_as_current_span("contradiction.llm_check") as span:
+        span.set_attribute("llm.speed", "reactive")
         prompt = _build_prompt(new_body, candidate.body)
         messages: list[MessageParam] = [{"role": "user", "content": prompt}]
 
