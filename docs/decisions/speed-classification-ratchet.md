@@ -29,9 +29,9 @@ Added `_TASK_INDICATOR_RE` for planning/comparison language ("step by step", "pr
 
 Session speed history is capped at 6 entries (`_HISTORY_WINDOW`). This prevents unbounded memory growth for long sessions while keeping enough context for meaningful history bias. The window is large enough to detect "mostly deliberative" conversations but small enough to be responsive to topic shifts.
 
-### Speed cleanup with session locks
+### Speed history retention
 
-Session speed history is cleaned up alongside session locks when a session goes idle (lock released and not re-acquired). This ties speed state lifetime to session activity rather than requiring a separate TTL mechanism.
+Session speed history is bounded by `_HISTORY_WINDOW` (6 entries) but NOT cleaned up with session locks — speeds must persist across turns for the ratchet to work. The lifetime peak speed is tracked separately in `_session_peaks` and never windowed, ensuring the ratchet holds at the session's all-time high regardless of window rotation.
 
 ## Files changed
 

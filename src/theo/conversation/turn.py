@@ -15,7 +15,6 @@ from theo.bus.events import ResponseChunk, ResponseComplete
 from theo.conversation.context import assemble
 from theo.errors import APIUnavailableError, CircuitOpenError, PrivacyViolationError
 from theo.llm import (
-    SessionContext,
     Speed,
     StreamDone,
     TextDelta,
@@ -91,11 +90,12 @@ async def execute_turn(
     session_id: UUID,
     *,
     persist_user_message: bool = True,
-    session_context: SessionContext | None = None,
     engine: ConversationEngine | None = None,
 ) -> None:
     """Run a full conversation turn: context -> LLM stream -> tool loop -> response."""
     t0 = time.monotonic()
+    # Build session context under the lock (caller holds it) to avoid stale snapshots.
+    session_context = engine.session_context_for(session_id) if engine is not None else None
     speed, signals = classify_speed(event.body, session_context)
     model = model_for_speed(speed)
     state = _TurnState(
@@ -104,10 +104,6 @@ async def execute_turn(
         speed=speed,
         model=model,
     )
-
-    # Record the effective speed for future session ratchet decisions.
-    if engine is not None:
-        engine.record_speed(session_id, speed)
 
     with tracer.start_as_current_span(
         "conversation.turn",
@@ -121,6 +117,10 @@ async def execute_turn(
         try:
             if persist_user_message and not await _persist_incoming(state, span):
                 return
+            # Record speed only after privacy check passes — rejected messages
+            # should not influence the session ratchet.
+            if engine is not None:
+                engine.record_speed(session_id, speed)
             messages, system_prompt = await _build_initial_messages(state)
             await _stream_and_tool_loop(state, messages, system_prompt, span)
         except APIUnavailableError, CircuitOpenError:

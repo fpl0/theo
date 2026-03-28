@@ -373,6 +373,18 @@ class TestEngineSessionContext:
         ctx = eng.session_context_for(sid)
         assert len(ctx.prior_speeds) == ConversationEngine._HISTORY_WINDOW
 
+    def test_peak_persists_after_window_rotation(self) -> None:
+        """Lifetime peak must not decay when the deliberative entry rotates out."""
+        eng = ConversationEngine()
+        sid = uuid4()
+        eng.record_speed(sid, "deliberative")
+        for _ in range(10):
+            eng.record_speed(sid, "reflective")
+        ctx = eng.session_context_for(sid)
+        # The deliberative entry is gone from prior_speeds but peak is lifetime.
+        assert "deliberative" not in ctx.prior_speeds
+        assert ctx.peak_speed == "deliberative"
+
 
 # ── State management tests ───────────────────────────────────────────
 
