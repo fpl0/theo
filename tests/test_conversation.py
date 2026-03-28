@@ -12,7 +12,7 @@ from theo.bus import EventBus
 from theo.bus.events import MessageReceived, ResponseChunk, ResponseComplete
 from theo.conversation import _MAX_TOOL_ITERATIONS, ConversationEngine
 from theo.conversation.context import AssembledContext, SectionTokens
-from theo.errors import ConversationNotRunningError
+from theo.errors import CircuitOpenError, ConversationNotRunningError
 from theo.llm import StreamDone, TextDelta, ToolUseRequest
 from theo.resilience import CircuitBreaker, RetryQueue
 
@@ -423,7 +423,10 @@ class TestStateManagement:
     def test_queue_depth_property(self) -> None:
         eng = ConversationEngine()
         assert eng.queue_depth == 0
-        eng._paused_queue.put_nowait(object())
+        dummy = MessageReceived(
+            session_id=uuid4(), channel="message", body="test", role="user", trust="owner"
+        )
+        eng._paused_queue.put_nowait(dummy)
         assert eng.queue_depth == 1
 
 
@@ -712,3 +715,39 @@ class TestToolLoop:
         assert complete[0].body == "Let me check... Here's what I found."
         chunks = [e for e in published if isinstance(e, ResponseChunk)]
         assert len(chunks) == 2
+
+
+# ── API failure handling tests ────────────────────────────────────────
+
+
+class TestAPIFailureHandling:
+    async def test_circuit_open_error_sends_ack_and_enqueues(
+        self, mock_bus, mock_assemble, mock_store_episode
+    ) -> None:
+        """CircuitOpenError must be caught and trigger retry queue."""
+        _ = mock_assemble, mock_store_episode
+        _bus, published = mock_bus
+
+        async def _open_breaker(_stream):
+            if False:
+                yield  # pragma: no cover — yield required to make async generator
+            raise CircuitOpenError
+
+        fresh_cb = CircuitBreaker()
+        fresh_cb.call = _open_breaker  # type: ignore[assignment]
+        fresh_rq = RetryQueue()
+
+        with (
+            patch("theo.conversation.turn.stream_response", _fake_stream),
+            patch("theo.conversation.turn.circuit_breaker", fresh_cb),
+            patch("theo.conversation.turn.retry_queue", fresh_rq),
+            patch("theo.conversation.engine.retry_queue", fresh_rq),
+        ):
+            eng = ConversationEngine()
+            eng._state = "running"
+            await eng._process_message(_make_msg())
+
+        complete = [e for e in published if isinstance(e, ResponseComplete)]
+        assert len(complete) == 1
+        assert "trouble" in complete[0].body.lower()
+        assert fresh_rq.depth == 1

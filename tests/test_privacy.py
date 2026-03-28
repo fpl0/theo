@@ -292,6 +292,32 @@ class TestDisabledMode:
 
 
 # ---------------------------------------------------------------------------
+# Unknown trust tier
+# ---------------------------------------------------------------------------
+
+
+def test_unknown_trust_tier_raises(enabled_settings: Settings) -> None:
+    with (
+        patch("theo.memory.privacy.get_settings", return_value=enabled_settings),
+        pytest.raises(PrivacyViolationError, match="unknown trust tier"),
+    ):
+        evaluate("hello", trust="bogus")  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# Location category treatment
+# ---------------------------------------------------------------------------
+
+
+def test_location_category_is_not_sensitive(enabled_settings: Settings) -> None:
+    """Location is detected but not in _SENSITIVE_CATEGORIES — treated as normal."""
+    with patch("theo.memory.privacy.get_settings", return_value=enabled_settings):
+        d = evaluate("my home address is 123 Main St", trust="external")
+    assert d.allowed is True
+    assert d.sensitivity == "normal"
+
+
+# ---------------------------------------------------------------------------
 # Channel passthrough
 # ---------------------------------------------------------------------------
 

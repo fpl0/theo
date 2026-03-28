@@ -5,128 +5,29 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal
 
-from opentelemetry import trace
+from opentelemetry import metrics, trace
 
 from theo.db import db
+from theo.memory._edge_sql import (
+    EXPIRE_ACTIVE_EDGE,
+    EXPIRE_EDGE_BY_ID,
+    INSERT_EDGE,
+    SELECT_EDGES_INCOMING,
+    SELECT_EDGES_INCOMING_BY_LABEL,
+    SELECT_EDGES_OUTGOING,
+    SELECT_EDGES_OUTGOING_BY_LABEL,
+    TRAVERSE,
+    TRAVERSE_BY_LABEL,
+)
 from theo.memory._types import EdgeResult, TraversalResult
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
-
-# ---------------------------------------------------------------------------
-# SQL
-# ---------------------------------------------------------------------------
-
-_EXPIRE_ACTIVE_EDGE = """
-UPDATE edge
-SET valid_to = now()
-WHERE source_id = $1
-    AND target_id = $2
-    AND label = $3
-    AND valid_to IS NULL
-"""
-
-_INSERT_EDGE = """
-INSERT INTO edge (source_id, target_id, label, weight, meta)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id
-"""
-
-_SELECT_EDGES_OUTGOING = """
-SELECT id, source_id, target_id, label, weight, meta, valid_from, valid_to, created_at
-FROM edge
-WHERE source_id = $1 AND valid_to IS NULL
-ORDER BY created_at
-"""
-
-_SELECT_EDGES_OUTGOING_BY_LABEL = """
-SELECT id, source_id, target_id, label, weight, meta, valid_from, valid_to, created_at
-FROM edge
-WHERE source_id = $1 AND label = $2 AND valid_to IS NULL
-ORDER BY created_at
-"""
-
-_SELECT_EDGES_INCOMING = """
-SELECT id, source_id, target_id, label, weight, meta, valid_from, valid_to, created_at
-FROM edge
-WHERE target_id = $1 AND valid_to IS NULL
-ORDER BY created_at
-"""
-
-_SELECT_EDGES_INCOMING_BY_LABEL = """
-SELECT id, source_id, target_id, label, weight, meta, valid_from, valid_to, created_at
-FROM edge
-WHERE target_id = $1 AND label = $2 AND valid_to IS NULL
-ORDER BY created_at
-"""
-
-_TRAVERSE = """
-WITH RECURSIVE graph AS (
-    SELECT
-        target_id AS node_id,
-        1 AS depth,
-        ARRAY[source_id, target_id] AS path,
-        weight AS cumulative_weight
-    FROM edge
-    WHERE source_id = $1
-        AND valid_to IS NULL
-
-    UNION ALL
-
-    SELECT
-        e.target_id,
-        g.depth + 1,
-        g.path || e.target_id,
-        g.cumulative_weight * e.weight
-    FROM graph g
-    INNER JOIN edge e ON e.source_id = g.node_id
-    WHERE e.valid_to IS NULL
-        AND g.depth < $2
-        AND e.target_id <> ALL(g.path)
+_meter = metrics.get_meter(__name__)
+_edges_stored = _meter.create_counter(
+    "theo.memory.edges.stored",
+    description="Total edges stored in the knowledge graph",
 )
-SELECT DISTINCT ON (node_id)
-    node_id, depth, path, cumulative_weight
-FROM graph
-ORDER BY node_id, cumulative_weight DESC
-"""
-
-_TRAVERSE_BY_LABEL = """
-WITH RECURSIVE graph AS (
-    SELECT
-        target_id AS node_id,
-        1 AS depth,
-        ARRAY[source_id, target_id] AS path,
-        weight AS cumulative_weight
-    FROM edge
-    WHERE source_id = $1
-        AND valid_to IS NULL
-        AND label = $3
-
-    UNION ALL
-
-    SELECT
-        e.target_id,
-        g.depth + 1,
-        g.path || e.target_id,
-        g.cumulative_weight * e.weight
-    FROM graph g
-    INNER JOIN edge e ON e.source_id = g.node_id
-    WHERE e.valid_to IS NULL
-        AND e.label = $3
-        AND g.depth < $2
-        AND e.target_id <> ALL(g.path)
-)
-SELECT DISTINCT ON (node_id)
-    node_id, depth, path, cumulative_weight
-FROM graph
-ORDER BY node_id, cumulative_weight DESC
-"""
-
-_EXPIRE_EDGE_BY_ID = """
-UPDATE edge
-SET valid_to = now()
-WHERE id = $1 AND valid_to IS NULL
-"""
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -157,9 +58,9 @@ async def store_edge(
         },
     ):
         async with db.pool.acquire() as conn, conn.transaction():
-            await conn.execute(_EXPIRE_ACTIVE_EDGE, source_id, target_id, label)
+            await conn.execute(EXPIRE_ACTIVE_EDGE, source_id, target_id, label)
             edge_id: int = await conn.fetchval(
-                _INSERT_EDGE,
+                INSERT_EDGE,
                 source_id,
                 target_id,
                 label,
@@ -167,6 +68,7 @@ async def store_edge(
                 meta if meta is not None else {},
             )
 
+        _edges_stored.add(1, {"edge.label": label})
         log.info(
             "stored edge",
             extra={
@@ -231,9 +133,9 @@ async def traverse(
         },
     ):
         if label is not None:
-            rows = await db.pool.fetch(_TRAVERSE_BY_LABEL, start_id, max_depth, label)
+            rows = await db.pool.fetch(TRAVERSE_BY_LABEL, start_id, max_depth, label)
         else:
-            rows = await db.pool.fetch(_TRAVERSE, start_id, max_depth)
+            rows = await db.pool.fetch(TRAVERSE, start_id, max_depth)
 
         results = [_row_to_traversal(r) for r in rows]
         results.sort(key=lambda r: r.cumulative_weight, reverse=True)
@@ -254,7 +156,7 @@ async def expire_edge(edge_id: int) -> bool:
         "expire_edge",
         attributes={"edge.id": edge_id},
     ):
-        result = await db.pool.execute(_EXPIRE_EDGE_BY_ID, edge_id)
+        result = await db.pool.execute(EXPIRE_EDGE_BY_ID, edge_id)
         updated = result == "UPDATE 1"
         log.info("expired edge", extra={"edge_id": edge_id, "updated": updated})
         return updated
@@ -273,13 +175,13 @@ async def _fetch_edges(
 ) -> list[EdgeResult]:
     if direction == "outgoing":
         if label is not None:
-            rows = await db.pool.fetch(_SELECT_EDGES_OUTGOING_BY_LABEL, node_id, label)
+            rows = await db.pool.fetch(SELECT_EDGES_OUTGOING_BY_LABEL, node_id, label)
         else:
-            rows = await db.pool.fetch(_SELECT_EDGES_OUTGOING, node_id)
+            rows = await db.pool.fetch(SELECT_EDGES_OUTGOING, node_id)
     elif label is not None:
-        rows = await db.pool.fetch(_SELECT_EDGES_INCOMING_BY_LABEL, node_id, label)
+        rows = await db.pool.fetch(SELECT_EDGES_INCOMING_BY_LABEL, node_id, label)
     else:
-        rows = await db.pool.fetch(_SELECT_EDGES_INCOMING, node_id)
+        rows = await db.pool.fetch(SELECT_EDGES_INCOMING, node_id)
 
     return [_row_to_edge(r) for r in rows]
 

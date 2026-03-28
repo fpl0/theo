@@ -6,7 +6,7 @@ import dataclasses
 import json
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from theo.memory.tools import TOOL_DEFINITIONS, execute_tool
 
@@ -248,3 +248,194 @@ class TestErrorHandling:
             result = await execute_tool("search_memory", {"query": "test"})
 
         assert isinstance(result, str)
+
+
+# -- link_memories tests ---------------------------------------------------
+
+
+class TestLinkMemories:
+    async def test_link_memories_creates_edge(self) -> None:
+        mock = AsyncMock(return_value=99)
+        with patch("theo.memory.tools.edges.store_edge", mock):
+            result = await execute_tool(
+                "link_memories",
+                {"source_id": 1, "target_id": 2, "label": "works_on"},
+            )
+
+        parsed = json.loads(result)
+        assert parsed == {"linked": True, "edge_id": 99}
+        mock.assert_awaited_once_with(
+            source_id=1,
+            target_id=2,
+            label="works_on",
+            weight=0.8,
+            meta={"source": "llm_tool"},
+        )
+
+    async def test_link_memories_includes_reason_in_meta(self) -> None:
+        mock = AsyncMock(return_value=100)
+        with patch("theo.memory.tools.edges.store_edge", mock):
+            await execute_tool(
+                "link_memories",
+                {
+                    "source_id": 1,
+                    "target_id": 2,
+                    "label": "related_to",
+                    "reason": "both about Python",
+                },
+            )
+
+        _, kwargs = mock.await_args
+        assert kwargs["meta"]["reason"] == "both about Python"
+
+    async def test_link_memories_rejects_non_int_ids(self) -> None:
+        result = await execute_tool(
+            "link_memories",
+            {"source_id": "abc", "target_id": 2, "label": "related_to"},
+        )
+        assert "Error" in result
+
+    async def test_link_memories_rejects_non_positive_ids(self) -> None:
+        result = await execute_tool(
+            "link_memories",
+            {"source_id": 0, "target_id": 2, "label": "related_to"},
+        )
+        assert "Error" in result
+
+
+# -- update_user_model tests -----------------------------------------------
+
+
+@dataclasses.dataclass(frozen=True)
+class _FakeDimensionResult:
+    framework: str = "big_five"
+    dimension: str = "openness"
+    confidence: float = 0.7
+    evidence_count: int = 3
+
+
+class TestUpdateUserModel:
+    async def test_update_user_model_calls_update_dimension(self) -> None:
+        mock = AsyncMock(return_value=_FakeDimensionResult())
+        with patch("theo.memory.tools.user_model.update_dimension", mock):
+            result = await execute_tool(
+                "update_user_model",
+                {
+                    "framework": "big_five",
+                    "dimension": "openness",
+                    "value": {"score": 0.8, "label": "high"},
+                    "reason": "user described creative interests",
+                },
+            )
+
+        parsed = json.loads(result)
+        assert parsed["updated"] is True
+        assert parsed["framework"] == "big_five"
+        assert parsed["dimension"] == "openness"
+        mock.assert_awaited_once_with(
+            "big_five",
+            "openness",
+            value={"score": 0.8, "label": "high"},
+            reason="user described creative interests",
+        )
+
+    async def test_update_user_model_rejects_non_dict_value(self) -> None:
+        result = await execute_tool(
+            "update_user_model",
+            {"framework": "big_five", "dimension": "openness", "value": "not a dict"},
+        )
+        assert "Error" in result
+
+    async def test_update_user_model_without_reason(self) -> None:
+        mock = AsyncMock(return_value=_FakeDimensionResult())
+        with patch("theo.memory.tools.user_model.update_dimension", mock):
+            await execute_tool(
+                "update_user_model",
+                {
+                    "framework": "big_five",
+                    "dimension": "openness",
+                    "value": {"score": 0.8},
+                },
+            )
+
+        _, kwargs = mock.await_args
+        assert kwargs["reason"] is None
+
+
+# -- store_memory with episode_id tests ------------------------------------
+
+
+class TestStoreMemoryEpisodeId:
+    async def test_store_memory_records_mention_when_episode_id_provided(self) -> None:
+        mock_store = AsyncMock(return_value=42)
+        mock_mention = AsyncMock()
+        with (
+            patch("theo.memory.tools.nodes.store_node", mock_store),
+            patch("theo.memory.tools.record_mention", mock_mention),
+        ):
+            result = await execute_tool(
+                "store_memory",
+                {"kind": "fact", "body": "test"},
+                episode_id=10,
+            )
+
+        parsed = json.loads(result)
+        assert parsed["node_id"] == 42
+        mock_mention.assert_awaited_once_with(10, 42)
+
+    async def test_store_memory_skips_mention_when_no_episode_id(self) -> None:
+        mock_store = AsyncMock(return_value=42)
+        mock_mention = AsyncMock()
+        with (
+            patch("theo.memory.tools.nodes.store_node", mock_store),
+            patch("theo.memory.tools.record_mention", mock_mention),
+        ):
+            await execute_tool(
+                "store_memory",
+                {"kind": "fact", "body": "test"},
+            )
+
+        mock_mention.assert_not_awaited()
+
+
+# -- advance_onboarding tests -----------------------------------------------
+
+
+class TestAdvanceOnboarding:
+    async def test_advance_onboarding_no_active_session(self) -> None:
+        mock_get = AsyncMock(return_value=None)
+        with patch("theo.memory.tools.onboarding_flow.get_onboarding_state", mock_get):
+            result = await execute_tool("advance_onboarding", {"summary": "done"})
+
+        parsed = json.loads(result)
+        assert "error" in parsed
+
+    async def test_advance_onboarding_completes(self) -> None:
+        mock_state = MagicMock(phase="intro", phase_index=0)
+        mock_get = AsyncMock(return_value=mock_state)
+        mock_advance = AsyncMock(return_value=None)
+
+        with (
+            patch("theo.memory.tools.onboarding_flow.get_onboarding_state", mock_get),
+            patch("theo.memory.tools.onboarding_flow.advance_phase", mock_advance),
+        ):
+            result = await execute_tool("advance_onboarding", {"summary": "all done"})
+
+        parsed = json.loads(result)
+        assert parsed["completed"] is True
+
+    async def test_advance_onboarding_moves_to_next_phase(self) -> None:
+        mock_state = MagicMock(phase="intro", phase_index=0)
+        mock_next = MagicMock(phase="values", phase_index=1)
+        mock_get = AsyncMock(return_value=mock_state)
+        mock_advance = AsyncMock(return_value=mock_next)
+
+        with (
+            patch("theo.memory.tools.onboarding_flow.get_onboarding_state", mock_get),
+            patch("theo.memory.tools.onboarding_flow.advance_phase", mock_advance),
+        ):
+            result = await execute_tool("advance_onboarding", {"summary": "learned intro"})
+
+        parsed = json.loads(result)
+        assert parsed["phase"] == "values"
+        assert parsed["phase_index"] == 1

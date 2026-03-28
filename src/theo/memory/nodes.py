@@ -7,7 +7,7 @@ import contextvars
 import logging
 from typing import TYPE_CHECKING, Any
 
-from opentelemetry import trace
+from opentelemetry import metrics, trace
 
 from theo.config import get_settings
 from theo.db import db
@@ -21,6 +21,15 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+_meter = metrics.get_meter(__name__)
+_nodes_stored = _meter.create_counter(
+    "theo.memory.nodes.stored",
+    description="Total nodes stored in the knowledge graph",
+)
+_nodes_searched = _meter.create_counter(
+    "theo.memory.nodes.searched",
+    description="Total node search operations",
+)
 
 _background_tasks: set[asyncio.Task[None]] = set()
 
@@ -101,6 +110,7 @@ async def store_node(  # noqa: PLR0913
             sensitivity,
             meta if meta is not None else {},
         )
+        _nodes_stored.add(1, {"node.kind": kind})
         log.info("stored node", extra={"node_id": row_id, "kind": kind})
 
         if get_settings().contradiction_check_enabled:
@@ -136,6 +146,7 @@ async def search_nodes(
             rows = await db.pool.fetch(_SEARCH_NODES, vec, limit)
 
         results = [_row_to_result(r, with_similarity=True) for r in rows]
+        _nodes_searched.add(1)
         log.debug("search returned %d node(s)", len(results))
         return results
 

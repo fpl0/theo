@@ -102,7 +102,10 @@ async def _shutdown(
         log.info("shutting down")
 
         if gate is not None:
-            await gate.stop()
+            try:
+                await gate.stop()
+            except Exception:
+                log.exception("gate stop failed")
 
         if engine is not None:
             try:
@@ -110,8 +113,14 @@ async def _shutdown(
             except TimeoutError:
                 log.warning("engine drain timed out after %.0fs, killing", _DRAIN_TIMEOUT_S)
                 engine.kill()
+            except Exception:
+                log.exception("engine stop failed")
 
-        await drain_background_tasks()
+        try:
+            await drain_background_tasks()
+        except Exception:
+            log.exception("background task drain failed")
+
         await bus.stop()
         await db.close()
         shutdown_telemetry()

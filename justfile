@@ -55,18 +55,18 @@ dev: up dashboards
 
 # Full quality gate — lint + typecheck + test (fail-fast)
 check:
-    uv run ruff check src/
-    uv run ruff format --check src/
+    uv run ruff check src/ tests/
+    uv run ruff format --check src/ tests/
     uv run sqlfluff lint src/
-    uv run ty check src/
+    uv run ty check src/ tests/
     uv run pytest
 
 # Lint + typecheck only (no tests)
 lint:
-    uv run ruff check src/
-    uv run ruff format --check src/
+    uv run ruff check src/ tests/
+    uv run ruff format --check src/ tests/
     uv run sqlfluff lint src/
-    uv run ty check src/
+    uv run ty check src/ tests/
 
 # Run tests
 test:
@@ -74,8 +74,8 @@ test:
 
 # Auto-format Python and SQL
 fmt:
-    uv run ruff check --fix src/
-    uv run ruff format src/
+    uv run ruff check --fix src/ tests/
+    uv run ruff format src/ tests/
     uv run sqlfluff fix src/
 
 # ---------------------------------------------------------------------------

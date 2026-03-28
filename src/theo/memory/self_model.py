@@ -8,6 +8,7 @@ from typing import Any
 from opentelemetry import trace
 
 from theo.db import db
+from theo.errors import SelfModelDomainNotFoundError
 from theo.memory._types import DomainResult
 
 log = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ async def record_outcome(domain: str, *, correct: bool) -> DomainResult:
     ``correct_predictions``, recomputes ``accuracy``, and sets
     ``last_evaluated_at`` to now.
 
-    Raises ``ValueError`` if *domain* does not exist.
+    Raises ``SelfModelDomainNotFoundError`` if *domain* does not exist.
     """
     with tracer.start_as_current_span(
         "record_self_model_outcome",
@@ -69,7 +70,7 @@ async def record_outcome(domain: str, *, correct: bool) -> DomainResult:
         row = await db.pool.fetchrow(_RECORD_OUTCOME, domain, correct)
         if row is None:
             msg = f"unknown self-model domain {domain!r}"
-            raise ValueError(msg)
+            raise SelfModelDomainNotFoundError(msg)
         result = _row_to_result(row)
         log.info(
             "recorded outcome",

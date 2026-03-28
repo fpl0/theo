@@ -6,7 +6,7 @@ import dataclasses
 import logging
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-from opentelemetry import trace
+from opentelemetry import metrics, trace
 
 from theo.db import db
 
@@ -15,6 +15,11 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+_meter = metrics.get_meter(__name__)
+_core_updates = _meter.create_counter(
+    "theo.memory.core.updates",
+    description="Total core memory document updates",
+)
 
 type CoreMemoryLabel = Literal["persona", "goals", "user_model", "context"]
 
@@ -159,6 +164,7 @@ async def update(label: str, *, body: dict[str, Any], reason: str | None = None)
                 reason,
             )
 
+        _core_updates.add(1, {"core_memory.label": validated})
         log.info(
             "updated core memory",
             extra={"label": validated, "version": new_version, "reason": reason},

@@ -37,5 +37,9 @@ class PrivacyViolationError(TheoError):
     """Raised when the privacy filter rejects a storage operation."""
 
 
+class SelfModelDomainNotFoundError(TheoError):
+    """Raised when a self-model domain does not exist."""
+
+
 class TranscriptionError(TheoError):
     """Raised when audio transcription fails."""

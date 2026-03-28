@@ -31,7 +31,7 @@ type ContentCategory = Literal[
     "general", "financial", "medical", "identity", "location", "relationship"
 ]
 
-_SENSITIVITY_ORDER: dict[str, int] = {"normal": 0, "sensitive": 1, "private": 2}
+_SENSITIVITY_ORDER: dict[SensitivityLevel, int] = {"normal": 0, "sensitive": 1, "private": 2}
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -47,25 +47,23 @@ class PrivacyDecision:
 # Stage 1 — Source trust check
 # ---------------------------------------------------------------------------
 
-# Maps trust tier to (allowed, max_sensitivity).
-# max_sensitivity is the highest level that tier may store.
-_TRUST_RULES: dict[str, tuple[bool, str]] = {
-    "owner": (True, "private"),
-    "owner_confirmed": (True, "private"),
-    "verified": (True, "sensitive"),
-    "inferred": (True, "sensitive"),
-    "external": (True, "normal"),
-    "untrusted": (True, "normal"),
+# Maps trust tier to its maximum storable sensitivity level.
+_TRUST_MAX_SENSITIVITY: dict[TrustTier, SensitivityLevel] = {
+    "owner": "private",
+    "owner_confirmed": "private",
+    "verified": "sensitive",
+    "inferred": "sensitive",
+    "external": "normal",
+    "untrusted": "normal",
 }
 
 
-def _check_trust(trust: TrustTier) -> tuple[bool, SensitivityLevel]:
-    """Return (allowed, max_sensitivity) for the given trust tier."""
-    if trust not in _TRUST_RULES:
+def _check_trust(trust: TrustTier) -> SensitivityLevel:
+    """Return the max sensitivity for the given trust tier."""
+    if trust not in _TRUST_MAX_SENSITIVITY:
         msg = f"unknown trust tier: {trust!r}"
         raise PrivacyViolationError(msg)
-    allowed, max_sens = _TRUST_RULES[trust]
-    return allowed, max_sens
+    return _TRUST_MAX_SENSITIVITY[trust]
 
 
 # ---------------------------------------------------------------------------
@@ -127,7 +125,7 @@ def _classify_content(body: str) -> ContentCategory:
 # ---------------------------------------------------------------------------
 
 # Categories that must be at least "sensitive" regardless of trust.
-_SENSITIVE_CATEGORIES: frozenset[str] = frozenset({"financial", "medical", "identity"})
+_SENSITIVE_CATEGORIES: frozenset[ContentCategory] = frozenset({"financial", "medical", "identity"})
 
 
 def _assign_sensitivity(
@@ -138,7 +136,7 @@ def _assign_sensitivity(
 
     Returns ``(False, ...)`` when the combination must be rejected.
     """
-    _, max_sens = _check_trust(trust)
+    max_sens = _check_trust(trust)
     max_ord = _SENSITIVITY_ORDER[max_sens]
 
     # Determine minimum sensitivity for this content category.
@@ -202,7 +200,7 @@ def evaluate(
             )
 
         # Stage 1: trust check.
-        _, max_sens = _check_trust(trust)
+        max_sens = _check_trust(trust)
 
         # Stage 2: content classification.
         category = _classify_content(body)

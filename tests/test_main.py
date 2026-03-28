@@ -12,7 +12,7 @@ from theo.__main__ import _DRAIN_TIMEOUT_S, _log_banner, _shutdown, _startup, _v
 from theo.config import Settings
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
+    from collections.abc import Generator
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ class TestLogBanner:
 
 
 @pytest.fixture
-def mock_components() -> AsyncGenerator[dict[str, MagicMock]]:
+def mock_components() -> Generator[dict[str, MagicMock]]:
     """Patch all external components for lifecycle tests."""
     mock_db = MagicMock()
     mock_db.connect = AsyncMock()
@@ -234,3 +234,22 @@ class TestShutdown:
 
         m["bus"].stop.assert_awaited_once()
         m["db"].close.assert_awaited_once()
+
+    async def test_gate_stop_failure_does_not_block_shutdown(
+        self,
+        mock_components: dict[str, MagicMock],
+    ) -> None:
+        """If gate.stop() raises, engine/bus/db must still be stopped."""
+        m = mock_components
+        m["gate"].stop = AsyncMock(side_effect=RuntimeError("gate exploded"))
+
+        call_order: list[str] = []
+        m["engine"].stop = AsyncMock(side_effect=lambda: call_order.append("engine"))
+        m["bus"].stop = AsyncMock(side_effect=lambda: call_order.append("bus"))
+        m["db"].close = AsyncMock(side_effect=lambda: call_order.append("db"))
+
+        await _shutdown(gate=m["gate"], engine=m["engine"])
+
+        assert "engine" in call_order
+        assert "bus" in call_order
+        assert "db" in call_order

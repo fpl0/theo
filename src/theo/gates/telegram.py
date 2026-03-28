@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
 import re
 import tempfile
 import time
@@ -14,7 +15,8 @@ from uuid import UUID, uuid5
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
+from aiogram.enums import ChatAction, ParseMode
+from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command
 from opentelemetry import metrics, trace
 
@@ -79,7 +81,8 @@ def split_message(text: str, max_length: int = _MAX_MESSAGE_LENGTH) -> list[str]
     """Split *text* into chunks of at most *max_length* characters.
 
     Splits on the last newline before the limit when possible,
-    otherwise hard-splits at *max_length*.
+    otherwise hard-splits at *max_length*. Never splits inside a
+    MarkdownV2 escape sequence (``\\X``).
     """
     if len(text) <= max_length:
         return [text]
@@ -94,6 +97,10 @@ def split_message(text: str, max_length: int = _MAX_MESSAGE_LENGTH) -> list[str]
         cut = text.rfind("\n", 0, max_length)
         if cut <= 0:
             cut = max_length
+
+        # Avoid splitting inside a backslash escape (e.g. "\_").
+        if cut > 0 and text[cut - 1] == "\\":
+            cut -= 1
 
         parts.append(text[:cut])
         text = text[cut:].lstrip("\n")
@@ -285,6 +292,7 @@ class TelegramGate:
                     "Just keep chatting to continue.",
                     parse_mode=None,
                 )
+                log.info("owner issued /onboard (in progress)")
                 return
 
             if await is_onboarding_completed():
@@ -292,6 +300,7 @@ class TelegramGate:
                     "Onboarding already complete. Send /onboard reset to redo.",
                     parse_mode=None,
                 )
+                log.info("owner issued /onboard (already complete)")
                 return
 
             new_state = await start_onboarding()
@@ -353,9 +362,9 @@ class TelegramGate:
 
     async def _handle_voice(self, message: Message, chat_id: int) -> None:
         """Download a voice/audio message, transcribe it, and publish the text."""
+        # Caller already verified voice is not None; assert for type safety.
         voice = message.voice or message.audio
-        if voice is None:
-            return
+        assert voice is not None  # noqa: S101
 
         session_id = session_id_for_chat(chat_id)
         duration_s: int = getattr(voice, "duration", 0)
@@ -368,6 +377,12 @@ class TelegramGate:
                 "voice.duration_s": duration_s,
             },
         ) as span:
+            # Let the user know we're processing their voice message.
+            await self._bot.send_chat_action(
+                chat_id=self._owner_chat_id,
+                action=ChatAction.TYPING,
+            )
+
             tmp: Path | None = None
             try:
                 file = await self._bot.get_file(voice.file_id)
@@ -376,9 +391,15 @@ class TelegramGate:
                         "voice file has no download path",
                         extra={"file_id": voice.file_id},
                     )
+                    await message.reply(
+                        "Could not download your voice message. Please try again.",
+                        parse_mode=None,
+                    )
                     return
                 suffix = Path(file.file_path).suffix or ".ogg"
-                tmp = Path(tempfile.mkstemp(suffix=suffix)[1])
+                fd, tmp_str = tempfile.mkstemp(suffix=suffix)
+                os.close(fd)
+                tmp = Path(tmp_str)
                 await self._bot.download_file(file.file_path, destination=tmp)
                 body = await transcriber.transcribe(tmp)
             except TranscriptionError:
@@ -386,11 +407,20 @@ class TelegramGate:
                     "voice transcription failed",
                     extra={"chat_id": chat_id, "file_id": voice.file_id},
                 )
+                await message.reply(
+                    "Sorry, I couldn't transcribe that voice message. "
+                    "Please try again or type your message.",
+                    parse_mode=None,
+                )
                 return
             except Exception:
                 log.exception(
                     "voice message handling failed",
                     extra={"chat_id": chat_id},
+                )
+                await message.reply(
+                    "Something went wrong processing your voice message. Please try again.",
+                    parse_mode=None,
                 )
                 return
             finally:
@@ -440,23 +470,33 @@ class TelegramGate:
         ):
             existing_msg_id = self._streaming.get(event.session_id)
 
-            if existing_msg_id is None:
-                # First chunk -- send a new message.
-                escaped = escape_markdownv2(event.body)
-                sent = await self._bot.send_message(
-                    chat_id=self._owner_chat_id,
-                    text=escaped or escape_markdownv2("..."),
-                )
-                self._streaming[event.session_id] = sent.message_id
-            else:
-                # Subsequent chunk -- edit the existing message.
-                escaped = escape_markdownv2(event.body)
-                if escaped:
-                    await self._bot.edit_message_text(
+            try:
+                if existing_msg_id is None:
+                    # First chunk -- send typing indicator then new message.
+                    await self._bot.send_chat_action(
                         chat_id=self._owner_chat_id,
-                        message_id=existing_msg_id,
-                        text=escaped,
+                        action=ChatAction.TYPING,
                     )
+                    escaped = escape_markdownv2(event.body)
+                    sent = await self._bot.send_message(
+                        chat_id=self._owner_chat_id,
+                        text=escaped or escape_markdownv2("..."),
+                    )
+                    self._streaming[event.session_id] = sent.message_id
+                else:
+                    # Subsequent chunk -- edit the existing message.
+                    escaped = escape_markdownv2(event.body)
+                    if escaped:
+                        await self._bot.edit_message_text(
+                            chat_id=self._owner_chat_id,
+                            message_id=existing_msg_id,
+                            text=escaped,
+                        )
+            except TelegramAPIError:
+                log.exception(
+                    "failed to deliver chunk",
+                    extra={"session_id": str(event.session_id)},
+                )
 
     async def _on_response_complete(self, event: ResponseComplete) -> None:
         """Finalize the response: send the full text, replacing any streamed message."""
@@ -470,23 +510,32 @@ class TelegramGate:
                 "response.length": len(event.body),
             },
         ):
-            parts = split_message(event.body)
+            escaped_body = escape_markdownv2(event.body)
+            parts = split_message(escaped_body)
 
             existing_msg_id = self._streaming.pop(event.session_id, None)
 
             for i, part in enumerate(parts):
-                escaped = escape_markdownv2(part)
                 if i == 0 and existing_msg_id is not None:
-                    # Replace the streamed message with final text.
-                    await self._bot.edit_message_text(
-                        chat_id=self._owner_chat_id,
-                        message_id=existing_msg_id,
-                        text=escaped,
-                    )
+                    try:
+                        await self._bot.edit_message_text(
+                            chat_id=self._owner_chat_id,
+                            message_id=existing_msg_id,
+                            text=part,
+                        )
+                    except TelegramAPIError:
+                        log.warning(
+                            "edit failed, sending as new message",
+                            extra={"session_id": str(event.session_id)},
+                        )
+                        await self._bot.send_message(
+                            chat_id=self._owner_chat_id,
+                            text=part,
+                        )
                 else:
                     await self._bot.send_message(
                         chat_id=self._owner_chat_id,
-                        text=escaped,
+                        text=part,
                     )
 
             _messages_sent_counter.add(1)

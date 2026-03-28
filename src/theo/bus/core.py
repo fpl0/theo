@@ -213,6 +213,12 @@ class EventBus:
                     _dispatched_counter.add(1, {"event.type": event_type_name})
 
                 if durable and all_ok:
-                    await db.pool.execute(_MARK_PROCESSED, event.id)
+                    try:
+                        await db.pool.execute(_MARK_PROCESSED, event.id)
+                    except Exception:
+                        log.exception(
+                            "failed to mark event processed",
+                            extra={"event_id": str(event.id)},
+                        )
 
             self._queue.task_done()

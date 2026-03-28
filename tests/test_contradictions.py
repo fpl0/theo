@@ -12,8 +12,13 @@ import numpy as np
 import pytest
 
 from theo.llm import StreamDone, TextDelta
-from theo.memory.contradictions import ConflictResult, check_contradiction, resolve_contradiction
-from theo.memory.nodes import store_node
+from theo.memory.contradictions import (
+    ConflictResult,
+    _parse_contradiction_response,
+    check_contradiction,
+    resolve_contradiction,
+)
+from theo.memory.nodes import drain_background_tasks, store_node
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -392,3 +397,69 @@ async def test_store_node_resolves_when_conflict_found(
 
     assert result == 99
     mock_resolve.assert_awaited_once_with(99, conflict)
+
+
+# ---------------------------------------------------------------------------
+# _parse_contradiction_response edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_parse_non_dict_json_returns_no_conflict() -> None:
+    """JSON that parses as a non-dict (e.g. list, string) should be treated as no conflict."""
+    result, explanation = _parse_contradiction_response("[1, 2, 3]")
+    assert result is False
+    assert explanation == ""
+
+
+def test_parse_missing_contradicts_key_defaults_false() -> None:
+    result, _explanation = _parse_contradiction_response('{"explanation": "something"}')
+    assert result is False
+
+
+def test_parse_valid_contradiction_response() -> None:
+    raw = json.dumps({"contradicts": True, "explanation": "They conflict."})
+    result, explanation = _parse_contradiction_response(raw)
+    assert result is True
+    assert explanation == "They conflict."
+
+
+def test_parse_contradiction_false_response() -> None:
+    raw = json.dumps({"contradicts": False, "explanation": ""})
+    result, explanation = _parse_contradiction_response(raw)
+    assert result is False
+    assert explanation == ""
+
+
+# ---------------------------------------------------------------------------
+# drain_background_tasks
+# ---------------------------------------------------------------------------
+
+
+async def test_drain_background_tasks_noop_when_empty() -> None:
+    """drain_background_tasks should return immediately when no tasks exist."""
+    from theo.memory.nodes import _background_tasks
+
+    _background_tasks.clear()
+    await drain_background_tasks(drain_timeout=1.0)
+
+
+async def test_drain_background_tasks_waits_for_pending(
+    mock_pool: AsyncMock,
+    mock_embedder: AsyncMock,
+) -> None:
+    """drain_background_tasks should wait for in-flight contradiction checks."""
+    mock_pool.fetchval.return_value = 99
+    mock_check = AsyncMock(return_value=None)
+
+    with (
+        patch("theo.memory.nodes.db", pool=mock_pool),
+        patch("theo.memory.nodes.embedder", mock_embedder),
+        patch("theo.memory.nodes.get_settings") as mock_settings,
+        patch("theo.memory.contradictions.check_contradiction", mock_check),
+    ):
+        mock_settings.return_value = MagicMock(contradiction_check_enabled=True)
+        await store_node(kind="fact", body="drain test")
+        # Drain should wait for the background task
+        await drain_background_tasks(drain_timeout=5.0)
+
+    mock_check.assert_awaited_once()

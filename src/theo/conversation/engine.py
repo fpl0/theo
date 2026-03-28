@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from theo.bus import bus
 from theo.bus.events import MessageReceived
@@ -13,6 +13,7 @@ from theo.errors import ConversationNotRunningError
 from theo.resilience import retry_queue
 
 if TYPE_CHECKING:
+    from collections.abc import Coroutine
     from uuid import UUID
 
     from theo.bus.events import Channel, TrustTier
@@ -25,7 +26,7 @@ log = logging.getLogger(__name__)
 class ConversationEngine:
     """Processes incoming messages through the LLM pipeline.
 
-    Lifecycle: ``start`` → ``pause``/``resume`` → ``stop``.
+    Lifecycle: ``start`` -> ``pause``/``resume`` -> ``stop``.
 
     Concurrency: one turn at a time per session. Messages arriving while a
     session is busy are queued and processed in order.
@@ -33,16 +34,13 @@ class ConversationEngine:
 
     def __init__(self) -> None:
         self._state: EngineState = "stopped"
-        # Per-session lock ensures sequential processing within a session.
         self._session_locks: dict[UUID, asyncio.Lock] = {}
-        # Internal queue for messages received while paused.
         self._paused_queue: asyncio.Queue[MessageReceived] = asyncio.Queue()
-        # Track in-flight turns for clean shutdown drain.
         self._inflight = 0
         self._drained = asyncio.Event()
-        self._drained.set()  # starts drained (no work in progress)
+        self._drained.set()
 
-    # ── lifecycle ─────────────────────────────────────────────────────
+    # -- lifecycle --------------------------------------------------------
 
     async def start(self) -> None:
         """Start the engine and subscribe to the event bus."""
@@ -74,7 +72,6 @@ class ConversationEngine:
             return
         self._state = "stopped"
         await retry_queue.stop()
-        # Wait for any in-flight turns to complete.
         await self._drained.wait()
         log.info("conversation engine stopped")
 
@@ -98,7 +95,7 @@ class ConversationEngine:
         """Number of messages queued while paused."""
         return self._paused_queue.qsize()
 
-    # ── event handler ─────────────────────────────────────────────────
+    # -- event handler ----------------------------------------------------
 
     async def _on_message(self, event: MessageReceived) -> None:
         """Bus handler for MessageReceived events."""
@@ -116,7 +113,28 @@ class ConversationEngine:
             event = self._paused_queue.get_nowait()
             await self._process_message(event)
 
-    # ── core turn dispatch ────────────────────────────────────────────
+    # -- core turn dispatch -----------------------------------------------
+
+    async def _run_under_lock(
+        self,
+        session_id: UUID,
+        coro: Coroutine[Any, Any, None],
+    ) -> None:
+        """Execute *coro* under the per-session lock with inflight tracking."""
+        lock = self._session_locks.setdefault(session_id, asyncio.Lock())
+        async with lock:
+            self._inflight += 1
+            self._drained.clear()
+            try:
+                await coro
+            finally:
+                self._inflight -= 1
+                if self._inflight == 0:
+                    self._drained.set()
+        # Clean up session lock if no longer in use.
+        lock = self._session_locks.get(session_id)
+        if lock is not None and not lock.locked():
+            self._session_locks.pop(session_id, None)
 
     async def _process_message(self, event: MessageReceived) -> None:
         """Execute a full conversation turn for one message."""
@@ -124,23 +142,7 @@ class ConversationEngine:
         if session_id is None:
             log.warning("dropping message without session_id", extra={"event_id": str(event.id)})
             return
-
-        lock = self._session_locks.setdefault(session_id, asyncio.Lock())
-
-        async with lock:
-            self._inflight += 1
-            self._drained.clear()
-            try:
-                await execute_turn(event, session_id)
-            finally:
-                self._inflight -= 1
-                if self._inflight == 0:
-                    self._drained.set()
-
-        # Clean up session lock if no longer in use.
-        lock = self._session_locks.get(session_id)
-        if lock is not None and not lock.locked():
-            self._session_locks.pop(session_id, None)
+        await self._run_under_lock(session_id, execute_turn(event, session_id))
 
     async def _retry_message(
         self,
@@ -161,4 +163,7 @@ class ConversationEngine:
             channel=channel,
             trust=trust,
         )
-        await execute_turn(event, session_id, persist_user_message=False)
+        await self._run_under_lock(
+            session_id,
+            execute_turn(event, session_id, persist_user_message=False),
+        )

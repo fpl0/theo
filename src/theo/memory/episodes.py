@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from opentelemetry import trace
+from opentelemetry import metrics, trace
 
 from theo.db import db
 from theo.embeddings import embedder
@@ -25,6 +25,11 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+_meter = metrics.get_meter(__name__)
+_episodes_stored = _meter.create_counter(
+    "theo.memory.episodes.stored",
+    description="Total episodes stored",
+)
 
 # ---------------------------------------------------------------------------
 # SQL
@@ -113,6 +118,7 @@ async def store_episode(  # noqa: PLR0913
             sensitivity,
             meta if meta is not None else {},
         )
+        _episodes_stored.add(1, {"episode.role": role, "episode.channel": channel})
         log.info(
             "stored episode",
             extra={"episode_id": row_id, "session_id": str(session_id), "role": role},

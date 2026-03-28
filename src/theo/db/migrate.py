@@ -29,12 +29,13 @@ async def migrate(db: Database) -> None:
     """Discover and apply unapplied migrations in order."""
     pool = db.pool
 
-    with tracer.start_as_current_span("migrate"):
+    with tracer.start_as_current_span("migrate") as span:
         async with pool.acquire() as conn:
             await conn.execute(_ENSURE_TABLE)
 
             rows = await conn.fetch("SELECT version FROM _schema_version")
             applied: set[int] = {row["version"] for row in rows}
+            applied_count = 0
 
             for path in sorted(_MIGRATIONS_DIR.glob("*.sql")):
                 version = int(path.name.split("_", maxsplit=1)[0])
@@ -51,5 +52,7 @@ async def migrate(db: Database) -> None:
                         version,
                         path.stem,
                     )
+                applied_count += 1
 
-            log.info("schema up to date")
+            span.set_attribute("migrate.applied_count", applied_count)
+            log.info("schema up to date", extra={"applied_count": applied_count})

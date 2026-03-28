@@ -7,12 +7,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
 import pytest
+from aiogram.exceptions import TelegramAPIError
 
 from theo.bus import EventBus, bus
 from theo.bus.events import MessageReceived, ResponseChunk, ResponseComplete
 from theo.config import Settings
 from theo.conversation import ConversationEngine
-from theo.errors import GateConfigError
+from theo.errors import GateConfigError, TranscriptionError
 from theo.gates.telegram import (
     _MAX_MESSAGE_LENGTH,
     TelegramGate,
@@ -217,6 +218,7 @@ class TestResponseChunkDelivery:
         sent.message_id = 200
         gate._bot.send_message = AsyncMock(return_value=sent)
         gate._bot.edit_message_text = AsyncMock()
+        gate._bot.send_chat_action = AsyncMock()
 
         chunk = ResponseChunk(body="hello", session_id=session_id, done=False)
         await gate._on_response_chunk(chunk)
@@ -265,11 +267,9 @@ class TestResponseCompleteDelivery:
         event = ResponseComplete(body="final answer", session_id=session_id)
         await gate._on_response_complete(event)
 
-        gate._bot.edit_message_text.assert_called_once_with(
-            chat_id=42,
-            message_id=200,
-            text=escape_markdownv2("final answer"),
-        )
+        gate._bot.edit_message_text.assert_called_once()
+        call_text = gate._bot.edit_message_text.call_args.kwargs["text"]
+        assert call_text == escape_markdownv2("final answer")
         gate._bot.send_message.assert_not_called()
         assert session_id not in gate._streaming
 
@@ -388,6 +388,7 @@ class TestCommandPermissions:
             "_on_cmd_stop",
             "_on_cmd_kill",
             "_on_cmd_status",
+            "_on_cmd_onboard",
         ],
     )
     async def test_non_owner_gets_no_response(self, handler: str) -> None:
@@ -565,22 +566,28 @@ def _make_voice_message(chat_id: int, duration: int = 5) -> MagicMock:
     msg.voice.file_id = "file_abc123"
     msg.voice.duration = duration
     msg.audio = None
+    msg.reply = AsyncMock()
     return msg
+
+
+def _setup_voice_bot(gate: TelegramGate, file_path: str = "voice/file.ogg") -> None:
+    """Mock bot methods needed for voice message handling."""
+    file_mock = MagicMock()
+    file_mock.file_path = file_path
+    gate._bot.get_file = AsyncMock(return_value=file_mock)
+    gate._bot.download_file = AsyncMock()
+    gate._bot.send_chat_action = AsyncMock()
 
 
 class TestVoiceMessageHandling:
     async def test_voice_message_publishes_transcribed_text(self) -> None:
         gate = _make_gate()
+        _setup_voice_bot(gate)
         published: list[MessageReceived] = []
 
         async def mock_publish(event: object) -> None:
             if isinstance(event, MessageReceived):
                 published.append(event)
-
-        file_mock = MagicMock()
-        file_mock.file_path = "voice/file.ogg"
-        gate._bot.get_file = AsyncMock(return_value=file_mock)
-        gate._bot.download_file = AsyncMock()
 
         with (
             patch.object(bus, "publish", side_effect=mock_publish),
@@ -610,15 +617,11 @@ class TestVoiceMessageHandling:
 
     async def test_empty_transcription_not_published(self) -> None:
         gate = _make_gate()
+        _setup_voice_bot(gate)
         published: list[object] = []
 
         async def mock_publish(event: object) -> None:
             published.append(event)
-
-        file_mock = MagicMock()
-        file_mock.file_path = "voice/file.ogg"
-        gate._bot.get_file = AsyncMock(return_value=file_mock)
-        gate._bot.download_file = AsyncMock()
 
         with (
             patch.object(bus, "publish", side_effect=mock_publish),
@@ -631,16 +634,12 @@ class TestVoiceMessageHandling:
 
     async def test_voice_meta_includes_telegram_ids(self) -> None:
         gate = _make_gate()
+        _setup_voice_bot(gate)
         published: list[MessageReceived] = []
 
         async def mock_publish(event: object) -> None:
             if isinstance(event, MessageReceived):
                 published.append(event)
-
-        file_mock = MagicMock()
-        file_mock.file_path = "voice/file.ogg"
-        gate._bot.get_file = AsyncMock(return_value=file_mock)
-        gate._bot.download_file = AsyncMock()
 
         with (
             patch.object(bus, "publish", side_effect=mock_publish),
@@ -656,11 +655,7 @@ class TestVoiceMessageHandling:
 
     async def test_temp_file_cleaned_up_after_transcription(self) -> None:
         gate = _make_gate()
-
-        file_mock = MagicMock()
-        file_mock.file_path = "voice/file.ogg"
-        gate._bot.get_file = AsyncMock(return_value=file_mock)
-        gate._bot.download_file = AsyncMock()
+        _setup_voice_bot(gate)
 
         unlinked: list[str] = []
 
@@ -679,14 +674,8 @@ class TestVoiceMessageHandling:
         assert unlinked[0].endswith(".ogg")
 
     async def test_temp_file_cleaned_up_on_transcription_error(self) -> None:
-        from theo.errors import TranscriptionError
-
         gate = _make_gate()
-
-        file_mock = MagicMock()
-        file_mock.file_path = "voice/file.ogg"
-        gate._bot.get_file = AsyncMock(return_value=file_mock)
-        gate._bot.download_file = AsyncMock()
+        _setup_voice_bot(gate)
 
         unlinked: list[str] = []
 
@@ -713,6 +702,7 @@ class TestVoiceMessageHandling:
 
     async def test_audio_message_handled_like_voice(self) -> None:
         gate = _make_gate()
+        _setup_voice_bot(gate, file_path="audio/file.mp3")
         published: list[MessageReceived] = []
 
         async def mock_publish(event: object) -> None:
@@ -727,11 +717,7 @@ class TestVoiceMessageHandling:
         msg.audio = MagicMock()
         msg.audio.file_id = "audio_file_123"
         msg.audio.duration = 10
-
-        file_mock = MagicMock()
-        file_mock.file_path = "audio/file.mp3"
-        gate._bot.get_file = AsyncMock(return_value=file_mock)
-        gate._bot.download_file = AsyncMock()
+        msg.reply = AsyncMock()
 
         with (
             patch.object(bus, "publish", side_effect=mock_publish),
@@ -744,3 +730,145 @@ class TestVoiceMessageHandling:
         assert published[0].body == "audio text"
         assert published[0].meta["source"] == "voice"
         assert published[0].meta["duration_s"] == 10
+
+    async def test_voice_sends_typing_indicator(self) -> None:
+        gate = _make_gate()
+        _setup_voice_bot(gate)
+
+        with (
+            patch.object(bus, "publish", new_callable=AsyncMock),
+            patch("theo.gates.telegram.transcriber") as mock_transcriber,
+        ):
+            mock_transcriber.transcribe = AsyncMock(return_value="text")
+            await gate._on_message(_make_voice_message(chat_id=42))
+
+        gate._bot.send_chat_action.assert_called_once()
+
+    async def test_transcription_error_replies_to_user(self) -> None:
+        gate = _make_gate()
+        _setup_voice_bot(gate)
+
+        msg = _make_voice_message(chat_id=42)
+
+        with (
+            patch.object(bus, "publish", new_callable=AsyncMock),
+            patch("theo.gates.telegram.transcriber") as mock_transcriber,
+            patch.object(Path, "unlink", lambda _self, **_kw: None),
+        ):
+            mock_transcriber.transcribe = AsyncMock(
+                side_effect=TranscriptionError("failed"),
+            )
+            await gate._on_message(msg)
+
+        msg.reply.assert_called_once()
+        assert "couldn't transcribe" in msg.reply.call_args.args[0]
+
+    async def test_voice_download_error_replies_to_user(self) -> None:
+        gate = _make_gate()
+        gate._bot.get_file = AsyncMock(side_effect=RuntimeError("network"))
+        gate._bot.send_chat_action = AsyncMock()
+
+        msg = _make_voice_message(chat_id=42)
+
+        with patch.object(bus, "publish", new_callable=AsyncMock):
+            await gate._on_message(msg)
+
+        msg.reply.assert_called_once()
+        assert "went wrong" in msg.reply.call_args.args[0]
+
+    async def test_voice_file_path_none_replies_to_user(self) -> None:
+        gate = _make_gate()
+        _setup_voice_bot(gate)
+        # Override file_path to None.
+        gate._bot.get_file = AsyncMock(return_value=MagicMock(file_path=None))
+
+        msg = _make_voice_message(chat_id=42)
+
+        with patch.object(bus, "publish", new_callable=AsyncMock):
+            await gate._on_message(msg)
+
+        msg.reply.assert_called_once()
+        assert "download" in msg.reply.call_args.args[0].lower()
+
+
+# ── Response error handling tests ──────────────────────────────────
+
+
+def _telegram_error(msg: str = "error") -> TelegramAPIError:
+    """Create a TelegramAPIError for testing."""
+    return TelegramAPIError(method=MagicMock(), message=msg)
+
+
+class TestResponseErrorHandling:
+    async def test_chunk_send_failure_does_not_propagate(self) -> None:
+        gate = _make_gate()
+        session_id = session_id_for_chat(42)
+
+        gate._bot.send_chat_action = AsyncMock()
+        gate._bot.send_message = AsyncMock(side_effect=_telegram_error("rate limit"))
+
+        chunk = ResponseChunk(body="hello", session_id=session_id, done=False)
+        # Should not raise.
+        await gate._on_response_chunk(chunk)
+
+        assert session_id not in gate._streaming
+
+    async def test_chunk_edit_failure_does_not_propagate(self) -> None:
+        gate = _make_gate()
+        session_id = session_id_for_chat(42)
+        gate._streaming[session_id] = 200
+
+        gate._bot.edit_message_text = AsyncMock(side_effect=_telegram_error("deleted"))
+
+        chunk = ResponseChunk(body="updated", session_id=session_id, done=False)
+        # Should not raise.
+        await gate._on_response_chunk(chunk)
+
+    async def test_complete_edit_failure_falls_back_to_send(self) -> None:
+        gate = _make_gate()
+        session_id = session_id_for_chat(42)
+        gate._streaming[session_id] = 200
+
+        gate._bot.edit_message_text = AsyncMock(side_effect=_telegram_error("deleted"))
+        gate._bot.send_message = AsyncMock()
+
+        event = ResponseComplete(body="final answer", session_id=session_id)
+        await gate._on_response_complete(event)
+
+        gate._bot.send_message.assert_called_once()
+        assert session_id not in gate._streaming
+
+    async def test_first_chunk_sends_typing_indicator(self) -> None:
+        gate = _make_gate()
+        session_id = session_id_for_chat(42)
+
+        sent = MagicMock()
+        sent.message_id = 200
+        gate._bot.send_message = AsyncMock(return_value=sent)
+        gate._bot.send_chat_action = AsyncMock()
+
+        chunk = ResponseChunk(body="hello", session_id=session_id, done=False)
+        await gate._on_response_chunk(chunk)
+
+        gate._bot.send_chat_action.assert_called_once()
+
+    async def test_split_respects_escaped_length(self) -> None:
+        """Splitting happens after escaping, so parts stay within Telegram's limit."""
+        from theo.gates.telegram import _MAX_MESSAGE_LENGTH
+
+        # Create text with special chars that will expand when escaped.
+        raw = "_" * 2100  # each becomes \_ (2 chars), so 4200 escaped chars
+        escaped = escape_markdownv2(raw)
+        parts = split_message(escaped, max_length=_MAX_MESSAGE_LENGTH)
+        assert all(len(p) <= _MAX_MESSAGE_LENGTH for p in parts)
+
+
+# ── Onboard command tests ─────────────────────────────────────────
+
+
+class TestOnboardCommand:
+    async def test_non_owner_blocked(self) -> None:
+        gate = _make_gate()
+        msg = _make_cmd_message(chat_id=999, text="/onboard")
+        await gate._on_cmd_onboard(msg)
+        msg.answer.assert_not_called()

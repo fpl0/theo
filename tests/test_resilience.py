@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -237,6 +237,26 @@ class TestRetryQueue:
         assert processed == ["msg"]
         assert rq.depth == 0
 
+    async def test_circuit_open_stops_processing(self) -> None:
+        """CircuitOpenError is caught like APIUnavailableError."""
+        rq = RetryQueue()
+        processed: list[str] = []
+
+        async def circuit_open_processor(*, session_id, channel, body, trust):  # noqa: ARG001
+            if body == "blocked":
+                raise CircuitOpenError
+            processed.append(body)
+
+        rq.enqueue(session_id=_SESSION, channel="message", body="first", trust="owner")
+        rq.enqueue(session_id=_SESSION, channel="message", body="blocked", trust="owner")
+
+        rq.start(circuit_open_processor)
+        await asyncio.sleep(0.05)
+        await rq.stop()
+
+        assert processed == ["first"]
+        assert rq.depth == 1
+
     async def test_stop_is_idempotent(self) -> None:
         rq = RetryQueue()
         await rq.stop()
@@ -282,6 +302,22 @@ class TestHealthCheck:
         assert status.telegram_connected is False
         assert status.circuit_state == "open"
         assert status.retry_queue_depth == 1
+
+    async def test_db_exception_returns_not_connected(self) -> None:
+        """Any exception from the DB probe returns db_connected=False."""
+        cb = CircuitBreaker()
+        rq = RetryQueue()
+
+        mock_db_obj = MagicMock()
+        mock_db_obj.pool.execute = AsyncMock(side_effect=OSError("connection refused"))
+
+        with (
+            patch("theo.db.db", mock_db_obj),
+            patch("theo.resilience.health._check_telegram", return_value=True),
+        ):
+            status = await health_check(circuit=cb, queue=rq)
+
+        assert status.db_connected is False
 
     async def test_api_reachable_reflects_circuit_state(self) -> None:
         cb = CircuitBreaker()

@@ -8,8 +8,6 @@ from typing import TYPE_CHECKING
 
 from opentelemetry import trace
 
-from theo.errors import DatabaseNotConnectedError
-
 if TYPE_CHECKING:
     from theo.resilience.circuit import CircuitBreaker, CircuitState
     from theo.resilience.retry import RetryQueue
@@ -67,7 +65,7 @@ async def _check_db() -> bool:
 
     try:
         await db.pool.execute("SELECT 1")
-    except DatabaseNotConnectedError:
+    except Exception:  # noqa: BLE001
         return False
     else:
         return True

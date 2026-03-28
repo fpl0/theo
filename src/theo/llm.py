@@ -95,12 +95,14 @@ def classify_speed(text: str) -> Speed:
     return "reflective"
 
 
-def _model_for_speed(speed: Speed, cfg: Settings) -> str:
+def model_for_speed(speed: Speed, cfg: Settings | None = None) -> str:
+    """Return the model ID for a given speed tier."""
+    resolved = cfg or get_settings()
     if speed == "reactive":
-        return cfg.llm_model_reactive
+        return resolved.llm_model_reactive
     if speed == "deliberative":
-        return cfg.llm_model_deliberative
-    return cfg.llm_model_reflective
+        return resolved.llm_model_deliberative
+    return resolved.llm_model_reflective
 
 
 # ── Streaming ────────────────────────────────────────────────────────
@@ -123,7 +125,7 @@ async def stream_response(  # noqa: C901
     calls a tool, and a final ``StreamDone`` with token counts.
     """
     cfg = get_settings()
-    model = _model_for_speed(speed, cfg)
+    model = model_for_speed(speed, cfg)
     resolved_max = max_tokens or cfg.llm_max_tokens
 
     client = AsyncAnthropic(

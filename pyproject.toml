@@ -82,8 +82,8 @@ rules = { unresolved-attribute = "ignore" }
 # pydantic-settings constructors accept str for SecretStr and dynamic kwargs
 # like _env_file that ty cannot model.
 [[tool.ty.overrides]]
-include = ["tests/test_config.py", "tests/test_llm.py", "tests/test_onboarding.py"]
-rules = { invalid-argument-type = "ignore", missing-argument = "ignore" }
+include = ["tests/test_config.py", "tests/test_llm.py", "tests/test_main.py", "tests/test_onboarding.py"]
+rules = { invalid-argument-type = "ignore", missing-argument = "ignore", unknown-argument = "ignore" }
 
 # test_retrieval also needs unknown-argument for _env_file kwarg.
 [[tool.ty.overrides]]
@@ -94,6 +94,26 @@ rules = { invalid-argument-type = "ignore", missing-argument = "ignore", unknown
 [[tool.ty.overrides]]
 include = ["tests/test_contradictions.py"]
 rules = { invalid-assignment = "ignore" }
+
+# test_edges intentionally assigns to frozen dataclass to verify it raises.
+[[tool.ty.overrides]]
+include = ["tests/test_edges.py"]
+rules = { invalid-assignment = "ignore" }
+
+# test_self_model intentionally assigns to frozen dataclass to verify it raises.
+[[tool.ty.overrides]]
+include = ["tests/test_self_model.py"]
+rules = { invalid-assignment = "ignore" }
+
+# test_episodes intentionally assigns to frozen dataclass to verify it raises.
+[[tool.ty.overrides]]
+include = ["tests/test_episodes.py"]
+rules = { invalid-assignment = "ignore" }
+
+# test_memory_tools uses mock.await_args which ty types as potentially None.
+[[tool.ty.overrides]]
+include = ["tests/test_memory_tools.py"]
+rules = { not-iterable = "ignore" }
 
 # Dict lookups return str, not Literal — ty cannot narrow str keys/values
 # from dict[str, ...] to their Literal subtypes.
@@ -110,7 +130,23 @@ rules = { invalid-argument-type = "ignore", invalid-assignment = "ignore" }
 # test_telegram uses mock objects and patched constructors that ty cannot model.
 [[tool.ty.overrides]]
 include = ["tests/test_telegram.py"]
-rules = { invalid-argument-type = "ignore", missing-argument = "ignore", unknown-argument = "ignore", invalid-assignment = "ignore" }
+rules = { invalid-argument-type = "ignore", missing-argument = "ignore", unknown-argument = "ignore", invalid-assignment = "ignore", unresolved-attribute = "ignore" }
+
+# Tests that verify frozen dataclasses raise AttributeError on assignment.
+# The assignment IS the test — suppression is the only option.
+[[tool.ty.overrides]]
+include = [
+    "tests/test_context.py",
+    "tests/test_core_memory.py",
+    "tests/test_nodes.py",
+    "tests/test_user_model.py",
+]
+rules = { invalid-assignment = "ignore" }
+
+# test_conversation patches CircuitBreaker.call with an async generator stub.
+[[tool.ty.overrides]]
+include = ["tests/test_conversation.py"]
+rules = { invalid-assignment = "ignore" }
 
 # conftest stubs MLX modules on non-Apple-Silicon CI by setting attributes on
 # dynamically created ModuleType instances — ty cannot resolve those attributes.

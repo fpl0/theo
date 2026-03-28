@@ -1,7 +1,10 @@
 """OpenTelemetry SDK bootstrap — traces, metrics, and logs."""
 
+from __future__ import annotations
+
 import logging
 import socket
+from typing import TYPE_CHECKING
 
 from opentelemetry import metrics, trace
 from opentelemetry._logs import set_logger_provider
@@ -23,12 +26,17 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExport
 from theo import __version__
 from theo.config import get_settings
 
+if TYPE_CHECKING:
+    from opentelemetry.sdk._logs.export import LogRecordExporter
+    from opentelemetry.sdk.metrics.export import MetricExporter
+    from opentelemetry.sdk.trace.export import SpanExporter
+
 _tracer_provider: TracerProvider | None = None
 _meter_provider: MeterProvider | None = None
 _logger_provider: LoggerProvider | None = None
 
 
-def _build_exporters(kind: str):
+def _build_exporters(kind: str) -> tuple[SpanExporter, MetricExporter, LogRecordExporter]:
     """Return (span, metric, log) exporters for the chosen backend."""
     if kind == "otlp":
         # Deferred: pulls in protobuf + requests.
@@ -91,9 +99,13 @@ def init_telemetry() -> None:
 
 def shutdown_telemetry() -> None:
     """Flush and shut down all OTEL providers. Safe to call if not initialised."""
+    global _tracer_provider, _meter_provider, _logger_provider  # noqa: PLW0603
     if _tracer_provider is not None:
         _tracer_provider.shutdown()
+        _tracer_provider = None
     if _meter_provider is not None:
         _meter_provider.shutdown()
+        _meter_provider = None
     if _logger_provider is not None:
         _logger_provider.shutdown()
+        _logger_provider = None

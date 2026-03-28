@@ -13,14 +13,14 @@ from theo.config import Settings
 from theo.conversation.context import (
     AssembledContext,
     SectionTokens,
-    _episodes_to_messages,
-    _format_relevant_memories,
-    _truncate_section,
     assemble,
+    episodes_to_messages,
     estimate_tokens,
+    format_relevant_memories,
+    truncate_section,
 )
-from theo.memory._types import EpisodeResult, NodeResult
-from theo.memory.core import CoreDocument
+from theo.memory._types import EpisodeChannel, EpisodeResult, EpisodeRole, NodeResult
+from theo.memory.core import CoreDocument, CoreMemoryLabel
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
@@ -31,12 +31,12 @@ _SESSION = UUID("00000000-0000-0000-0000-000000000001")
 
 
 def _core_doc(
-    label: str = "persona",
+    label: CoreMemoryLabel = "persona",
     body: dict[str, Any] | None = None,
     version: int = 1,
 ) -> CoreDocument:
     return CoreDocument(
-        label=label,  # type: ignore[arg-type]
+        label=label,
         body=body if body is not None else {"summary": "Theo is a personal AI agent."},
         version=version,
         updated_at=_NOW,
@@ -76,15 +76,15 @@ def _node(
 def _episode(
     *,
     episode_id: int = 1,
-    role: str = "user",
+    role: EpisodeRole = "user",
     body: str = "Hello",
-    channel: str = "message",
+    channel: EpisodeChannel = "message",
 ) -> EpisodeResult:
     return EpisodeResult(
         id=episode_id,
         session_id=_SESSION,
-        channel=channel,  # type: ignore[arg-type]
-        role=role,  # type: ignore[arg-type]
+        channel=channel,
+        role=role,
         body=body,
         trust="owner",
         importance=0.5,
@@ -131,22 +131,22 @@ def test_estimate_tokens_scales_with_words() -> None:
 
 def test_truncate_section_within_budget() -> None:
     text = "Short text here"
-    assert _truncate_section(text, budget=500) == text
+    assert truncate_section(text, budget=500) == text
 
 
 def test_truncate_section_exceeding_budget() -> None:
     text = "word " * 200
-    result = _truncate_section(text, budget=10)
+    result = truncate_section(text, budget=10)
     assert result != ""
     assert estimate_tokens(result) <= 10
 
 
 def test_truncate_section_empty_text() -> None:
-    assert _truncate_section("", budget=500) == ""
+    assert truncate_section("", budget=500) == ""
 
 
 def test_truncate_section_zero_budget() -> None:
-    assert _truncate_section("Some text", budget=0) == ""
+    assert truncate_section("Some text", budget=0) == ""
 
 
 # ---------------------------------------------------------------------------
@@ -156,7 +156,7 @@ def test_truncate_section_zero_budget() -> None:
 
 def test_format_relevant_memories_includes_nodes() -> None:
     nodes = [_node(body="Earth orbits the Sun"), _node(node_id=2, body="Water is H2O")]
-    result = _format_relevant_memories(nodes, budget=2000)
+    result = format_relevant_memories(nodes, budget=2000)
 
     assert "## Relevant Memories" in result
     assert "Earth orbits the Sun" in result
@@ -168,7 +168,7 @@ def test_format_relevant_memories_respects_budget() -> None:
         _node(node_id=i, body=f"This is memory number {i} with some additional text to use tokens")
         for i in range(50)
     ]
-    result = _format_relevant_memories(nodes, budget=50)
+    result = format_relevant_memories(nodes, budget=50)
 
     # Should include some but not all 50 nodes
     included = result.count("- [fact]")
@@ -176,19 +176,19 @@ def test_format_relevant_memories_respects_budget() -> None:
 
 
 def test_format_relevant_memories_empty_list() -> None:
-    assert _format_relevant_memories([], budget=2000) == ""
+    assert format_relevant_memories([], budget=2000) == ""
 
 
 def test_format_relevant_memories_budget_too_small() -> None:
     nodes = [_node(body="A very long body " * 100)]
-    result = _format_relevant_memories(nodes, budget=1)
+    result = format_relevant_memories(nodes, budget=1)
 
     assert result == ""
 
 
 def test_format_relevant_memories_includes_kind() -> None:
     nodes = [_node(kind="observation", body="It rained today")]
-    result = _format_relevant_memories(nodes, budget=2000)
+    result = format_relevant_memories(nodes, budget=2000)
 
     assert "[observation]" in result
 
@@ -203,7 +203,7 @@ def test_episodes_basic_conversion() -> None:
         _episode(episode_id=1, role="user", body="Hi"),
         _episode(episode_id=2, role="assistant", body="Hello!"),
     ]
-    msgs = _episodes_to_messages(eps, budget=4000)
+    msgs = episodes_to_messages(eps, budget=4000)
 
     assert len(msgs) == 2
     assert msgs[0] == {"role": "user", "content": "Hi"}
@@ -216,7 +216,7 @@ def test_episodes_merges_consecutive_same_role() -> None:
         _episode(episode_id=2, role="user", body="How are you?"),
         _episode(episode_id=3, role="assistant", body="I'm great!"),
     ]
-    msgs = _episodes_to_messages(eps, budget=4000)
+    msgs = episodes_to_messages(eps, budget=4000)
 
     assert len(msgs) == 2
     assert msgs[0]["role"] == "user"
@@ -230,7 +230,7 @@ def test_episodes_tool_role_mapped_to_user() -> None:
         _episode(episode_id=2, role="assistant", body="Let me search..."),
         _episode(episode_id=3, role="tool", body="Result: found X"),
     ]
-    msgs = _episodes_to_messages(eps, budget=4000)
+    msgs = episodes_to_messages(eps, budget=4000)
 
     assert msgs[-1]["role"] == "user"
     assert "Result: found X" in msgs[-1]["content"]
@@ -241,7 +241,7 @@ def test_episodes_system_role_mapped_to_user() -> None:
         _episode(episode_id=1, role="system", body="System initialized"),
         _episode(episode_id=2, role="assistant", body="Ready to help"),
     ]
-    msgs = _episodes_to_messages(eps, budget=4000)
+    msgs = episodes_to_messages(eps, budget=4000)
 
     assert msgs[0]["role"] == "user"
     assert "System initialized" in msgs[0]["content"]
@@ -254,7 +254,7 @@ def test_episodes_drops_oldest_on_budget() -> None:
         _episode(episode_id=3, role="user", body="Recent message"),
         _episode(episode_id=4, role="assistant", body="Recent response"),
     ]
-    msgs = _episodes_to_messages(eps, budget=50)
+    msgs = episodes_to_messages(eps, budget=50)
 
     # Should have dropped the old large messages
     assert len(msgs) < 4
@@ -267,20 +267,20 @@ def test_episodes_strips_leading_assistant() -> None:
         _episode(episode_id=1, role="assistant", body="I started first"),
         _episode(episode_id=2, role="user", body="Now I speak"),
     ]
-    msgs = _episodes_to_messages(eps, budget=4000)
+    msgs = episodes_to_messages(eps, budget=4000)
 
     assert msgs[0]["role"] == "user"
     assert msgs[0]["content"] == "Now I speak"
 
 
 def test_episodes_empty_list() -> None:
-    msgs = _episodes_to_messages([], budget=4000)
+    msgs = episodes_to_messages([], budget=4000)
     assert msgs == []
 
 
 def test_episodes_single_user_message() -> None:
     eps = [_episode(role="user", body="Just me")]
-    msgs = _episodes_to_messages(eps, budget=4000)
+    msgs = episodes_to_messages(eps, budget=4000)
 
     assert len(msgs) == 1
     assert msgs[0] == {"role": "user", "content": "Just me"}
@@ -301,17 +301,21 @@ async def test_assemble_full_context() -> None:
 
     with (
         patch(
-            "theo.conversation.context.core.read_all",
+            "theo.conversation.context.assembly.core.read_all",
             new_callable=AsyncMock,
             return_value=core_docs,
         ),
         patch(
-            "theo.conversation.context.hybrid_search",
+            "theo.conversation.context.assembly.hybrid_search",
             new_callable=AsyncMock,
             return_value=nodes,
         ),
-        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=eps),
-        patch("theo.conversation.context.get_settings", return_value=_settings()),
+        patch(
+            "theo.conversation.context.assembly.list_episodes",
+            new_callable=AsyncMock,
+            return_value=eps,
+        ),
+        patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hello Theo")
 
@@ -328,10 +332,22 @@ async def test_assemble_full_context() -> None:
 
 async def test_assemble_empty_memory() -> None:
     with (
-        patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value={}),
-        patch("theo.conversation.context.hybrid_search", new_callable=AsyncMock, return_value=[]),
-        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
-        patch("theo.conversation.context.get_settings", return_value=_settings()),
+        patch(
+            "theo.conversation.context.assembly.core.read_all",
+            new_callable=AsyncMock,
+            return_value={},
+        ),
+        patch(
+            "theo.conversation.context.assembly.hybrid_search",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "theo.conversation.context.assembly.list_episodes",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hello")
 
@@ -345,13 +361,21 @@ async def test_assemble_no_relevant_memories() -> None:
 
     with (
         patch(
-            "theo.conversation.context.core.read_all",
+            "theo.conversation.context.assembly.core.read_all",
             new_callable=AsyncMock,
             return_value=core_docs,
         ),
-        patch("theo.conversation.context.hybrid_search", new_callable=AsyncMock, return_value=[]),
-        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
-        patch("theo.conversation.context.get_settings", return_value=_settings()),
+        patch(
+            "theo.conversation.context.assembly.hybrid_search",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "theo.conversation.context.assembly.list_episodes",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hello")
 
@@ -363,10 +387,18 @@ async def test_assemble_passes_session_to_list_episodes() -> None:
     mock_list = AsyncMock(return_value=[])
 
     with (
-        patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value={}),
-        patch("theo.conversation.context.hybrid_search", new_callable=AsyncMock, return_value=[]),
-        patch("theo.conversation.context.list_episodes", mock_list),
-        patch("theo.conversation.context.get_settings", return_value=_settings()),
+        patch(
+            "theo.conversation.context.assembly.core.read_all",
+            new_callable=AsyncMock,
+            return_value={},
+        ),
+        patch(
+            "theo.conversation.context.assembly.hybrid_search",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch("theo.conversation.context.assembly.list_episodes", mock_list),
+        patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
     ):
         await assemble(session_id=_SESSION, latest_message="Hello")
 
@@ -377,10 +409,18 @@ async def test_assemble_passes_message_to_hybrid_search() -> None:
     mock_search = AsyncMock(return_value=[])
 
     with (
-        patch("theo.conversation.context.core.read_all", new_callable=AsyncMock, return_value={}),
-        patch("theo.conversation.context.hybrid_search", mock_search),
-        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
-        patch("theo.conversation.context.get_settings", return_value=_settings()),
+        patch(
+            "theo.conversation.context.assembly.core.read_all",
+            new_callable=AsyncMock,
+            return_value={},
+        ),
+        patch("theo.conversation.context.assembly.hybrid_search", mock_search),
+        patch(
+            "theo.conversation.context.assembly.list_episodes",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
     ):
         await assemble(session_id=_SESSION, latest_message="find me relevant stuff")
 
@@ -394,14 +434,22 @@ async def test_assemble_persona_never_truncated() -> None:
 
     with (
         patch(
-            "theo.conversation.context.core.read_all",
+            "theo.conversation.context.assembly.core.read_all",
             new_callable=AsyncMock,
             return_value=core_docs,
         ),
-        patch("theo.conversation.context.hybrid_search", new_callable=AsyncMock, return_value=[]),
-        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
         patch(
-            "theo.conversation.context.get_settings",
+            "theo.conversation.context.assembly.hybrid_search",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "theo.conversation.context.assembly.list_episodes",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "theo.conversation.context.assembly.get_settings",
             return_value=_settings(context_memory_budget=10, context_history_budget=10),
         ),
     ):
@@ -418,14 +466,22 @@ async def test_assemble_goals_never_truncated() -> None:
 
     with (
         patch(
-            "theo.conversation.context.core.read_all",
+            "theo.conversation.context.assembly.core.read_all",
             new_callable=AsyncMock,
             return_value=core_docs,
         ),
-        patch("theo.conversation.context.hybrid_search", new_callable=AsyncMock, return_value=[]),
-        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
         patch(
-            "theo.conversation.context.get_settings",
+            "theo.conversation.context.assembly.hybrid_search",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "theo.conversation.context.assembly.list_episodes",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "theo.conversation.context.assembly.get_settings",
             return_value=_settings(context_memory_budget=10, context_history_budget=10),
         ),
     ):
@@ -441,17 +497,21 @@ async def test_assemble_token_estimate_sums_sections() -> None:
 
     with (
         patch(
-            "theo.conversation.context.core.read_all",
+            "theo.conversation.context.assembly.core.read_all",
             new_callable=AsyncMock,
             return_value=core_docs,
         ),
         patch(
-            "theo.conversation.context.hybrid_search",
+            "theo.conversation.context.assembly.hybrid_search",
             new_callable=AsyncMock,
             return_value=nodes,
         ),
-        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=eps),
-        patch("theo.conversation.context.get_settings", return_value=_settings()),
+        patch(
+            "theo.conversation.context.assembly.list_episodes",
+            new_callable=AsyncMock,
+            return_value=eps,
+        ),
+        patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hi")
 
@@ -472,14 +532,22 @@ async def test_assemble_respects_history_budget() -> None:
 
     with (
         patch(
-            "theo.conversation.context.core.read_all",
+            "theo.conversation.context.assembly.core.read_all",
             new_callable=AsyncMock,
             return_value=core_docs,
         ),
-        patch("theo.conversation.context.hybrid_search", new_callable=AsyncMock, return_value=[]),
-        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=eps),
         patch(
-            "theo.conversation.context.get_settings",
+            "theo.conversation.context.assembly.hybrid_search",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "theo.conversation.context.assembly.list_episodes",
+            new_callable=AsyncMock,
+            return_value=eps,
+        ),
+        patch(
+            "theo.conversation.context.assembly.get_settings",
             return_value=_settings(context_history_budget=50),
         ),
     ):
@@ -496,17 +564,21 @@ async def test_assemble_section_ordering() -> None:
 
     with (
         patch(
-            "theo.conversation.context.core.read_all",
+            "theo.conversation.context.assembly.core.read_all",
             new_callable=AsyncMock,
             return_value=core_docs,
         ),
         patch(
-            "theo.conversation.context.hybrid_search",
+            "theo.conversation.context.assembly.hybrid_search",
             new_callable=AsyncMock,
             return_value=nodes,
         ),
-        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
-        patch("theo.conversation.context.get_settings", return_value=_settings()),
+        patch(
+            "theo.conversation.context.assembly.list_episodes",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hello")
 
@@ -530,18 +602,22 @@ async def test_assemble_memories_trimmed_before_history() -> None:
 
     with (
         patch(
-            "theo.conversation.context.core.read_all",
+            "theo.conversation.context.assembly.core.read_all",
             new_callable=AsyncMock,
             return_value=core_docs,
         ),
         patch(
-            "theo.conversation.context.hybrid_search",
+            "theo.conversation.context.assembly.hybrid_search",
             new_callable=AsyncMock,
             return_value=many_nodes,
         ),
-        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=eps),
         patch(
-            "theo.conversation.context.get_settings",
+            "theo.conversation.context.assembly.list_episodes",
+            new_callable=AsyncMock,
+            return_value=eps,
+        ),
+        patch(
+            "theo.conversation.context.assembly.get_settings",
             return_value=_settings(context_memory_budget=50),
         ),
     ):
@@ -565,14 +641,22 @@ async def test_assemble_user_model_trimmed_when_exceeds_budget() -> None:
 
     with (
         patch(
-            "theo.conversation.context.core.read_all",
+            "theo.conversation.context.assembly.core.read_all",
             new_callable=AsyncMock,
             return_value=core_docs,
         ),
-        patch("theo.conversation.context.hybrid_search", new_callable=AsyncMock, return_value=[]),
-        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
         patch(
-            "theo.conversation.context.get_settings",
+            "theo.conversation.context.assembly.hybrid_search",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "theo.conversation.context.assembly.list_episodes",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "theo.conversation.context.assembly.get_settings",
             return_value=_settings(context_user_model_budget=50),
         ),
     ):
@@ -592,14 +676,22 @@ async def test_assemble_task_trimmed_when_exceeds_budget() -> None:
 
     with (
         patch(
-            "theo.conversation.context.core.read_all",
+            "theo.conversation.context.assembly.core.read_all",
             new_callable=AsyncMock,
             return_value=core_docs,
         ),
-        patch("theo.conversation.context.hybrid_search", new_callable=AsyncMock, return_value=[]),
-        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
         patch(
-            "theo.conversation.context.get_settings",
+            "theo.conversation.context.assembly.hybrid_search",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "theo.conversation.context.assembly.list_episodes",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "theo.conversation.context.assembly.get_settings",
             return_value=_settings(context_current_task_budget=50),
         ),
     ):
@@ -615,13 +707,21 @@ async def test_assemble_section_tokens_populated() -> None:
 
     with (
         patch(
-            "theo.conversation.context.core.read_all",
+            "theo.conversation.context.assembly.core.read_all",
             new_callable=AsyncMock,
             return_value=core_docs,
         ),
-        patch("theo.conversation.context.hybrid_search", new_callable=AsyncMock, return_value=[]),
-        patch("theo.conversation.context.list_episodes", new_callable=AsyncMock, return_value=[]),
-        patch("theo.conversation.context.get_settings", return_value=_settings()),
+        patch(
+            "theo.conversation.context.assembly.hybrid_search",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "theo.conversation.context.assembly.list_episodes",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
     ):
         result = await assemble(session_id=_SESSION, latest_message="Hello")
 

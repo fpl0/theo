@@ -221,6 +221,22 @@ async def test_get_edges_with_label_filter(mock_pool: AsyncMock) -> None:
     assert args[2] == "co_occurred"
 
 
+async def test_get_edges_incoming_with_label_filter(mock_pool: AsyncMock) -> None:
+    mock_pool.fetch.return_value = [
+        _edge_row(edge_id=4, source_id=5, target_id=10, label="related_to"),
+    ]
+
+    with patch("theo.memory.edges.db", pool=mock_pool):
+        results = await get_edges(10, direction="incoming", label="related_to")
+
+    assert len(results) == 1
+    assert results[0].label == "related_to"
+
+    args = mock_pool.fetch.call_args.args
+    assert args[1] == 10
+    assert args[2] == "related_to"
+
+
 async def test_get_edges_empty(mock_pool: AsyncMock) -> None:
     mock_pool.fetch.return_value = []
 

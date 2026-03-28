@@ -10,6 +10,7 @@ from uuid import UUID
 
 import pytest
 
+from theo.config import Settings
 from theo.conversation.context import assemble
 from theo.memory.core import CoreDocument
 from theo.memory.tools import TOOL_DEFINITIONS, execute_tool
@@ -136,6 +137,31 @@ class TestStateSerialization:
         }
         state = dict_to_state(data)
         assert isinstance(state.completed_phases, tuple)
+
+    def test_rejects_out_of_range_phase_index(self) -> None:
+        data = {
+            "phase": "welcome",
+            "phase_index": 99,
+            "started_at": "2026-01-15T12:00:00+00:00",
+            "completed_phases": [],
+        }
+        with pytest.raises(ValueError, match="out of range"):
+            dict_to_state(data)
+
+    def test_rejects_mismatched_phase_and_index(self) -> None:
+        data = {
+            "phase": "values",
+            "phase_index": 0,
+            "started_at": "2026-01-15T12:00:00+00:00",
+            "completed_phases": [],
+        }
+        with pytest.raises(ValueError, match="does not match"):
+            dict_to_state(data)
+
+    def test_rejects_missing_key(self) -> None:
+        data = {"phase": "welcome"}
+        with pytest.raises(KeyError):
+            dict_to_state(data)
 
 
 # ---------------------------------------------------------------------------
@@ -377,13 +403,14 @@ class TestAdvanceOnboardingTool:
         tool = next(t for t in TOOL_DEFINITIONS if t["name"] == "advance_onboarding")
         assert "summary" in tool["input_schema"]["required"]
 
-    def test_all_six_tools_defined(self) -> None:
+    def test_all_seven_tools_defined(self) -> None:
         names = {t["name"] for t in TOOL_DEFINITIONS}
         expected = {
             "store_memory",
             "search_memory",
             "read_core_memory",
             "update_core_memory",
+            "link_memories",
             "update_user_model",
             "advance_onboarding",
         }
@@ -454,9 +481,13 @@ class TestContextOnboardingIntegration:
         }
 
         with (
-            patch("theo.conversation.context.core.read_all", AsyncMock(return_value=all_docs)),
-            patch("theo.conversation.context.search_nodes", AsyncMock(return_value=[])),
-            patch("theo.conversation.context.list_episodes", AsyncMock(return_value=[])),
+            patch(
+                "theo.conversation.context.assembly.core.read_all",
+                AsyncMock(return_value=all_docs),
+            ),
+            patch("theo.conversation.context.assembly.hybrid_search", AsyncMock(return_value=[])),
+            patch("theo.conversation.context.assembly.list_episodes", AsyncMock(return_value=[])),
+            patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
         ):
             ctx = await assemble(
                 session_id=UUID("00000000-0000-0000-0000-000000000001"),
@@ -476,9 +507,39 @@ class TestContextOnboardingIntegration:
         }
 
         with (
-            patch("theo.conversation.context.core.read_all", AsyncMock(return_value=all_docs)),
-            patch("theo.conversation.context.search_nodes", AsyncMock(return_value=[])),
-            patch("theo.conversation.context.list_episodes", AsyncMock(return_value=[])),
+            patch(
+                "theo.conversation.context.assembly.core.read_all",
+                AsyncMock(return_value=all_docs),
+            ),
+            patch("theo.conversation.context.assembly.hybrid_search", AsyncMock(return_value=[])),
+            patch("theo.conversation.context.assembly.list_episodes", AsyncMock(return_value=[])),
+            patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
+        ):
+            ctx = await assemble(
+                session_id=UUID("00000000-0000-0000-0000-000000000001"),
+                latest_message="hello",
+            )
+
+        assert "Onboarding" not in ctx.system_prompt
+
+    async def test_corrupted_onboarding_state_skipped_gracefully(self) -> None:
+        """If onboarding state is corrupted, context assembly should skip it."""
+        all_docs = {
+            "persona": _context_doc_as("persona", {"summary": "Theo"}),
+            "context": _context_doc_as(
+                "context",
+                {"onboarding": {"phase": "values", "phase_index": 99}},
+            ),
+        }
+
+        with (
+            patch(
+                "theo.conversation.context.assembly.core.read_all",
+                AsyncMock(return_value=all_docs),
+            ),
+            patch("theo.conversation.context.assembly.hybrid_search", AsyncMock(return_value=[])),
+            patch("theo.conversation.context.assembly.list_episodes", AsyncMock(return_value=[])),
+            patch("theo.conversation.context.assembly.get_settings", return_value=_settings()),
         ):
             ctx = await assemble(
                 session_id=UUID("00000000-0000-0000-0000-000000000001"),
@@ -491,6 +552,16 @@ class TestContextOnboardingIntegration:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _settings(**overrides: Any) -> Settings:
+    """Create a real Settings instance with test defaults."""
+    defaults: dict[str, Any] = {
+        "database_url": "postgresql://x:x@localhost/x",
+        "anthropic_api_key": "sk-test",
+        "_env_file": None,
+    }
+    return Settings(**(defaults | overrides))
 
 
 def _context_doc_as(label: str, body: dict[str, Any]) -> CoreDocument:

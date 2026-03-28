@@ -11,6 +11,10 @@ def test_embedding_key_maps_position_embeddings() -> None:
     assert _map_hf_key("bert.embeddings.position_embeddings.weight") == "pos_emb.weight"
 
 
+def test_embedding_key_maps_token_type_embeddings() -> None:
+    assert _map_hf_key("bert.embeddings.token_type_embeddings.weight") == "tok_emb.weight"
+
+
 def test_embedding_key_maps_layer_norm() -> None:
     assert _map_hf_key("bert.embeddings.LayerNorm.weight") == "norm.weight"
     assert _map_hf_key("bert.embeddings.LayerNorm.bias") == "norm.bias"

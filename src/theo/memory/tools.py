@@ -9,232 +9,30 @@ Seven tools give Claude autonomous control over Theo's memory:
 - ``link_memories`` — create an explicit relationship between two memories.
 - ``update_user_model`` — update a structured user model dimension.
 - ``advance_onboarding`` — move to the next onboarding phase.
+
+Tool schemas live in :mod:`theo.memory._schemas`.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Callable, Coroutine
 from typing import Any, cast
 
 from opentelemetry import trace
 
 from theo.memory import core, edges, nodes, user_model
+from theo.memory._schemas import TOOL_DEFINITIONS
 from theo.memory.auto_edges import record_mention
 from theo.onboarding import flow as onboarding_flow
+
+__all__ = ["TOOL_DEFINITIONS", "execute_tool"]
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
-type _ToolHandler = Callable[[dict[str, object]], Coroutine[Any, Any, str]]
-
-# -- Anthropic tool schemas ------------------------------------------------
-
-TOOL_DEFINITIONS: list[dict[str, Any]] = [
-    {
-        "name": "store_memory",
-        "description": (
-            "Store a new observation, fact, or piece of knowledge in long-term memory. "
-            "Use this when the user shares something worth remembering."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "kind": {
-                    "type": "string",
-                    "description": (
-                        "Category of the memory (e.g. 'fact', 'preference', 'person', 'event')."
-                    ),
-                },
-                "body": {
-                    "type": "string",
-                    "description": "The content to remember.",
-                },
-                "importance": {
-                    "type": "number",
-                    "description": (
-                        "How important this memory is, from 0.0 (trivial) "
-                        "to 1.0 (critical). Default 0.5."
-                    ),
-                },
-            },
-            "required": ["kind", "body"],
-        },
-    },
-    {
-        "name": "search_memory",
-        "description": (
-            "Search long-term memory for relevant knowledge. "
-            "Returns the most semantically similar memories."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Natural language search query.",
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Maximum number of results to return. Default 5.",
-                },
-            },
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "read_core_memory",
-        "description": (
-            "Read the current state of core memory. Core memory contains four "
-            "always-loaded documents: persona, goals, user_model, and context."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-        },
-    },
-    {
-        "name": "link_memories",
-        "description": (
-            "Create an explicit relationship between two memories in the knowledge graph. "
-            "Use this when you notice two memories are related (e.g. a person and their "
-            "project, an event and its location)."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "source_id": {
-                    "type": "integer",
-                    "description": "ID of the first memory (from search results).",
-                },
-                "target_id": {
-                    "type": "integer",
-                    "description": "ID of the second memory.",
-                },
-                "label": {
-                    "type": "string",
-                    "description": (
-                        "Relationship type (e.g. 'works_on', 'located_in', "
-                        "'related_to', 'part_of')."
-                    ),
-                },
-                "reason": {
-                    "type": "string",
-                    "description": "Why these memories are related.",
-                },
-            },
-            "required": ["source_id", "target_id", "label"],
-        },
-    },
-    {
-        "name": "update_core_memory",
-        "description": (
-            "Update one of the four core memory documents (persona, goals, "
-            "user_model, context). Use this to evolve your self-model or "
-            "understanding of the user over time."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "label": {
-                    "type": "string",
-                    "enum": ["persona", "goals", "user_model", "context"],
-                    "description": "Which core memory document to update.",
-                },
-                "body": {
-                    "type": "object",
-                    "description": "The new document content (replaces existing body).",
-                },
-                "reason": {
-                    "type": "string",
-                    "description": "Brief explanation of why this update is being made.",
-                },
-            },
-            "required": ["label", "body"],
-        },
-    },
-    {
-        "name": "update_user_model",
-        "description": (
-            "Update a specific dimension of the structured user model. "
-            "Use this when you learn something about the user's values, "
-            "personality, communication preferences, energy patterns, "
-            "goals, or boundaries."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "framework": {
-                    "type": "string",
-                    "enum": [
-                        "schwartz",
-                        "big_five",
-                        "narrative",
-                        "communication",
-                        "energy",
-                        "goals",
-                        "boundaries",
-                    ],
-                    "description": "Which framework the dimension belongs to.",
-                },
-                "dimension": {
-                    "type": "string",
-                    "description": (
-                        "The specific dimension to update "
-                        "(e.g. 'openness', 'verbosity', 'active_goals', 'identity_themes')."
-                    ),
-                },
-                "value": {
-                    "type": "object",
-                    "description": "The updated value for this dimension.",
-                },
-                "reason": {
-                    "type": "string",
-                    "description": "What evidence supports this update.",
-                },
-            },
-            "required": ["framework", "dimension", "value"],
-        },
-    },
-    {
-        "name": "advance_onboarding",
-        "description": (
-            "Mark the current onboarding phase as complete and move to the next. "
-            "Call this when you feel you have enough information for the current phase."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "summary": {
-                    "type": "string",
-                    "description": "Brief summary of what was learned in this phase.",
-                },
-            },
-            "required": ["summary"],
-        },
-    },
-]
 
 # -- Tool execution --------------------------------------------------------
-
-
-_TOOL_DISPATCH: dict[str, _ToolHandler] = {}
-
-
-def _register_dispatch() -> None:
-    """Populate the dispatch table after handler functions are defined."""
-    _TOOL_DISPATCH.update(
-        {
-            "store_memory": _store_memory,
-            "search_memory": _search_memory,
-            "read_core_memory": _read_core_memory_wrapper,
-            "update_core_memory": _update_core_memory,
-            "link_memories": _link_memories,
-            "update_user_model": _update_user_model,
-            "advance_onboarding": _advance_onboarding,
-        }
-    )
 
 
 async def execute_tool(
@@ -256,6 +54,8 @@ async def execute_tool(
         attributes={"tool.name": name},
     ):
         try:
+            # store_memory is special-cased: it needs episode_id to record
+            # the mention link, which other tools don't require.
             if name == "store_memory":
                 return await _store_memory(tool_input, episode_id=episode_id)
             handler = _TOOL_DISPATCH.get(name)
@@ -277,8 +77,7 @@ async def _store_memory(
 ) -> str:
     kind = str(tool_input.get("kind", "fact"))
     body = str(tool_input.get("body", ""))
-    raw_importance = tool_input.get("importance", 0.5)
-    importance = float(str(raw_importance))
+    importance = float(str(tool_input.get("importance", 0.5)))
 
     node_id = await nodes.store_node(
         kind=kind,
@@ -311,7 +110,7 @@ async def _search_memory(tool_input: dict[str, object]) -> str:
     )
 
 
-async def _read_core_memory_wrapper(_tool_input: dict[str, object]) -> str:
+async def _read_core_memory(_tool_input: dict[str, object]) -> str:
     docs = await core.read_all()
     return json.dumps(
         {label: {"body": doc.body, "version": doc.version} for label, doc in docs.items()}
@@ -399,6 +198,13 @@ async def _advance_onboarding(tool_input: dict[str, object]) -> str:
     return json.dumps({"phase": new_state.phase, "phase_index": new_state.phase_index})
 
 
-# -- Bootstrap -------------------------------------------------------------
+# -- Dispatch table --------------------------------------------------------
 
-_register_dispatch()
+_TOOL_DISPATCH = {
+    "search_memory": _search_memory,
+    "read_core_memory": _read_core_memory,
+    "update_core_memory": _update_core_memory,
+    "link_memories": _link_memories,
+    "update_user_model": _update_user_model,
+    "advance_onboarding": _advance_onboarding,
+}

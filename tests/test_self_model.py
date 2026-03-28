@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from theo.errors import SelfModelDomainNotFoundError
 from theo.memory._types import DomainResult
 from theo.memory.self_model import read_domains, record_outcome
 
@@ -155,7 +156,7 @@ async def test_record_outcome_unknown_domain_raises(mock_pool: AsyncMock) -> Non
 
     with (
         patch("theo.memory.self_model.db", pool=mock_pool),
-        pytest.raises(ValueError, match="unknown self-model domain"),
+        pytest.raises(SelfModelDomainNotFoundError, match="unknown self-model domain"),
     ):
         await record_outcome("nonexistent", correct=True)
 

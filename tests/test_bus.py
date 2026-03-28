@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
@@ -303,3 +303,63 @@ class TestEventBus:
         await event_bus.start()
         await event_bus.start()  # should not raise or create duplicate tasks
         await event_bus.stop()
+
+    async def test_mark_processed_failure_does_not_kill_loop(self, mock_db: MagicMock) -> None:
+        """A DB error when marking processed must not crash the dispatch loop."""
+        event_bus = EventBus()
+        received: list[str] = []
+        call_count = 0
+
+        original_execute = mock_db.execute
+
+        async def flaky_execute(*args: object, **kwargs: object) -> None:
+            nonlocal call_count
+            call_count += 1
+            # Fail on the first MARK_PROCESSED call.
+            if "UPDATE" in str(args[0]) and call_count <= 2:
+                msg = "connection lost"
+                raise OSError(msg)
+            await original_execute(*args, **kwargs)
+
+        mock_db.execute = AsyncMock(side_effect=flaky_execute)
+
+        async def handler(event: MessageReceived) -> None:
+            received.append(event.body)
+
+        event_bus.subscribe(MessageReceived, handler)
+        await event_bus.start()
+
+        await event_bus.publish(MessageReceived(body="first"))
+        await event_bus.publish(MessageReceived(body="second"))
+        await event_bus.stop()
+
+        # Both events should have been dispatched despite the DB error.
+        assert received == ["first", "second"]
+
+    async def test_replay_skips_unknown_event_types(self, mock_db: MagicMock) -> None:
+        """Unknown event types in the DB are skipped during replay."""
+        mock_db.fetch = AsyncMock(
+            return_value=[
+                {
+                    "id": uuid4(),
+                    "type": "NoSuchEvent",
+                    "payload": "{}",
+                    "session_id": None,
+                    "channel": None,
+                    "created_at": datetime.now(UTC),
+                },
+            ]
+        )
+
+        event_bus = EventBus()
+        received: list[MessageReceived] = []
+
+        async def handler(e: MessageReceived) -> None:
+            received.append(e)
+
+        event_bus.subscribe(MessageReceived, handler)
+        await event_bus.start()
+        await asyncio.sleep(0.05)
+        await event_bus.stop()
+
+        assert len(received) == 0

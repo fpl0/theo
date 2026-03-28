@@ -8,6 +8,8 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
+from opentelemetry import trace
+
 from theo.errors import APIUnavailableError, CircuitOpenError
 
 if TYPE_CHECKING:
@@ -18,6 +20,7 @@ if TYPE_CHECKING:
 type CircuitState = Literal["closed", "open", "half-open"]
 
 log = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 _CIRCUIT_STATE_VALUES: dict[CircuitState, int] = {
     "closed": 0,
@@ -81,19 +84,23 @@ class CircuitBreaker:
         """
         current = self.state
 
-        if current == "open":
-            raise CircuitOpenError
-
-        if current == "half-open":
-            if self._half_open_lock.locked():
+        with tracer.start_as_current_span(
+            "circuit_breaker.call",
+            attributes={"circuit.state": current},
+        ):
+            if current == "open":
                 raise CircuitOpenError
-            async with self._half_open_lock:
-                async for event in self._guarded(stream):
-                    yield event
-                return
 
-        async for event in self._guarded(stream):
-            yield event
+            if current == "half-open":
+                if self._half_open_lock.locked():
+                    raise CircuitOpenError
+                async with self._half_open_lock:
+                    async for event in self._guarded(stream):
+                        yield event
+                    return
+
+            async for event in self._guarded(stream):
+                yield event
 
     async def _guarded(
         self,
