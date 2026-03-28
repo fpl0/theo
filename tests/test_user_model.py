@@ -234,8 +234,8 @@ class TestUpdateUserModelTool:
             "store_memory",
             "search_memory",
             "read_core_memory",
-            "update_core_memory",
             "link_memories",
+            "update_core_memory",
             "update_user_model",
             "advance_onboarding",
         }
