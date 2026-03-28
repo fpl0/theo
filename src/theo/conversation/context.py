@@ -167,6 +167,28 @@ def _episodes_to_messages(
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _extract_onboarding_state(context_doc: CoreDocument | None) -> OnboardingState | None:
+    """Parse onboarding state from the context core document, if present."""
+    if context_doc is None:
+        return None
+    raw = context_doc.body.get("onboarding")
+    if not isinstance(raw, dict):
+        return None
+    try:
+        return dict_to_state(raw)
+    except KeyError, ValueError:
+        log.warning(
+            "corrupted onboarding state in core memory, skipping prompt injection",
+            extra={"raw": raw},
+        )
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -216,12 +238,7 @@ async def assemble(
         # 3. Check for active onboarding from already-fetched core docs
         parts: list[str] = []
         onboarding_tokens = 0
-        onboarding_state: OnboardingState | None = None
-        context_doc = core_docs.get("context")
-        if context_doc is not None:
-            raw = context_doc.body.get("onboarding")
-            if isinstance(raw, dict):
-                onboarding_state = dict_to_state(raw)
+        onboarding_state = _extract_onboarding_state(core_docs.get("context"))
 
         if onboarding_state is not None:
             try:

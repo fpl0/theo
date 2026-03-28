@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import logging
 from datetime import UTC, datetime
@@ -22,6 +23,7 @@ _phase_advances = _meter.create_counter(
 
 _CONTEXT_KEY = "onboarding"
 _COMPLETED_KEY = "onboarding_completed"
+_flow_lock = asyncio.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -49,9 +51,20 @@ def _state_to_dict(state: OnboardingState) -> dict[str, Any]:
 
 
 def dict_to_state(data: dict[str, Any]) -> OnboardingState:
+    phase_index = data["phase_index"]
+    phase = data["phase"]
+
+    if not (0 <= phase_index < len(PHASES)):
+        msg = f"phase_index {phase_index} out of range [0, {len(PHASES)})"
+        raise ValueError(msg)
+
+    if phase != PHASES[phase_index]:
+        msg = f"phase {phase!r} does not match PHASES[{phase_index}]={PHASES[phase_index]!r}"
+        raise ValueError(msg)
+
     return OnboardingState(
-        phase=data["phase"],
-        phase_index=data["phase_index"],
+        phase=phase,
+        phase_index=phase_index,
         started_at=data["started_at"],
         completed_phases=tuple(data["completed_phases"]),
     )
@@ -87,63 +100,71 @@ async def start_onboarding() -> OnboardingState:
 
     Clears any previous ``onboarding_completed`` flag so a reset works cleanly.
     """
-    with tracer.start_as_current_span(
-        "start_onboarding",
-        attributes={"onboarding.phase": PHASES[0]},
-    ):
-        state = OnboardingState(
-            phase=PHASES[0],
-            phase_index=0,
-            started_at=datetime.now(UTC).isoformat(),
-            completed_phases=(),
-        )
-        doc = await core.read_one("context")
-        body = {k: v for k, v in doc.body.items() if k != _COMPLETED_KEY}
-        body[_CONTEXT_KEY] = _state_to_dict(state)
-        await core.update("context", body=body, reason="onboarding started")
-        log.info("onboarding started", extra={"phase": state.phase})
-        return state
+    async with _flow_lock:
+        with tracer.start_as_current_span(
+            "start_onboarding",
+            attributes={"onboarding.phase": PHASES[0]},
+        ):
+            state = OnboardingState(
+                phase=PHASES[0],
+                phase_index=0,
+                started_at=datetime.now(UTC).isoformat(),
+                completed_phases=(),
+            )
+            doc = await core.read_one("context")
+            body = {k: v for k, v in doc.body.items() if k != _COMPLETED_KEY}
+            body[_CONTEXT_KEY] = _state_to_dict(state)
+            await core.update("context", body=body, reason="onboarding started")
+            log.info("onboarding started", extra={"phase": state.phase})
+            return state
 
 
 async def advance_phase(current_state: OnboardingState) -> OnboardingState | None:
     """Move to the next phase. Returns ``None`` if onboarding is now complete."""
-    with tracer.start_as_current_span(
-        "advance_onboarding_phase",
-        attributes={"onboarding.from_phase": current_state.phase},
-    ) as span:
-        next_index = current_state.phase_index + 1
-        completed = (*current_state.completed_phases, current_state.phase)
+    async with _flow_lock:
+        with tracer.start_as_current_span(
+            "advance_onboarding_phase",
+            attributes={"onboarding.from_phase": current_state.phase},
+        ) as span:
+            next_index = current_state.phase_index + 1
+            completed = (*current_state.completed_phases, current_state.phase)
 
-        if next_index >= len(PHASES):
-            span.set_attribute("onboarding.completed", value=True)
-            await complete_onboarding()
-            log.info("onboarding completed (all phases done)")
-            return None
+            if next_index >= len(PHASES):
+                span.set_attribute("onboarding.completed", value=True)
+                await _complete_onboarding_unlocked()
+                log.info("onboarding completed (all phases done)")
+                return None
 
-        next_phase = PHASES[next_index]
-        span.set_attribute("onboarding.to_phase", next_phase)
-        span.set_attribute("onboarding.phase_index", next_index)
+            next_phase = PHASES[next_index]
+            span.set_attribute("onboarding.to_phase", next_phase)
+            span.set_attribute("onboarding.phase_index", next_index)
 
-        new_state = OnboardingState(
-            phase=next_phase,
-            phase_index=next_index,
-            started_at=current_state.started_at,
-            completed_phases=completed,
-        )
-        await _write_state(
-            new_state,
-            reason=f"advanced from {current_state.phase} to {next_phase}",
-        )
-        _phase_advances.add(1, {"onboarding.to_phase": next_phase})
-        log.info(
-            "onboarding phase advanced",
-            extra={"from": current_state.phase, "to": next_phase, "index": next_index},
-        )
-        return new_state
+            new_state = OnboardingState(
+                phase=next_phase,
+                phase_index=next_index,
+                started_at=current_state.started_at,
+                completed_phases=completed,
+            )
+            await _write_state(
+                new_state,
+                reason=f"advanced from {current_state.phase} to {next_phase}",
+            )
+            _phase_advances.add(1, {"onboarding.to_phase": next_phase})
+            log.info(
+                "onboarding phase advanced",
+                extra={"from": current_state.phase, "to": next_phase, "index": next_index},
+            )
+            return new_state
 
 
 async def complete_onboarding() -> None:
     """Mark onboarding as done by removing the active state and setting a completion flag."""
+    async with _flow_lock:
+        await _complete_onboarding_unlocked()
+
+
+async def _complete_onboarding_unlocked() -> None:
+    """Inner implementation called with ``_flow_lock`` already held."""
     with tracer.start_as_current_span("complete_onboarding"):
         doc = await core.read_one("context")
         body = {k: v for k, v in doc.body.items() if k != _CONTEXT_KEY}
