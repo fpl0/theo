@@ -11,6 +11,7 @@ from anthropic import APIConnectionError, APITimeoutError, InternalServerError, 
 from theo.config import Settings
 from theo.errors import APIUnavailableError
 from theo.llm import (
+    SessionContext,
     StreamDone,
     TextDelta,
     ToolUseRequest,
@@ -26,50 +27,152 @@ if TYPE_CHECKING:
 
 
 class TestClassifySpeed:
+    """Base classification tests (no session context)."""
+
     def test_greeting_is_reactive(self) -> None:
-        assert classify_speed("hello") == "reactive"
+        speed, _ = classify_speed("hello")
+        assert speed == "reactive"
 
     def test_greeting_with_punctuation_is_reactive(self) -> None:
-        assert classify_speed("Hi!") == "reactive"
+        speed, _ = classify_speed("Hi!")
+        assert speed == "reactive"
 
     def test_thanks_is_reactive(self) -> None:
-        assert classify_speed("thanks") == "reactive"
+        speed, _ = classify_speed("thanks")
+        assert speed == "reactive"
 
     def test_ok_is_reactive(self) -> None:
-        assert classify_speed("ok") == "reactive"
+        speed, _ = classify_speed("ok")
+        assert speed == "reactive"
 
     def test_bye_is_reactive(self) -> None:
-        assert classify_speed("bye") == "reactive"
+        speed, _ = classify_speed("bye")
+        assert speed == "reactive"
 
     def test_short_question_is_reflective(self) -> None:
-        assert classify_speed("what's the weather?") == "reflective"
+        speed, _ = classify_speed("what's the weather?")
+        assert speed == "reflective"
 
     def test_normal_request_is_reflective(self) -> None:
-        assert classify_speed("tell me about dogs") == "reflective"
+        speed, _ = classify_speed("tell me about dogs")
+        assert speed == "reflective"
 
     def test_research_keyword_is_deliberative(self) -> None:
-        assert (
-            classify_speed("research the best flights to Lisbon and compare options")
-            == "deliberative"
-        )
+        speed, _ = classify_speed("research the best flights to Lisbon and compare options")
+        assert speed == "deliberative"
 
     def test_analyze_keyword_is_deliberative(self) -> None:
-        assert classify_speed("analyze this data set") == "deliberative"
+        speed, _ = classify_speed("analyze this data set")
+        assert speed == "deliberative"
 
     def test_think_keyword_is_deliberative(self) -> None:
-        assert classify_speed("think about this problem") == "deliberative"
+        speed, _ = classify_speed("think about this problem")
+        assert speed == "deliberative"
 
     def test_long_message_is_deliberative(self) -> None:
-        assert classify_speed("a" * 501) == "deliberative"
+        speed, _ = classify_speed("a" * 501)
+        assert speed == "deliberative"
 
     def test_whitespace_stripped(self) -> None:
-        assert classify_speed("  hello  ") == "reactive"
+        speed, _ = classify_speed("  hello  ")
+        assert speed == "reactive"
 
     def test_case_insensitive_greeting(self) -> None:
-        assert classify_speed("HELLO") == "reactive"
+        speed, _ = classify_speed("HELLO")
+        assert speed == "reactive"
 
     def test_case_insensitive_deliberative(self) -> None:
-        assert classify_speed("COMPARE these two") == "deliberative"
+        speed, _ = classify_speed("COMPARE these two")
+        assert speed == "deliberative"
+
+    def test_task_indicator_step_by_step(self) -> None:
+        speed, signals = classify_speed("Can you give me a step-by-step guide?")
+        assert speed == "deliberative"
+        assert signals["base_reason"] == "task_indicator"
+
+    def test_task_indicator_pros_and_cons(self) -> None:
+        speed, _ = classify_speed("What are the pros and cons of this approach?")
+        assert speed == "deliberative"
+
+    def test_returns_signals_dict(self) -> None:
+        _, signals = classify_speed("hello")
+        assert "base_speed" in signals
+        assert "base_reason" in signals
+        assert signals["final_reason"] == "no_session_context"
+
+
+class TestSessionRatchet:
+    """Session ratchet and context-aware classification."""
+
+    @pytest.fixture(autouse=True)
+    def _patch_settings(self) -> Any:
+        with patch("theo.llm.get_settings", return_value=_make_settings()):
+            yield
+
+    def test_ratchet_holds_at_peak(self) -> None:
+        ctx = SessionContext(peak_speed="deliberative", prior_speeds=("reflective",))
+        speed, signals = classify_speed("tell me more", ctx)
+        assert speed == "deliberative"
+        assert signals.get("ratchet_held") is True
+
+    def test_ratchet_allows_upward_escalation(self) -> None:
+        ctx = SessionContext(peak_speed="reflective", prior_speeds=("reflective",))
+        speed, _ = classify_speed("analyze this deeply", ctx)
+        assert speed == "deliberative"
+
+    def test_ratchet_downgrade_on_reactive_ack(self) -> None:
+        ctx = SessionContext(peak_speed="deliberative", prior_speeds=("deliberative",))
+        speed, signals = classify_speed("ok", ctx)
+        assert speed == "reactive"
+        assert signals.get("ratchet_downgrade") is True
+
+    def test_ratchet_holds_reflective_to_deliberative(self) -> None:
+        ctx = SessionContext(peak_speed="deliberative", prior_speeds=("deliberative",))
+        speed, _ = classify_speed("what about the weather?", ctx)
+        assert speed == "deliberative"
+
+    def test_no_ratchet_without_peak(self) -> None:
+        ctx = SessionContext(peak_speed=None, prior_speeds=())
+        speed, _ = classify_speed("tell me about dogs", ctx)
+        assert speed == "reflective"
+
+    def test_ratchet_disabled_in_config(self) -> None:
+        with patch(
+            "theo.llm.get_settings",
+            return_value=_make_settings(session_ratchet_enabled=False),
+        ):
+            ctx = SessionContext(peak_speed="deliberative", prior_speeds=("reflective",))
+            speed, _ = classify_speed("tell me more", ctx)
+            assert speed == "reflective"
+
+    def test_history_bias_promotes_reflective(self) -> None:
+        ctx = SessionContext(
+            peak_speed=None,
+            prior_speeds=("deliberative", "deliberative", "reflective"),
+        )
+        speed, signals = classify_speed("tell me about that topic", ctx)
+        assert speed == "deliberative"
+        assert signals.get("history_promoted") is True
+
+    def test_history_bias_does_not_promote_reactive(self) -> None:
+        ctx = SessionContext(
+            peak_speed=None,
+            prior_speeds=("deliberative", "deliberative"),
+        )
+        speed, _ = classify_speed("ok", ctx)
+        assert speed == "reactive"
+
+    def test_active_deliberation_forces_deliberative(self) -> None:
+        ctx = SessionContext(has_active_deliberation=True)
+        speed, signals = classify_speed("what about this?", ctx)
+        assert speed == "deliberative"
+        assert signals.get("active_deliberation_promoted") is True
+
+    def test_signals_include_effective_speed(self) -> None:
+        ctx = SessionContext(peak_speed="deliberative", prior_speeds=("deliberative",))
+        speed, signals = classify_speed("tell me more", ctx)
+        assert signals["effective_speed"] == speed
+        assert signals["base_speed"] == "reflective"
 
 
 # ── Streaming helpers ────────────────────────────────────────────────

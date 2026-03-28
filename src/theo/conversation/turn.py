@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from uuid import UUID
 
     from theo.bus.events import MessageReceived
+    from theo.conversation.engine import ConversationEngine
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -74,10 +75,13 @@ async def execute_turn(
     session_id: UUID,
     *,
     persist_user_message: bool = True,
+    engine: ConversationEngine | None = None,
 ) -> None:
     """Run a full conversation turn: context -> LLM stream -> tool loop -> response."""
     t0 = time.monotonic()
-    speed = classify_speed(event.body)
+    # Build session context under the lock (caller holds it) to avoid stale snapshots.
+    session_context = engine.session_context_for(session_id) if engine is not None else None
+    speed, signals = classify_speed(event.body, session_context)
     model = model_for_speed(speed)
     state = _TurnState(
         session_id=session_id,
@@ -92,11 +96,16 @@ async def execute_turn(
             "session.id": str(session_id),
             "llm.speed": speed,
             "llm.model": model,
+            **{f"speed.{k}": str(v) for k, v in signals.items()},
         },
     ) as span:
         try:
             if persist_user_message and not await _persist_incoming(state, span):
                 return
+            # Record speed only after privacy check passes — rejected messages
+            # should not influence the session ratchet.
+            if engine is not None:
+                engine.record_speed(session_id, speed)
             messages, system_prompt = await _build_initial_messages(state)
 
             async def _publish_chunk(text: str) -> None:

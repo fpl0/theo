@@ -10,6 +10,7 @@ from theo.bus import bus
 from theo.bus.events import MessageReceived
 from theo.conversation.turn import execute_turn
 from theo.errors import ConversationNotRunningError
+from theo.llm import _SPEED_ORDER, SessionContext, Speed
 from theo.resilience import retry_queue
 
 if TYPE_CHECKING:
@@ -32,9 +33,14 @@ class ConversationEngine:
     session is busy are queued and processed in order.
     """
 
+    # Maximum number of prior speeds to keep per session for history bias.
+    _HISTORY_WINDOW = 6
+
     def __init__(self) -> None:
         self._state: EngineState = "stopped"
         self._session_locks: dict[UUID, asyncio.Lock] = {}
+        self._session_speeds: dict[UUID, list[Speed]] = {}
+        self._session_peaks: dict[UUID, Speed] = {}
         self._paused_queue: asyncio.Queue[MessageReceived] = asyncio.Queue()
         self._inflight = 0
         self._drained = asyncio.Event()
@@ -95,6 +101,32 @@ class ConversationEngine:
         """Number of messages queued while paused."""
         return self._paused_queue.qsize()
 
+    # -- session speed tracking -------------------------------------------
+
+    def session_context_for(self, session_id: UUID) -> SessionContext:
+        """Build a ``SessionContext`` from recorded session speeds."""
+        speeds = self._session_speeds.get(session_id, [])
+        peak = self._session_peaks.get(session_id)
+        if not speeds:
+            return SessionContext()
+        return SessionContext(
+            peak_speed=peak,
+            prior_speeds=tuple(speeds[-self._HISTORY_WINDOW :]),
+        )
+
+    def record_speed(self, session_id: UUID, speed: Speed) -> None:
+        """Record a speed classification for a session."""
+        speeds = self._session_speeds.setdefault(session_id, [])
+        speeds.append(speed)
+        # Cap history to avoid unbounded growth.
+        if len(speeds) > self._HISTORY_WINDOW:
+            self._session_speeds[session_id] = speeds[-self._HISTORY_WINDOW :]
+        # Track lifetime peak separately — the ratchet should hold at the
+        # session's all-time high, not just the windowed max.
+        current_peak = self._session_peaks.get(session_id)
+        if current_peak is None or _SPEED_ORDER[speed] > _SPEED_ORDER[current_peak]:
+            self._session_peaks[session_id] = speed
+
     # -- event handler ----------------------------------------------------
 
     async def _on_message(self, event: MessageReceived) -> None:
@@ -132,6 +164,8 @@ class ConversationEngine:
                 if self._inflight == 0:
                     self._drained.set()
         # Clean up session lock if no longer in use.
+        # Session speeds are NOT cleaned here — they must persist across
+        # turns for the ratchet to work. They are bounded by _HISTORY_WINDOW.
         lock = self._session_locks.get(session_id)
         if lock is not None and not lock.locked():
             self._session_locks.pop(session_id, None)
@@ -142,7 +176,10 @@ class ConversationEngine:
         if session_id is None:
             log.warning("dropping message without session_id", extra={"event_id": str(event.id)})
             return
-        await self._run_under_lock(session_id, execute_turn(event, session_id))
+        await self._run_under_lock(
+            session_id,
+            execute_turn(event, session_id, engine=self),
+        )
 
     async def _retry_message(
         self,
@@ -165,5 +202,10 @@ class ConversationEngine:
         )
         await self._run_under_lock(
             session_id,
-            execute_turn(event, session_id, persist_user_message=False),
+            execute_turn(
+                event,
+                session_id,
+                persist_user_message=False,
+                engine=self,
+            ),
         )

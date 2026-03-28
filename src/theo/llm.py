@@ -42,6 +42,17 @@ _duration = _meter.create_histogram(
 
 type Speed = Literal["reactive", "reflective", "deliberative"]
 
+_SPEED_ORDER: dict[Speed, int] = {"reactive": 0, "reflective": 1, "deliberative": 2}
+
+
+@dataclass(frozen=True, slots=True)
+class SessionContext:
+    """Per-session state for context-aware speed classification."""
+
+    peak_speed: Speed | None = None
+    prior_speeds: tuple[Speed, ...] = ()
+    has_active_deliberation: bool = False
+
 
 @dataclass(frozen=True, slots=True)
 class TextDelta:
@@ -81,18 +92,106 @@ _DELIBERATIVE_RE = re.compile(
     r"\b(think|research|analyze|analyse|compare|evaluate|investigate|plan|design|review)\b",
     re.IGNORECASE,
 )
+_TASK_INDICATOR_RE = re.compile(
+    r"\b(step[- ]by[- ]step|first\b.*\bthen\b|how should|what if|pros and cons|trade.?offs"
+    r"|prioriti[sz]e|recommend|strategy|outline|break.?down)\b",
+    re.IGNORECASE,
+)
 _SHORT_THRESHOLD = 30
 _LONG_THRESHOLD = 500
 
 
-def classify_speed(text: str) -> Speed:
-    """Classify a user message into a reasoning speed tier."""
-    stripped = text.strip()
+def _classify_base(stripped: str) -> tuple[Speed, str]:
+    """Message-level heuristic classification."""
     if len(stripped) <= _SHORT_THRESHOLD and _REACTIVE_RE.match(stripped):
-        return "reactive"
-    if _DELIBERATIVE_RE.search(stripped) or len(stripped) > _LONG_THRESHOLD:
-        return "deliberative"
-    return "reflective"
+        return "reactive", "greeting_or_ack"
+    if _DELIBERATIVE_RE.search(stripped):
+        return "deliberative", "reasoning_keyword"
+    if len(stripped) > _LONG_THRESHOLD:
+        return "deliberative", "long_message"
+    if _TASK_INDICATOR_RE.search(stripped):
+        return "deliberative", "task_indicator"
+    return "reflective", "default"
+
+
+def _apply_session_context(
+    base: Speed,
+    ctx: SessionContext,
+    signals: dict[str, object],
+) -> Speed:
+    """Promote speed based on session history and active deliberation."""
+    effective = base
+
+    # History bias: if recent turns were mostly deliberative, promote
+    # reflective to deliberative (don't promote reactive — that's an ack).
+    if (
+        ctx.prior_speeds
+        and effective == "reflective"
+        and sum(1 for s in ctx.prior_speeds if s == "deliberative") > len(ctx.prior_speeds) // 2
+    ):
+        effective = "deliberative"
+        signals["history_promoted"] = True
+
+    # Active deliberation forces deliberative minimum.
+    if ctx.has_active_deliberation and _SPEED_ORDER[effective] < _SPEED_ORDER["deliberative"]:
+        effective = "deliberative"
+        signals["active_deliberation_promoted"] = True
+
+    return effective
+
+
+def _apply_ratchet(
+    base: Speed,
+    effective: Speed,
+    ctx: SessionContext,
+    signals: dict[str, object],
+) -> Speed:
+    """Hold speed at session peak unless a downgrade signal is detected."""
+    cfg = get_settings()
+    if not cfg.session_ratchet_enabled or ctx.peak_speed is None:
+        reason = "history_bias" if signals.get("history_promoted") else "base"
+        signals["final_reason"] = reason
+        return effective
+
+    peak_ord = _SPEED_ORDER[ctx.peak_speed]
+    eff_ord = _SPEED_ORDER[effective]
+
+    if eff_ord >= peak_ord:
+        signals["final_reason"] = "classified_above_peak"
+        return effective
+
+    # Reactive ack after deliberative is a downgrade signal.
+    if base == "reactive" and ctx.peak_speed == "deliberative":
+        signals["ratchet_downgrade"] = True
+        signals["final_reason"] = "downgrade_signal"
+        return effective
+
+    signals["ratchet_held"] = True
+    signals["final_reason"] = "ratchet"
+    return ctx.peak_speed
+
+
+def classify_speed(
+    text: str,
+    session_context: SessionContext | None = None,
+) -> tuple[Speed, dict[str, object]]:
+    """Classify a user message into a reasoning speed tier.
+
+    Returns the classified speed and a dict of signals that contributed to
+    the decision (for observability).
+    """
+    stripped = text.strip()
+    base, base_reason = _classify_base(stripped)
+    signals: dict[str, object] = {"base_speed": base, "base_reason": base_reason}
+
+    if session_context is None:
+        signals["final_reason"] = "no_session_context"
+        return base, signals
+
+    effective = _apply_session_context(base, session_context, signals)
+    effective = _apply_ratchet(base, effective, session_context, signals)
+    signals["effective_speed"] = effective
+    return effective, signals
 
 
 def model_for_speed(speed: Speed, cfg: Settings | None = None) -> str:
