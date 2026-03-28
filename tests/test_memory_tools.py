@@ -130,7 +130,7 @@ class TestStoreMemory:
 class TestSearchMemory:
     async def test_search_memory_returns_formatted_results(self) -> None:
         mock = AsyncMock(return_value=[_FakeNode()])
-        with patch("theo.memory.tools.nodes.search_nodes", mock):
+        with patch("theo.memory.tools.retrieval.hybrid_search", mock):
             result = await execute_tool(
                 "search_memory",
                 {"query": "python"},
@@ -139,18 +139,18 @@ class TestSearchMemory:
         parsed = json.loads(result)
         assert len(parsed) == 1
         assert parsed[0]["body"] == "Python is great"
-        assert parsed[0]["similarity"] == 0.95
+        assert parsed[0]["score"] == 0.95
 
     async def test_search_memory_passes_limit(self) -> None:
         mock = AsyncMock(return_value=[])
-        with patch("theo.memory.tools.nodes.search_nodes", mock):
+        with patch("theo.memory.tools.retrieval.hybrid_search", mock):
             await execute_tool("search_memory", {"query": "test", "limit": 3})
 
         mock.assert_awaited_once_with("test", limit=3)
 
     async def test_search_memory_defaults_limit_to_5(self) -> None:
         mock = AsyncMock(return_value=[])
-        with patch("theo.memory.tools.nodes.search_nodes", mock):
+        with patch("theo.memory.tools.retrieval.hybrid_search", mock):
             await execute_tool("search_memory", {"query": "test"})
 
         mock.assert_awaited_once_with("test", limit=5)
@@ -242,7 +242,7 @@ class TestErrorHandling:
 
     async def test_tool_exception_does_not_raise(self) -> None:
         with patch(
-            "theo.memory.tools.nodes.search_nodes",
+            "theo.memory.tools.retrieval.hybrid_search",
             AsyncMock(side_effect=ConnectionError("timeout")),
         ):
             result = await execute_tool("search_memory", {"query": "test"})

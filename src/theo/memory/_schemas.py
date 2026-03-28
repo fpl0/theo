@@ -43,8 +43,9 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "name": "search_memory",
         "description": (
-            "Search long-term memory for relevant knowledge. "
-            "Returns the most semantically similar memories."
+            "Search long-term memory for relevant knowledge using hybrid retrieval. "
+            "Combines vector similarity, full-text search, and graph traversal "
+            "via Reciprocal Rank Fusion for comprehensive results."
         ),
         "input_schema": {
             "type": "object",

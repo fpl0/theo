@@ -21,7 +21,7 @@ from typing import Any, cast
 
 from opentelemetry import trace
 
-from theo.memory import core, edges, nodes, user_model
+from theo.memory import core, edges, nodes, retrieval, user_model
 from theo.memory._schemas import TOOL_DEFINITIONS
 from theo.memory.auto_edges import record_mention
 from theo.onboarding import flow as onboarding_flow
@@ -95,7 +95,7 @@ async def _search_memory(tool_input: dict[str, object]) -> str:
     query = str(tool_input.get("query", ""))
     limit = int(str(tool_input.get("limit", 5)))
 
-    results = await nodes.search_nodes(query, limit=limit)
+    results = await retrieval.hybrid_search(query, limit=limit)
     return json.dumps(
         [
             {
@@ -103,7 +103,7 @@ async def _search_memory(tool_input: dict[str, object]) -> str:
                 "kind": r.kind,
                 "body": r.body,
                 "importance": r.importance,
-                "similarity": round(r.similarity, 4) if r.similarity is not None else None,
+                "score": round(r.similarity, 4) if r.similarity is not None else None,
             }
             for r in results
         ]

@@ -10,8 +10,9 @@ import pytest
 
 from theo.bus import EventBus
 from theo.bus.events import MessageReceived, ResponseChunk, ResponseComplete
-from theo.conversation import _MAX_TOOL_ITERATIONS, ConversationEngine
+from theo.conversation import ConversationEngine
 from theo.conversation.context import AssembledContext, SectionTokens
+from theo.conversation.turn import _MAX_TOOL_ITERATIONS
 from theo.errors import CircuitOpenError, ConversationNotRunningError
 from theo.llm import StreamDone, TextDelta, ToolUseRequest
 from theo.resilience import CircuitBreaker, RetryQueue
