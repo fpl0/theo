@@ -39,3 +39,6 @@ Thumbs.db
 # MLX / HuggingFace model cache (if copied locally)
 models/
 *.safetensors
+
+# Claude Code worktrees
+.claude/worktrees/
