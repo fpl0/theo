@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
+
+from opentelemetry import trace
 
 if TYPE_CHECKING:
     from theo.llm import Speed
     from theo.memory._types import DimensionResult
+
+log = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 type Verbosity = str | None
 

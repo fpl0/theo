@@ -49,6 +49,7 @@ if TYPE_CHECKING:
     from uuid import UUID
 
     from theo.llm import Speed
+    from theo.memory._types import DimensionResult
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -165,6 +166,7 @@ async def assemble(
         transparency_section = build_transparency_instructions(speed, verbosity_dim)
         transparency_tokens = estimate_tokens(transparency_section)
         span.set_attribute("context.speed_tier", speed)
+        span.set_attribute("context.verbosity", _verbosity_label(verbosity_dim))
 
         # Check for completed deliberations awaiting delivery.
         deliberation_section = ""
@@ -217,6 +219,14 @@ async def assemble(
             token_estimate=telemetry.total,
             section_tokens=section_tokens,
         )
+
+
+def _verbosity_label(dim: DimensionResult | None) -> str:
+    """Extract verbosity value for span attributes, defaulting to 'default'."""
+    if dim is None:
+        return "default"
+    raw = dim.value.get("verbosity")
+    return raw if isinstance(raw, str) else "default"
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
