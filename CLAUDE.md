@@ -1,106 +1,144 @@
+# Theo
 
-Default to using Bun instead of Node.js.
+Personal AI agent with persistent memory, autonomous scheduling, and full event sourcing.
+Built for decades of continuous use. Single owner. Local-first.
 
-- Use `bun <file>` instead of `node <file>` or `ts-node <file>`
-- Use `bun test` instead of `jest` or `vitest`
-- Use `bun build <file.html|file.ts|file.css>` instead of `webpack` or `esbuild`
-- Use `bun install` instead of `npm install` or `yarn install` or `pnpm install`
-- Use `bun run <script>` instead of `npm run <script>` or `yarn run <script>` or `pnpm run <script>`
-- Use `bunx <package> <command>` instead of `npx <package> <command>`
-- Bun automatically loads .env, so don't use dotenv.
+## Architecture
 
-## APIs
+Read `docs/foundation.md` for the full architecture document. Summary of the five primitives:
 
-- `Bun.serve()` supports WebSockets, HTTPS, and routes. Don't use `express`.
-- `bun:sqlite` for SQLite. Don't use `better-sqlite3`.
-- `Bun.redis` for Redis. Don't use `ioredis`.
-- `Bun.sql` for Postgres. Don't use `pg` or `postgres.js`.
-- `WebSocket` is built-in. Don't use `ws`.
-- Prefer `Bun.file` over `node:fs`'s readFile/writeFile
-- Bun.$`ls` instead of execa.
+| Primitive | Purpose | Backed by |
+| --------- | ------- | --------- |
+| Event Log | Append-only record of everything | PostgreSQL, partitioned by month, ULID keys |
+| Event Bus | Persistent dispatch + in-memory acceleration | Unified with event log, handler checkpoints |
+| Memory | Multi-tier knowledge store (graph + episodic + core + user/self models) | Dedicated tables, projected from events |
+| Chat | Conversation engine — context assembly, SDK calls, streaming | Claude Agent SDK sessions |
+| Scheduler | Autonomous agent turns on cron/trigger | PostgreSQL |
 
-## Testing
+The event log is the primary record. All other state is a projection that can be rebuilt from events.
 
-Use `bun test` to run tests.
+## Stack
 
-```ts#index.test.ts
-import { test, expect } from "bun:test";
+Every dependency earned its place. Do not suggest alternatives.
 
-test("hello world", () => {
-  expect(1).toBe(1);
-});
+| Concern | Choice | Do NOT use |
+| ------- | ------ | ---------- |
+| Runtime | Bun | Node.js |
+| Language | TypeScript (strict) | JavaScript |
+| Agent SDK | `@anthropic-ai/claude-agent-sdk` | Direct Anthropic API |
+| Database | `postgres` (postgres.js) | pg, Prisma, Drizzle, TypeORM, Knex, Bun.sql |
+| Vectors | pgvector | Pinecone, Weaviate, Qdrant, Chroma |
+| Validation | zod | joi, yup, io-ts |
+| Telegram | grammy | telegraf, node-telegram-bot-api |
+| Embeddings | `@huggingface/transformers` (ONNX, local) | OpenAI embeddings API |
+| Lint + format | biome | eslint, prettier |
+| Task runner | just | make, npm scripts for orchestration |
+
+## Bun
+
+- `bun <file>` not `node` or `ts-node`
+- `bun test` not jest or vitest
+- `bun install` not npm/yarn/pnpm
+- `Bun.serve()` not express
+- Bun auto-loads `.env` — do not use dotenv
+- Prefer `Bun.file()` over `node:fs` readFile/writeFile
+- `Bun.$\`cmd\`` instead of execa
+
+## Code Conventions
+
+### TypeScript
+
+- `strict: true` with `noUncheckedIndexedAccess`, `noImplicitOverride`, `noFallthroughCasesInSwitch`, `exactOptionalPropertyTypes`, `noUnusedLocals`, `noUnusedParameters`
+- Discriminated unions for event types — exhaustive switch/case with `never` default
+- `readonly` on event interfaces — events are immutable
+- Zod schemas for all external input validation
+- No `any`. No `as` casts unless provably safe. No `// @ts-ignore` or `// @ts-expect-error`.
+- No `biome-ignore` — fix the root cause
+
+### SQL (postgres.js)
+
+- Tagged template queries only: `` sql`SELECT * FROM node WHERE id = ${id}` ``
+- Never string-interpolate SQL — postgres.js parameterizes tagged templates automatically
+- `timestamptz` for all timestamps, never `timestamp`
+- `GENERATED ALWAYS AS IDENTITY` for auto-increment PKs
+- `created_at timestamptz NOT NULL DEFAULT now()` on all tables
+- Migrations are forward-only `.sql` files named `NNNN_description.sql`
+
+### Events
+
+- Events are typed, immutable, append-only
+- ULID for event IDs (sortable, timestamp-embedded)
+- Schema evolution through upcasters at read time — never migrate old events
+- Ephemeral events use a separate type — the type system prevents accidentally skipping persistence
+
+### Style
+
+- biome handles formatting and linting — tabs, 100-char line width
+- `noFloatingPromises` enforced — every `async` call must be awaited, returned, or explicitly voided
+- Delete dead code outright — the project is not in production
+- Errors as values, not exceptions — emit failure events, do not silently swallow
+
+### AI-Friendly Engineering
+
+- **No magic, no metaprogramming:** Avoid excessively clever abstractions or dynamic string-based type generation that an AI might fail to trace statically.
+- **Explicit > Implicit:** Prefer explicit type declarations and function signatures. Use exact types over `any` or loose generic bounds.
+- **Context Window Management:** Keep files focused and modular. Avoid building multi-thousand-line monolithic files that consume the entire context window.
+- **Semantic Documentation:** Add concise inline comments for complex domain logic or state mutations so AI agents have semantic context without guessing intent.
+- **Deterministic Dependencies:** Keep imports organized and avoid cyclical dependencies.
+
+## Commands
+
+| Command | Description |
+| ------- | ----------- |
+| `just check` | Full quality gate: biome + tsc + tests |
+| `just fmt` | Auto-format with biome |
+| `just lint` | Biome check (lint only) |
+| `just typecheck` | `tsc --noEmit` |
+| `just test` | `bun test` |
+| `just dev` | Start infra + agent |
+| `just up` | Start PostgreSQL (docker compose) |
+| `just down` | Stop containers |
+| `just migrate` | Run the migration runner scaffold |
+
+## Current Scaffold
+
+```text
+src/
+  index.ts       # minimal runtime entrypoint
+  db/
+    migrate.ts   # scaffold that lists migration files
+docs/
+  foundation.md  # target architecture
+tests/
+  *.test.ts      # canonical test suite location
+.claude/
+  rules/         # path-scoped constraints: database, events, memory, testing
+  skills/        # recurring workflows: check, db-migrate, setup
 ```
 
-## Frontend
+The current repository is tooling-first. Keep the structure minimal and let it
+grow with implementation rather than pre-creating the full target module tree.
 
-Use HTML imports with `Bun.serve()`. Don't use `vite`. HTML imports fully support React, CSS, Tailwind.
+## Target Project Structure
 
-Server:
-
-```ts#index.ts
-import index from "./index.html"
-
-Bun.serve({
-  routes: {
-    "/": index,
-    "/api/users/:id": {
-      GET: (req) => {
-        return new Response(JSON.stringify({ id: req.params.id }));
-      },
-    },
-  },
-  // optional websocket support
-  websocket: {
-    open: (ws) => {
-      ws.send("Hello, world!");
-    },
-    message: (ws, message) => {
-      ws.send(message);
-    },
-    close: (ws) => {
-      // handle close
-    }
-  },
-  development: {
-    hmr: true,
-    console: true,
-  }
-})
+```text
+src/
+  events/       # event types, log, bus, upcasters
+  memory/       # tiers: graph, episodic, core, user-model, self-model
+  chat/         # conversation engine, context assembly, SDK integration
+  scheduler/    # cron jobs, autonomous turns
+  gates/        # telegram, future: cli, api
+  db/           # pool, migrations
+  config.ts     # zod-validated env config
+  errors.ts     # error hierarchy
 ```
 
-HTML files can import .tsx, .jsx or .js files directly and Bun's bundler will transpile & bundle automatically. `<link>` tags can point to stylesheets and Bun's CSS bundler will bundle.
+## Gotchas
 
-```html#index.html
-<html>
-  <body>
-    <h1>Hello, world!</h1>
-    <script type="module" src="./frontend.tsx"></script>
-  </body>
-</html>
-```
-
-With the following `frontend.tsx`:
-
-```tsx#frontend.tsx
-import React from "react";
-import { createRoot } from "react-dom/client";
-
-// import .css files directly and it works
-import './index.css';
-
-const root = createRoot(document.body);
-
-export default function Frontend() {
-  return <h1>Hello, world!</h1>;
-}
-
-root.render(<Frontend />);
-```
-
-Then, run index.ts
-
-```sh
-bun --hot ./index.ts
-```
-
-For more information, read the Bun API docs in `node_modules/bun-types/docs/**.mdx`.
+- postgres.js uses tagged templates — `` sql`...` `` not `sql("...")`. The template IS the parameterization.
+- pgvector cosine distance uses `<=>` operator. Similarity = 1 - distance.
+- Bun's test runner uses `bun:test` imports, not jest globals.
+- Event upcasters must be registered before any replay — missing upcaster = runtime crash on old events.
+- ULID ordering is lexicographic — string comparison works for time ordering.
+- The Agent SDK runs a subprocess. Env vars must be in `process.env`, not just in config objects.
+- `just` commands load `.env.local` (not `.env`). Bun auto-loads `.env`. Keep env vars in `.env.local` for consistency.
