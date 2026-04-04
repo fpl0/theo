@@ -1,0 +1,44 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bun run:*)",
+      "Bash(bun test:*)",
+      "Bash(bun build:*)",
+      "Bash(bun install:*)",
+      "Bash(bun add:*)",
+      "Bash(bun remove:*)",
+      "Bash(bun --hot:*)",
+      "Bash(bunx:*)",
+      "Bash(just:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker ps:*)"
+    ]
+  },
+  "enabledPlugins": {
+    "typescript-lsp@claude-plugins-official": true
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=$(echo \"$TOOL_INPUT\" | bun -e \"const d=JSON.parse(await Bun.stdin.text()); console.log(d.file_path||'')\"); case \"$file\" in *.ts|*.tsx|*.js|*.jsx|*.json|*.jsonc) cd \"$CLAUDE_PROJECT_DIR\" && bunx biome format --write \"$file\" 2>/dev/null;; esac; exit 0"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=$(echo \"$TOOL_INPUT\" | bun -e \"const d=JSON.parse(await Bun.stdin.text()); console.log(d.file_path||'')\"); case \"$file\" in */bun.lock|*/node_modules/*|*/dist/*|*/out/*|*/.git/*) echo 'BLOCK: This file is generated or locked — do not edit directly.' >&2; exit 2;; esac; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
