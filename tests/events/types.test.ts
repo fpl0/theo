@@ -208,7 +208,7 @@ describe("Event type system", () => {
 		const updates: NodeUpdate[] = [
 			{ field: "body", oldValue: "old text", newValue: "new text" },
 			{ field: "kind", oldValue: "fact", newValue: "belief" },
-			{ field: "sensitivity", oldValue: "normal", newValue: "medical" },
+			{ field: "sensitivity", oldValue: "none", newValue: "restricted" },
 			{ field: "confidence", oldValue: 0.5, newValue: 0.9 },
 		];
 
@@ -230,8 +230,8 @@ describe("Event type system", () => {
 				}
 				case "sensitivity": {
 					// Narrowed: oldValue and newValue are Sensitivity
-					expect(update.oldValue).toBe("normal");
-					expect(update.newValue).toBe("medical");
+					expect(update.oldValue).toBe("none");
+					expect(update.newValue).toBe("restricted");
 					break;
 				}
 				case "confidence": {

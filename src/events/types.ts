@@ -109,13 +109,8 @@ export type NodeKind =
 	| "pattern"
 	| "principle";
 
-export type Sensitivity =
-	| "normal"
-	| "financial"
-	| "medical"
-	| "identity"
-	| "location"
-	| "relationship";
+/** Severity level for privacy-sensitive memory nodes. */
+export type Sensitivity = "none" | "sensitive" | "restricted";
 
 export interface NodeCreatedData {
 	readonly nodeId: number;
