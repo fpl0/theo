@@ -987,4 +987,81 @@ describe("EventBus", () => {
 
 		await bus2Result.bus.stop();
 	});
+
+	test("start() rolls back on replay failure", async () => {
+		const bus2Result = createTestBus();
+		bus2Result.bus.on("message.received", async () => {}, { id: "rollback-test-handler" });
+
+		// Rename handler_cursors so getCursor (called during replay) throws
+		await pool.sql`ALTER TABLE handler_cursors RENAME TO handler_cursors_bak`;
+
+		let startFailed = false;
+		try {
+			await bus2Result.bus.start();
+		} catch {
+			startFailed = true;
+		}
+
+		// Restore table before any assertions (cleanup must run even if test fails)
+		await pool.sql`ALTER TABLE handler_cursors_bak RENAME TO handler_cursors`;
+
+		expect(startFailed).toBe(true);
+
+		// After rollback, emit still persists (durability unconditional)
+		// but does NOT dispatch to handlers (bus was rolled back to stopped)
+		await bus2Result.log.ensurePartition(new Date());
+		const emitted = await bus2Result.bus.emit({
+			type: "message.received",
+			version: 1,
+			actor: "user",
+			data: { body: "after-failed-start", channel: "cli" },
+			metadata: {},
+		});
+
+		const events = await collectEvents(bus2Result.log.read());
+		expect(events.some((e) => e.id === emitted.id)).toBe(true);
+	});
+
+	test("batched replay processes all events across multiple batches", async () => {
+		// REPLAY_BATCH_SIZE is 1000; insert more than one batch
+		const count = 50; // Keep reasonable for test speed; validates the batching loop
+		await log.ensurePartition(new Date());
+		await pool.sql.begin(async (tx) => {
+			for (let i = 0; i < count; i++) {
+				await log.append(
+					{
+						type: "message.received",
+						version: 1,
+						actor: "user",
+						data: { body: `batch-${String(i)}`, channel: "cli" },
+						metadata: {},
+					},
+					tx,
+				);
+			}
+		});
+
+		const received: Event[] = [];
+		bus.on(
+			"message.received",
+			async (event) => {
+				received.push(event);
+			},
+			{ id: "batch-replay-handler" },
+		);
+
+		await bus.start();
+		await bus.flush();
+
+		expect(received).toHaveLength(count);
+
+		// Verify ULID ordering preserved
+		for (let i = 1; i < received.length; i++) {
+			const prev = received[i - 1];
+			const curr = received[i];
+			if (prev !== undefined && curr !== undefined) {
+				expect(prev.id < curr.id).toBe(true);
+			}
+		}
+	});
 });

@@ -23,7 +23,7 @@ import type { EphemeralEvent, Event } from "./types.ts";
 // Shutdown timeout
 // ---------------------------------------------------------------------------
 
-const SHUTDOWN_TIMEOUT_MS = 5000;
+const SHUTDOWN_TIMEOUT_MS = 30_000;
 
 // ---------------------------------------------------------------------------
 // Internal registration types
@@ -185,17 +185,32 @@ export function createEventBus(log: EventLog, sql: Sql): EventBus {
 		}
 	}
 
+	// Replay batch size — read this many events per query during replay.
+	// Each batch is an independent SELECT (no long-lived transaction), so
+	// PostgreSQL can vacuum between batches. ULID dedup in the queue handles
+	// any overlap with live events arriving concurrently.
+	const ReplayBatchSize = 1000;
+
 	async function replayHandler(registration: DurableRegistration): Promise<void> {
 		if (registration.queue === null) return;
-		const cursor = await getCursor(registration.id, sql);
-		await sql.begin("isolation level repeatable read", async (tx) => {
+		let cursor = await getCursor(registration.id, sql);
+
+		while (true) {
+			const batch: Event[] = [];
 			const reader = cursor
-				? log.readAfter(cursor, { types: [registration.type], tx })
-				: log.read({ types: [registration.type], tx });
+				? log.readAfter(cursor, { types: [registration.type], limit: ReplayBatchSize })
+				: log.read({ types: [registration.type], limit: ReplayBatchSize });
 			for await (const event of reader) {
+				batch.push(event);
+			}
+			if (batch.length === 0) break;
+			for (const event of batch) {
 				registration.queue?.enqueueReplay(event);
 			}
-		});
+			cursor = batch[batch.length - 1]?.id ?? cursor;
+			if (batch.length < ReplayBatchSize) break;
+		}
+
 		registration.queue?.replayComplete();
 	}
 
@@ -217,8 +232,15 @@ export function createEventBus(log: EventLog, sql: Sql): EventBus {
 		// Step 3: Set started = true BEFORE replay so live events are enqueued
 		started = true;
 
-		// Step 4: Replay each durable handler from checkpoint using REPEATABLE READ
-		await Promise.all(durableHandlers.map(replayHandler));
+		// Step 4: Replay each durable handler from checkpoint
+		try {
+			await Promise.all(durableHandlers.map(replayHandler));
+		} catch (error) {
+			// Replay failed — clean up queues so the bus is in a consistent stopped state.
+			// The caller sees a clean failure and can retry start().
+			await stop();
+			throw error;
+		}
 	}
 
 	/** Get all durable handlers that have active queues. */
@@ -238,12 +260,14 @@ export function createEventBus(log: EventLog, sql: Sql): EventBus {
 		for (const queue of queues) {
 			queue.stop();
 		}
+		let timeoutId: ReturnType<typeof setTimeout> | undefined;
 		await Promise.race([
 			Promise.allSettled(queues.map((q) => q.drained())),
 			new Promise<void>((resolve) => {
-				setTimeout(resolve, SHUTDOWN_TIMEOUT_MS);
+				timeoutId = setTimeout(resolve, SHUTDOWN_TIMEOUT_MS);
 			}),
 		]);
+		if (timeoutId !== undefined) clearTimeout(timeoutId);
 	}
 
 	async function flush(): Promise<void> {

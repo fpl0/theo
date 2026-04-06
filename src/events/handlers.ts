@@ -16,6 +16,9 @@ import type { Event } from "./types.ts";
 /** Maximum retry attempts before dead-lettering an event. */
 export const MAX_RETRIES = 3;
 
+/** Exponential backoff delays (ms) between retry attempts. Index = attempt - 1. */
+export const RETRY_DELAYS: readonly [number, number, number] = [100, 500, 2000];
+
 /**
  * A durable handler receives a transaction for atomic side-effects + checkpoint.
  * An ephemeral handler receives no transaction.

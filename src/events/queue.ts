@@ -13,7 +13,7 @@
  */
 
 import type { Sql, TransactionSql } from "postgres";
-import { advanceCursor, MAX_RETRIES } from "./handlers.ts";
+import { advanceCursor, MAX_RETRIES, RETRY_DELAYS } from "./handlers.ts";
 import type { EventId } from "./ids.ts";
 import type { EventLog } from "./log.ts";
 import type { Event } from "./types.ts";
@@ -52,8 +52,17 @@ export class HandlerQueue {
 		this.wake();
 	}
 
+	// Events beyond this limit are dropped from the in-memory queue.
+	// They are safely persisted in PostgreSQL and will be replayed from
+	// the handler's checkpoint on next restart.
+	private static readonly MAX_LIVE_QUEUE_SIZE = 10_000;
+
 	/** Enqueue a live event (emitted after start()). */
 	enqueueLive(event: Event): void {
+		if (this.liveQueue.length >= HandlerQueue.MAX_LIVE_QUEUE_SIZE) {
+			console.warn(`Live queue overflow — dropping event ${event.id} (safe in PostgreSQL)`);
+			return;
+		}
 		this.liveQueue.push(event);
 		this.wake();
 	}
@@ -175,8 +184,21 @@ export class HandlerQueue {
 
 				this.processing = true;
 				try {
-					await this.executeWithRetry(handler, handlerId, event, sql, log);
-					this.lastProcessedId = event.id;
+					// Inner retry loop: if even the dead-letter path fails (PG down),
+					// retry the SAME event until it's handled or stop() is called.
+					// The event is already dequeued — we must not lose it.
+					let handled = false;
+					while (!handled && !this.stopped) {
+						handled = await this.executeWithRetry(handler, handlerId, event, sql, log);
+						if (!handled) {
+							await new Promise<void>((r) => {
+								setTimeout(r, RETRY_DELAYS[RETRY_DELAYS.length - 1] ?? 2000);
+							});
+						}
+					}
+					if (handled) {
+						this.lastProcessedId = event.id;
+					}
 				} finally {
 					this.processing = false;
 				}
@@ -192,9 +214,12 @@ export class HandlerQueue {
 	}
 
 	/**
-	 * Execute a handler with retry logic. After MAX_RETRIES failures,
-	 * dead-letter the event: emit a system.handler.dead_lettered meta-event
-	 * and advance the cursor, both atomically.
+	 * Execute a handler with retry logic and exponential backoff.
+	 * After MAX_RETRIES failures, dead-letter the event.
+	 *
+	 * Returns true if the event was handled (success or dead-lettered).
+	 * Returns false if even the dead-letter path failed (e.g., PG down) —
+	 * the caller should NOT advance lastProcessedId so the event retries.
 	 */
 	private async executeWithRetry(
 		handler: DurableHandler,
@@ -202,14 +227,14 @@ export class HandlerQueue {
 		event: Event,
 		sql: Sql,
 		log: EventLog,
-	): Promise<void> {
+	): Promise<boolean> {
 		for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 			try {
 				await sql.begin(async (tx) => {
 					await handler(event, tx);
 					await advanceCursor(handlerId, event.id, tx);
 				});
-				return;
+				return true;
 			} catch (error: unknown) {
 				if (attempt === MAX_RETRIES) {
 					// Dead-letter: emit meta-event + advance cursor atomically.
@@ -217,27 +242,42 @@ export class HandlerQueue {
 					// failures — a handler for dead-letter events that itself fails would
 					// create an infinite dead-letter loop. Dead-letter events are delivered
 					// to handlers on next restart via replay.
-					await sql.begin(async (tx) => {
-						await log.append(
-							{
-								type: "system.handler.dead_lettered",
-								version: 1,
-								actor: "system",
-								data: {
-									handlerId,
-									eventId: event.id,
-									attempts: MAX_RETRIES,
-									lastError: error instanceof Error ? error.message : String(error),
+					try {
+						await sql.begin(async (tx) => {
+							await log.append(
+								{
+									type: "system.handler.dead_lettered",
+									version: 1,
+									actor: "system",
+									data: {
+										handlerId,
+										eventId: event.id,
+										attempts: MAX_RETRIES,
+										lastError: error instanceof Error ? error.message : String(error),
+									},
+									metadata: {},
 								},
-								metadata: {},
-							},
-							tx,
+								tx,
+							);
+							await advanceCursor(handlerId, event.id, tx);
+						});
+						return true;
+					} catch (dlError: unknown) {
+						console.error(
+							`Dead-letter failed for handler ${handlerId} on event ${event.id}:`,
+							dlError,
 						);
-						await advanceCursor(handlerId, event.id, tx);
-					});
-					return;
+						return false;
+					}
 				}
+				// Backoff before next retry attempt. Check stopped after sleep so
+				// shutdown isn't delayed by backoff.
+				await new Promise<void>((r) => {
+					setTimeout(r, RETRY_DELAYS[attempt - 1] ?? 2000);
+				});
+				if (this.stopped) return false;
 			}
 		}
+		return false;
 	}
 }
