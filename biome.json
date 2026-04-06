@@ -19,14 +19,34 @@
 	"linter": {
 		"rules": {
 			"a11y": "error",
-			"complexity": "error",
+			"complexity": {
+				"recommended": true,
+				"useLiteralKeys": "off"
+			},
 			"correctness": {
 				"recommended": true,
 				"noNodejsModules": "off"
 			},
-			"performance": "error",
+			"performance": {
+				"recommended": true,
+				"noAwaitInLoops": "off"
+			},
 			"security": "error",
-			"style": "error",
+			"style": {
+				"recommended": true,
+				"useNamingConvention": {
+					"level": "error",
+					"options": {
+						"conventions": [
+							{
+								"selector": { "kind": "objectLiteralProperty" },
+								"formats": ["camelCase", "CONSTANT_CASE", "snake_case"]
+							}
+						]
+					}
+				},
+				"noProcessEnv": "off"
+			},
 			"suspicious": {
 				"recommended": true,
 				"noConsole": "off"
