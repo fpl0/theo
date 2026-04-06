@@ -5,7 +5,9 @@
  * secret detection on the connection string literal.
  */
 
+import type { Sql } from "postgres";
 import type { DbConfig } from "../src/config.ts";
+import type { Event } from "../src/events/types.ts";
 
 /** Test pool tuning: small pool, short timeouts. */
 const TEST_POOL_MAX = 2;
@@ -27,3 +29,27 @@ export const testDbConfig: DbConfig = {
 	DB_IDLE_TIMEOUT: TEST_TIMEOUT,
 	DB_CONNECT_TIMEOUT: TEST_TIMEOUT,
 };
+
+/** Collect all events from an async generator into an array. */
+export async function collectEvents(gen: AsyncGenerator<Event>): Promise<Event[]> {
+	const events: Event[] = [];
+	for await (const event of gen) {
+		events.push(event);
+	}
+	return events;
+}
+
+/** Drop all event partitions and clean handler_cursors for test isolation. */
+export async function cleanEventTables(sql: Sql): Promise<void> {
+	const partitions = await sql`
+		SELECT c.relname AS name
+		FROM pg_catalog.pg_inherits i
+		JOIN pg_catalog.pg_class c ON c.oid = i.inhrelid
+		JOIN pg_catalog.pg_class p ON p.oid = i.inhparent
+		WHERE p.relname = 'events'
+	`;
+	for (const row of partitions) {
+		await sql.unsafe(`DROP TABLE IF EXISTS "${String(row["name"])}"`);
+	}
+	await sql`DELETE FROM handler_cursors`;
+}

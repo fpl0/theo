@@ -1,0 +1,60 @@
+/**
+ * Handler types and checkpoint management for event processing.
+ *
+ * Handlers are functions that process events. Durable handlers receive a
+ * transaction for atomic side-effects + checkpoint writes. Ephemeral handlers
+ * receive no transaction and are fire-and-forget.
+ *
+ * Retry/dead-letter execution logic lives in queue.ts alongside the drain loop.
+ */
+
+import type { Sql, TransactionSql } from "postgres";
+import { asQueryable } from "../db/pool.ts";
+import type { EventId } from "./ids.ts";
+import type { Event } from "./types.ts";
+
+/** Maximum retry attempts before dead-lettering an event. */
+export const MAX_RETRIES = 3;
+
+/**
+ * A durable handler receives a transaction for atomic side-effects + checkpoint.
+ * An ephemeral handler receives no transaction.
+ */
+export type Handler<E extends Event = Event> = (event: E, tx?: TransactionSql) => Promise<void>;
+
+/** Options for registering a handler. Handlers with `id` are durable (checkpointed, replayed). */
+export interface HandlerOptions {
+	readonly id: string;
+}
+
+/**
+ * Advance a handler's checkpoint cursor atomically.
+ * The WHERE guard ensures the cursor never regresses.
+ */
+export async function advanceCursor(
+	handlerId: string,
+	eventId: EventId,
+	tx: TransactionSql,
+): Promise<void> {
+	const query = asQueryable(tx);
+	await query`
+		INSERT INTO handler_cursors (handler_id, cursor, updated_at)
+		VALUES (${handlerId}, ${eventId}, now())
+		ON CONFLICT (handler_id)
+		DO UPDATE SET cursor = ${eventId}, updated_at = now()
+		WHERE handler_cursors.cursor < ${eventId}
+	`;
+}
+
+/**
+ * Load a handler's checkpoint cursor from the database.
+ * Returns null if the handler has no checkpoint yet.
+ */
+export async function getCursor(handlerId: string, sql: Sql): Promise<EventId | null> {
+	const rows = await sql`
+		SELECT cursor FROM handler_cursors WHERE handler_id = ${handlerId}
+	`;
+	const first = rows[0];
+	if (first === undefined) return null;
+	return first["cursor"] as EventId;
+}

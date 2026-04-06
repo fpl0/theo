@@ -6,10 +6,15 @@
  * branding requires it.
  */
 
-import { ulid } from "ulid";
+import { monotonicFactory } from "ulid";
 
 /** Branded string type for event identifiers. Backed by ULID for sortable, timestamp-embedded IDs. */
 export type EventId = string & { readonly __brand: "EventId" };
+
+// Monotonic factory ensures ULIDs generated within the same millisecond are
+// lexicographically increasing. Without this, ulid() uses random suffixes that
+// are NOT guaranteed to be monotonic, breaking ORDER BY id and ULID dedup.
+const ulid = monotonicFactory();
 
 /** Create a new EventId from a fresh ULID. */
 export function newEventId(): EventId {

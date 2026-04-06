@@ -17,6 +17,7 @@ import { resolve } from "node:path";
 import type { Sql } from "postgres";
 import type { AppError, Result } from "../errors.ts";
 import { err, ok } from "../errors.ts";
+import { asQueryable } from "./pool.ts";
 
 /**
  * Discover .sql migration files from the migrations directory.
@@ -76,9 +77,8 @@ async function migrate(sql: Sql): Promise<Result<{ applied: number }, AppError>>
 		try {
 			await sql.begin(async (tx) => {
 				await tx.unsafe(content);
-				// Use unsafe with parameterized args -- TransactionSql's Omit<Sql>
-				// loses call signatures in TypeScript, but unsafe() is preserved.
-				await tx.unsafe("INSERT INTO _migrations (name) VALUES ($1)", [file]);
+				const query = asQueryable(tx);
+				await query`INSERT INTO _migrations (name) VALUES (${file})`;
 			});
 			count++;
 		} catch (e: unknown) {

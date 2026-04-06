@@ -14,7 +14,36 @@ import type { DbConfig } from "../config.ts";
 import type { AppError, Result } from "../errors.ts";
 import { err, ok } from "../errors.ts";
 
-export type { Sql } from "postgres";
+export type { Sql, TransactionSql } from "postgres";
+
+/**
+ * Callable tagged-template type that both Sql and TransactionSql satisfy at runtime.
+ *
+ * postgres.js defines TransactionSql as Omit<Sql, ...> which drops the call signature
+ * in TypeScript's type system. At runtime, transaction objects ARE callable as tagged
+ * templates. This type captures that callable signature so we can use `Sql | TransactionSql`
+ * as a query executor without unsafe casts.
+ *
+ * Usage: pass `sql` or `tx` and call `queryable(sql_or_tx)\`SELECT ...\``
+ */
+export type QueryableConnection = <T extends readonly (object | undefined)[] = postgres.Row[]>(
+	template: TemplateStringsArray,
+	...parameters: readonly postgres.ParameterOrFragment<never>[]
+) => postgres.PendingQuery<T>;
+
+/**
+ * Narrow a Sql or TransactionSql to its callable tagged-template form.
+ *
+ * This is the ONE place where we acknowledge the postgres.js typing gap.
+ * The cast is provably safe: TransactionSql inherits Sql's call signature at runtime.
+ */
+export function asQueryable(
+	connection: postgres.Sql | postgres.TransactionSql,
+): QueryableConnection {
+	// TransactionSql IS callable at runtime — TypeScript just doesn't know it.
+	// This single cast is documented and provably safe.
+	return connection as unknown as QueryableConnection;
+}
 
 /** Maximum connection lifetime in seconds (30 minutes). */
 const MAX_LIFETIME_SECONDS = 1800;
