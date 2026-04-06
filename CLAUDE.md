@@ -100,7 +100,8 @@ Every dependency earned its place. Do not suggest alternatives.
 | `just lint` | Biome check (lint only) |
 | `just mdlint` | Markdown lint (strict, all rules) |
 | `just typecheck` | `tsc --noEmit` |
-| `just test` | `bun test` |
+| `just test` | Ensure test DB exists + migrated, then `bun test` |
+| `just test-db` | Create `theo_test` database if missing, run migrations against it |
 | `just dev` | Start infra + agent |
 | `just up` | Start PostgreSQL (docker compose) |
 | `just down` | Stop containers |
@@ -137,3 +138,4 @@ grow with implementation rather than pre-creating the full target module tree.
 - ULID ordering is lexicographic — string comparison works for time ordering.
 - The Agent SDK runs a subprocess. Env vars must be in `process.env`, not just in config objects.
 - `just` commands load `.env.local` (not `.env`). Bun auto-loads `.env`. Keep env vars in `.env.local` for consistency.
+- Tests run against `theo_test` database, not `theo`. All test configs flow through `tests/helpers.ts`.

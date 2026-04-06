@@ -11,6 +11,8 @@ Phase 2: Event Types (unions, IDs, upcasters)
     |
 Phase 3: Event Log & Bus (table, store, dispatch, checkpoints, replay)
     |
+Phase 3a: Test Database Isolation (theo_test DB, test-db recipe)
+    |
     +-----+-----+
     |           |
 Phase 4     Phase 5-6 depend on bus
@@ -49,6 +51,7 @@ Phase 15: Operationalization (launchd, self-update, observability, logging)
 | 1 | Foundation | Config (zod), pool (postgres.js), migration runner, `Result<T,E>` errors | ~600 | Low |
 | 2 | Event Types | `TheoEvent` union, ULID `EventId`, upcaster registry, `CURRENT_VERSIONS` | ~800 | Low |
 | 3 | Event Log & Bus | Partitioned events table, `EventBus.emit()` (write + dispatch), handler checkpoints, replay, tx support | ~1200 | Medium-High |
+| 3a | Test DB Isolation | Separate `theo_test` database, Docker init script, `just test-db` recipe | ~50 | Minimal |
 | 4 | Memory Schema | Single migration: node, edge, episode, core_memory, user_model, self_model tables, skill table, access_count/last_accessed_at on node, pattern/principle NodeKinds | ~600 | Low |
 | 5 | Embeddings & Knowledge Graph | Local ONNX embeddings, `NodeRepository` (CRUD, adjustConfidence, findSimilar), `EdgeRepository`, temporal versioning | ~1200 | Medium |
 | 6 | Episodic & Core Memory | `EpisodicRepository`, 4-slot `CoreMemoryRepository`, changelog, atomic state+event writes | ~700 | Low |

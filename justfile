@@ -19,8 +19,15 @@ mdlint:
 typecheck:
     bunx tsc --noEmit
 
-# Run tests
-test:
+# Ensure test database exists and is migrated (idempotent)
+test-db:
+    @docker compose exec -T postgres psql -U theo -tc \
+      "SELECT 1 FROM pg_database WHERE datname = 'theo_test'" | grep -q 1 \
+      || docker compose exec -T postgres psql -U theo -c "CREATE DATABASE theo_test OWNER theo"
+    @DATABASE_URL=postgresql://theo:theo@localhost:5432/theo_test bun run src/db/migrate.ts
+
+# Run tests (ensures test db is ready)
+test: test-db
     bun test
 
 # Start infra + agent

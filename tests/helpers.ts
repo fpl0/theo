@@ -18,7 +18,7 @@ function testDatabaseUrl(): string {
 	const user = "theo";
 	const host = "localhost";
 	const port = 5432;
-	const db = "theo";
+	const db = "theo_test";
 	return `postgresql://${user}:${user}@${host}:${String(port)}/${db}`;
 }
 
