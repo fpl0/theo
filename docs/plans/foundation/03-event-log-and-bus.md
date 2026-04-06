@@ -24,7 +24,8 @@ being able to emit events and have handlers process them.
 | ------ | --------- |
 | `src/events/log.ts` | `EventLog` — append events to PostgreSQL, read with upcasting, partition management |
 | `src/events/bus.ts` | `EventBus` — emit (write + dispatch), handler registration, start/stop, replay |
-| `src/events/handlers.ts` | Handler type, dispatch with retry loop, dead-letter logic |
+| `src/events/handlers.ts` | Handler type, retry loop, dead-letter logic |
+| `src/events/queue.ts` | `HandlerQueue` — per-handler serialized queue with replay/live sub-queues |
 | `src/db/migrations/0002_event_log.sql` | Events table (partitioned), handler_cursors, event_snapshots |
 | `tests/events/log.test.ts` | Append/read roundtrip, upcaster application on read, partition creation |
 | `tests/events/bus.test.ts` | Emit+dispatch, checkpointing, replay, dead-lettering, handler isolation, tx support |
@@ -149,6 +150,7 @@ interface EventLog {
 interface ReadOptions {
   types?: ReadonlyArray<Event["type"]>;
   limit?: number;
+  tx?: Transaction;  // use caller's transaction (for REPEATABLE READ replay)
 }
 ```
 
@@ -177,10 +179,13 @@ interface EventBus {
   emit(event: Omit<Event, "id" | "timestamp">, options?: { tx?: Transaction }): Promise<Event>;
 
   start(): Promise<void>;  // replay from checkpoints, then switch to live
-  stop(): Promise<void>;   // drain in-flight handlers, flush
+  stop(): Promise<void>;   // finish current event per handler, discard queues
+  flush(): Promise<void>;  // drain all handler queues completely (testing only)
 }
 
-type Handler<E extends Event> = (event: E) => Promise<void>;
+// Durable handlers receive a transaction for atomic handler+checkpoint writes.
+// Ephemeral handlers do not receive a transaction.
+type Handler<E extends Event> = (event: E, tx?: Transaction) => Promise<void>;
 ```
 
 **Durable vs ephemeral handlers.** Handlers registered with an `id` option are durable: they get a
@@ -189,9 +194,11 @@ registered without `id` are ephemeral: they receive only live events after regis
 checkpoint, and no replay. Ephemeral handlers are for non-critical side effects like logging and
 metrics. Any handler that affects durable state MUST have a stable id.
 
-### Transaction Boundary
+### Transaction Boundary and `emit()` API Contract
 
-The event INSERT is committed BEFORE handler dispatch begins. This is the critical invariant.
+`emit()` guarantees durability: it writes the event to PostgreSQL and returns the persisted event.
+It does NOT wait for handler processing. Handlers are notified via synchronous queue enqueue after
+the write succeeds, and process the event asynchronously via their drain loops.
 
 ```typescript
 async emit(
@@ -201,17 +208,26 @@ async emit(
   // 1. Write to PostgreSQL — committed on return (or when caller's tx commits)
   const persisted = await this.log.append(event, options?.tx);
 
-  // 2. Dispatch to in-memory handlers — only after successful write
-  await this.dispatch(persisted);
+  // 2. Enqueue to matching handler queues — synchronous, no await
+  this.enqueueToMatchingHandlers(persisted);
 
   return persisted;
 }
 ```
 
-If the INSERT fails (constraint violation, partition missing, connection error), no dispatch happens
-— no phantom events. If dispatch fails (a handler throws), the event exists in PostgreSQL — correct,
-because write-before-dispatch guarantees durability. The failed handler will retry or dead-letter,
-but the event is never lost.
+**Why `emit()` does not await handlers:** The old design awaited `dispatch()` which awaited all
+handlers via `Promise.allSettled`. This creates a deadlock when a handler emits during its own
+processing (handler A processes event → emits new event → `emit()` awaits handler A → handler A
+is already processing → deadlock). With queue enqueue, the new event enters A's queue and is
+processed after the current event completes.
+
+**Caller impact:** Code that previously relied on handlers finishing before `emit()` returns must
+now use `bus.flush()` to wait for handler completion. This only affects tests. Production code
+should not depend on handler completion timing — events are durable in PostgreSQL regardless.
+
+If the INSERT fails (constraint violation, partition missing, connection error), no enqueue happens
+— no phantom events. If a handler later fails processing the event, the event still exists in
+PostgreSQL. The handler retries or dead-letters, but the event is never lost.
 
 ### Transaction Parameter for Atomic Event+Projection Writes
 
@@ -235,19 +251,102 @@ where a projection without its event (or vice versa) would be inconsistent.
 
 ### Handler Dispatch
 
-All handlers matching the event type are dispatched concurrently via `Promise.allSettled`. One
-failing handler never blocks others.
+Dispatch is a synchronous enqueue into per-handler queues. Each durable handler has its own
+`HandlerQueue` (see next section). Ephemeral handlers are called inline since they have no
+ordering or checkpoint requirements.
 
 ```typescript
-async dispatch(event: Event): Promise<void> {
-  const matching = this.handlers.filter(h => h.type === event.type);
-  const results = await Promise.allSettled(
-    matching.map(h => this.executeWithRetry(h, event)),
-  );
-  // Failures are handled inside executeWithRetry (retry or dead-letter).
-  // No re-throw — dispatch never fails from the caller's perspective.
+private enqueueToMatchingHandlers(event: Event): void {
+  for (const registration of this.handlers) {
+    if (registration.type !== event.type) continue;
+
+    if (registration.id === undefined) {
+      // Ephemeral handler: fire-and-forget, no queue
+      void registration.handler(event).catch(() => {
+        // Log but do not retry — ephemeral handlers are best-effort
+      });
+      continue;
+    }
+
+    // Durable handler: enqueue for serial processing
+    registration.queue.enqueueLive(event);
+  }
 }
 ```
+
+One handler's queue never blocks another's — they drain independently.
+
+### HandlerQueue Design (`src/events/queue.ts`)
+
+Each durable handler gets a `HandlerQueue` that enforces the core invariant: **events are processed
+one at a time, in ULID order, with monotonic checkpoint advancement.**
+
+```typescript
+class HandlerQueue {
+  private replayQueue: Event[] = [];
+  private liveQueue: Event[] = [];
+  private draining = false;
+  private stopped = false;
+  private lastProcessedId: EventId | null = null;
+  private wakeResolver: (() => void) | null = null;
+  private drainedResolver: (() => void) | null = null;
+
+  enqueueReplay(event: Event): void;   // fed from database replay cursor
+  enqueueLive(event: Event): void;     // fed from emit() dispatch
+  startDraining(): void;               // begins the drain loop
+  stop(): void;                        // finish current, discard rest
+  drained(): Promise<void>;            // resolves when both queues are empty
+}
+```
+
+**Two sub-queues, replay-first drain.** Replay events have strictly lower ULIDs than live events
+(guaranteed by MVCC snapshot — the replay query cannot see events emitted after it started).
+Draining replay first preserves global ULID order without sorting.
+
+**Drain loop pseudocode:**
+
+```typescript
+private async drain(handler, handlerId, advanceCursor, sql): Promise<void> {
+  this.draining = true;
+  while (!this.stopped) {
+    // 1. Dequeue: replay first, then live
+    const event = this.replayQueue.shift() ?? this.liveQueue.shift();
+
+    if (!event) {
+      // Queue empty — resolve drained promise if anyone is waiting
+      this.drainedResolver?.();
+      // Park until woken by enqueueReplay/enqueueLive or stop
+      await new Promise<void>(r => { this.wakeResolver = r; });
+      continue;
+    }
+
+    // 2. ULID dedup: skip events at or before the last processed
+    if (this.lastProcessedId && event.id <= this.lastProcessedId) continue;
+
+    // 3. Execute handler + checkpoint atomically
+    await this.executeWithRetry(handler, handlerId, event, advanceCursor, sql);
+
+    // 4. Track progress
+    this.lastProcessedId = event.id;
+  }
+  this.draining = false;
+}
+```
+
+**Re-entrancy prevention.** The `draining` flag ensures only one drain loop runs per queue. The
+JS event loop is single-threaded: `await handler(event, tx)` runs to completion before the next
+dequeue. No true parallelism within a handler.
+
+**Wake mechanism.** When both queues are empty, the drain loop parks on a `Promise` whose resolver
+is stored as `wakeResolver`. `enqueueLive()` and `enqueueReplay()` call `wakeResolver?.()` after
+pushing to their respective queues, unblocking the loop.
+
+**ULID dedup.** The MVCC timing window can produce overlapping events between the replay query's
+snapshot boundary and live dispatch. The `event.id <= lastProcessedId` guard catches these. ULID
+comparison is lexicographic — string comparison works for time ordering.
+
+**`drained()` for testing.** Returns a `Promise` that resolves when both queues are empty and the
+current event (if any) has finished processing. Used by `bus.flush()`.
 
 ### Retry Strategy
 
@@ -257,58 +356,46 @@ resource issue) is resolved by immediate retry. A permanent failure (e.g., a bug
 fails fast after 3 attempts.
 
 ```typescript
-// Map of "handlerId:eventId" → failure count
-private failureCounts = new Map<string, number>();
-
 private readonly MAX_RETRIES = 3;
 
-async executeWithRetry(registration: HandlerRegistration, event: Event): Promise<void> {
-  const key = registration.id
-    ? `${registration.id}:${event.id}`
-    : undefined; // ephemeral handlers: no tracking, no retry
-
-  if (!key) {
-    // Ephemeral handler: fire-and-forget, catch and log errors
-    try {
-      await registration.handler(event);
-    } catch (error) {
-      // Log but do not retry — ephemeral handlers are best-effort
-    }
-    return;
-  }
-
+// Called from within the HandlerQueue drain loop (already serialized per handler).
+// Ephemeral handlers are not routed through queues — they are fire-and-forget in dispatch.
+async executeWithRetry(
+  handler: Handler<Event>,
+  handlerId: string,
+  event: Event,
+  advanceCursor: (id: string, cursor: EventId, tx: Transaction) => Promise<void>,
+  sql: Sql,
+): Promise<void> {
   for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
     try {
-      await registration.handler(event);
-
-      // Success — advance checkpoint and clean up
-      await this.advanceCursor(registration.id, event.id);
-      this.failureCounts.delete(key);
+      // Atomic: handler side effects + checkpoint in one transaction
+      await sql.begin(async (tx) => {
+        await handler(event, tx);
+        await advanceCursor(handlerId, event.id, tx);
+      });
       return;
     } catch (error) {
-      this.failureCounts.set(key, attempt);
-
       if (attempt === this.MAX_RETRIES) {
-        // Dead-letter: advance cursor past the problematic event
-        await this.advanceCursor(registration.id, event.id);
-        this.failureCounts.delete(key);
-
-        // Emit a meta-event recording the failure
-        await this.log.append({
-          type: "system.handler.dead_lettered",
-          version: 1,
-          actor: "system",
-          data: {
-            handlerId: registration.id,
-            eventId: event.id,
-            attempts: this.MAX_RETRIES,
-            lastError: error instanceof Error ? error.message : String(error),
-          },
-          metadata: {},
+        // Dead-letter: record failure + advance cursor atomically
+        await sql.begin(async (tx) => {
+          await this.log.append(
+            {
+              type: "system.handler.dead_lettered",
+              version: 1,
+              actor: "system",
+              data: {
+                handlerId,
+                eventId: event.id,
+                attempts: this.MAX_RETRIES,
+                lastError: error instanceof Error ? error.message : String(error),
+              },
+              metadata: {},
+            },
+            tx,
+          );
+          await advanceCursor(handlerId, event.id, tx);
         });
-        // Note: the dead-letter event is dispatched to handlers on its own
-        // (recursive emit). This is safe because dead-letter events themselves
-        // are unlikely to fail, and if they do, the same retry logic applies.
         return;
       }
       // Otherwise: loop immediately to next attempt
@@ -316,6 +403,12 @@ async executeWithRetry(registration: HandlerRegistration, event: Event): Promise
   }
 }
 ```
+
+The dead-letter meta-event is appended to the log via `this.log.append()` within the same
+transaction as the cursor advance. If the transaction fails, neither commits — on restart the
+handler re-encounters the event, re-fails, and re-attempts dead-lettering. The dead-letter event
+itself enters the bus via `enqueueToMatchingHandlers()` after the transaction commits (triggered
+by the `log.append()` call which feeds back through `emit()`).
 
 **Why no backoff:** Theo is a single-user, single-machine system. Handlers are in-memory functions
 operating on local state. There is no remote service to back off from. If a handler fails 3 times in
@@ -327,12 +420,13 @@ Each durable handler (registered with a stable `id`) gets a cursor in `handler_c
 holds the ULID of the last event successfully processed by that handler.
 
 ```typescript
-async advanceCursor(handlerId: string, eventId: EventId): Promise<void> {
-  await sql`
+async advanceCursor(handlerId: string, eventId: EventId, tx: Transaction): Promise<void> {
+  await tx`
     INSERT INTO handler_cursors (handler_id, cursor, updated_at)
     VALUES (${handlerId}, ${eventId}, now())
     ON CONFLICT (handler_id)
     DO UPDATE SET cursor = ${eventId}, updated_at = now()
+    WHERE handler_cursors.cursor < ${eventId}
   `;
 }
 
@@ -344,10 +438,18 @@ async getCursor(handlerId: string): Promise<EventId | null> {
 }
 ```
 
-### Replay on `start()` — Solving the Race
+**Monotonic guard.** The `WHERE handler_cursors.cursor < ${eventId}` clause ensures the cursor
+never regresses, even if a stale `advanceCursor` call arrives out of order. Combined with the
+per-handler queue serialization, this is a defense-in-depth measure.
 
-The replay-to-live transition must handle events emitted during replay without duplicates or gaps.
-The design uses PostgreSQL's MVCC guarantees to avoid a race condition.
+**Transaction parameter.** `advanceCursor` now requires a `tx` parameter — it is always called
+inside the same transaction as the handler's side effects (see Retry Strategy). This eliminates
+the crash window between "handler succeeds" and "checkpoint advances".
+
+### Replay on `start()` — Per-Handler Queue Transition
+
+The replay-to-live transition uses per-handler queues to eliminate the concurrency flaw where a
+handler could process replay and live events simultaneously.
 
 ```typescript
 async start(): Promise<void> {
@@ -361,58 +463,71 @@ async start(): Promise<void> {
   // 2. Load known partitions from pg_catalog
   await this.log.loadKnownPartitions();
 
-  // 3. Replay each durable handler from its checkpoint
+  // 3. Create handler queues and register for live dispatch BEFORE replay
   const durableHandlers = this.handlers.filter(h => h.id !== undefined);
+  for (const registration of durableHandlers) {
+    registration.queue = new HandlerQueue();
+    registration.queue.startDraining(
+      registration.handler,
+      registration.id,
+      this.advanceCursor.bind(this),
+      sql,
+    );
+  }
 
-  // Replay handlers concurrently (each handler replays sequentially within itself)
+  // 4. Mark as started — emit() now enqueues to handler queues
+  this.started = true;
+
+  // 5. Replay each durable handler from its checkpoint (concurrent, each handler
+  //    feeds its own queue). Uses REPEATABLE READ to freeze the MVCC snapshot.
   await Promise.all(
     durableHandlers.map(async (registration) => {
       const cursor = await this.getCursor(registration.id);
 
-      // Read events after the cursor. This query takes a snapshot of the events
-      // table at this moment (PostgreSQL MVCC). Any events emitted during replay
-      // by other handlers or external callers are NOT visible to this query —
-      // they will be dispatched live to this handler via the normal emit() path.
-      const reader = cursor
-        ? this.log.readAfter(cursor, { types: [registration.type] })
-        : this.log.read({ types: [registration.type] });
+      await sql.begin("repeatable read", async (tx) => {
+        const reader = cursor
+          ? this.log.readAfter(cursor, { types: [registration.type], tx })
+          : this.log.read({ types: [registration.type], tx });
 
-      for await (const event of reader) {
-        await this.executeWithRetry(registration, event);
-      }
+        for await (const event of reader) {
+          registration.queue.enqueueReplay(event);
+        }
+      });
+
+      // Signal replay complete — queue will drain live events after replay
+      registration.queue.replayComplete();
     }),
   );
-
-  // 4. Mark as started — from this point, all handlers receive live events
-  this.started = true;
 }
 ```
 
-**Why there is no race:**
+**Why this is safe:**
 
-- During replay, `emit()` is fully operational. New events are written to PostgreSQL and dispatched
-  to ALL registered handlers (including handlers currently replaying).
-- The replay query uses a snapshot (MVCC) — it only sees events that existed when the query started.
-  Events written during replay are invisible to the replay cursor.
-- Those events written during replay ARE dispatched to the replaying handler via the normal `emit()`
-  → `dispatch()` path, because `dispatch()` sends to all matching handlers regardless of replay
-  state.
-- This means the replaying handler processes old events sequentially via the replay loop AND new
-  events concurrently via live dispatch. The checkpoint cursor tracks progress. Since ULIDs are
-  monotonically increasing and the checkpoint only advances forward, a handler never processes the
-  same event twice.
-
-**What about events emitted during replay by handler dispatch?** If handler A's replay of event X
-causes a new event Y to be emitted, event Y is written to PostgreSQL and dispatched to all handlers
-(including handler B which might also be replaying). Handler B will see event Y via live dispatch if
-B has already passed that point in its replay, or via its own replay query if Y's ULID falls within
-the replay range. Both cases are correct.
+1. **Queue created before `started = true`.** The handler's queue exists and its drain loop is
+   running before `emit()` can enqueue live events. No events are missed.
+2. **Replay-first drain order.** The drain loop always dequeues from `replayQueue` before
+   `liveQueue`. Replay events have strictly lower ULIDs than live events (MVCC snapshot guarantee),
+   so ULID order is preserved without sorting.
+3. **ULID dedup catches the overlap window.** The MVCC snapshot includes events up to the moment
+   the `REPEATABLE READ` transaction begins. Any event emitted after that moment goes to
+   `liveQueue` via `enqueueLive()`. If an event falls in the narrow window where it appears in both
+   the replay query result AND live dispatch, the `event.id <= lastProcessedId` guard skips the
+   duplicate.
+4. **No concurrent processing.** The drain loop awaits each handler call to completion before
+   dequeuing the next event. No interleaving within a single handler.
+5. **Handler emission during replay cannot deadlock.** If handler A emits a new event during its
+   processing, `emit()` writes to PostgreSQL and synchronously enqueues to matching handler queues.
+   It does NOT await handler completion. The new event enters handler A's `liveQueue` and processes
+   after the current event completes.
+6. **REPEATABLE READ for replay.** The replay query runs inside a `REPEATABLE READ` transaction,
+   freezing the MVCC snapshot for the entire cursor iteration. This prevents postgres.js internal
+   cursor batching from seeing different snapshots across batches.
 
 ### Late Handler Registration
 
-Handlers registered after `start()` has completed trigger a full replay for that handler. A handler
-with no checkpoint in `handler_cursors` has never processed any events, so it starts from the
-beginning of the event log.
+Handlers registered after `start()` has completed route through the same queue mechanism. The
+queue is created and registered for live dispatch BEFORE the background replay task starts,
+ensuring no events are missed during the gap.
 
 ```typescript
 on<T extends Event["type"]>(
@@ -425,21 +540,34 @@ on<T extends Event["type"]>(
 
   // If the bus is already started and this is a durable handler, replay now
   if (this.started && registration.id !== undefined) {
-    // Fire-and-forget replay — runs in background, handler receives live
-    // events immediately via dispatch() while replay catches up on old ones
+    // 1. Create queue and start drain loop — live events enqueue immediately
+    registration.queue = new HandlerQueue();
+    registration.queue.startDraining(
+      registration.handler,
+      registration.id,
+      this.advanceCursor.bind(this),
+      sql,
+    );
+
+    // 2. Background replay feeds the queue (live events accumulate in liveQueue)
     void this.replayHandler(registration);
   }
 }
 
 private async replayHandler(registration: HandlerRegistration): Promise<void> {
   const cursor = await this.getCursor(registration.id);
-  const reader = cursor
-    ? this.log.readAfter(cursor, { types: [registration.type] })
-    : this.log.read({ types: [registration.type] });
 
-  for await (const event of reader) {
-    await this.executeWithRetry(registration, event);
-  }
+  await sql.begin("repeatable read", async (tx) => {
+    const reader = cursor
+      ? this.log.readAfter(cursor, { types: [registration.type], tx })
+      : this.log.read({ types: [registration.type], tx });
+
+    for await (const event of reader) {
+      registration.queue.enqueueReplay(event);
+    }
+  });
+
+  registration.queue.replayComplete();
 }
 ```
 
@@ -448,8 +576,8 @@ checkpoint = start from zero). This is expected and correct — a new handler ne
 projection from scratch. For large event logs, this is expensive. Registering all handlers before
 `start()` is preferred.
 
-Ephemeral handlers registered after `start()` receive only live events — no replay, no checkpoint.
-This is always the correct behavior for ephemeral handlers.
+Ephemeral handlers registered after `start()` receive only live events — no replay, no checkpoint,
+no queue. This is always the correct behavior for ephemeral handlers.
 
 ### Ephemeral Events
 
@@ -470,34 +598,58 @@ only.
 ### `stop()`
 
 ```typescript
+private readonly SHUTDOWN_TIMEOUT_MS = 5000;
+
 async stop(): Promise<void> {
   this.started = false;
-  // Wait for any in-flight dispatch operations to complete
-  // (tracked via a Set<Promise<void>> of active dispatches)
-  await Promise.allSettled([...this.inflight]);
+
+  // Signal all handler queues to stop
+  const durableHandlers = this.handlers.filter(h => h.queue !== undefined);
+  for (const registration of durableHandlers) {
+    registration.queue.stop();
+  }
+
+  // Wait for current in-flight event per handler to finish, with timeout
+  const drainPromises = durableHandlers.map(h => h.queue.drained());
+  await Promise.race([
+    Promise.allSettled(drainPromises),
+    new Promise(r => setTimeout(r, this.SHUTDOWN_TIMEOUT_MS)),
+  ]);
 }
 ```
 
+**Semantics:** `stop()` finishes the event currently being processed by each handler, then
+discards remaining queued events. It does NOT drain the full queue — those events will replay
+from the checkpoint on next `start()`. The shutdown timeout prevents hanging on stuck handlers.
+
 After `stop()`, `emit()` still writes to the event log (durability is unconditional) but does not
-dispatch to handlers. Events written while stopped will be replayed on the next `start()`.
+enqueue to handler queues. Events written while stopped will be replayed on the next `start()`.
 
 ## Definition of Done
 
 - [ ] `eventLog.append()` writes an event to PostgreSQL and returns it with ID + timestamp
 - [ ] `eventLog.append()` auto-creates the target partition if it does not exist
 - [ ] `eventLog.read()` yields events in ULID order with upcasters applied
-- [ ] `bus.emit()` writes to log AND dispatches to registered handlers
+- [ ] `bus.emit()` writes to log AND enqueues to matching handler queues
+- [ ] `bus.emit()` returns after durable write, not after handler processing
 - [ ] `bus.emit({ ... }, { tx })` uses the provided transaction for the INSERT
 - [ ] Durable handler (registered with `id`) gets a checkpoint in `handler_cursors`
 - [ ] Ephemeral handler (registered without `id`) receives live events only, no checkpoint, no
   replay
-- [ ] After successful handler execution, checkpoint advances
+- [ ] Handler queue processes replay events before live events
+- [ ] Handler queue deduplicates events by EventId (ULID comparison)
+- [ ] Checkpoint advancement is monotonic (`WHERE cursor < new_cursor`)
+- [ ] Handler side effects + checkpoint advance are atomic (single transaction)
 - [ ] Handler failure is caught — other handlers still run
 - [ ] Handler failing 3 times on same event: dead-lettered, cursor advances, meta-event emitted
+- [ ] Dead-letter emit + cursor advance are atomic (single transaction)
 - [ ] `bus.start()` replays events from each durable handler's checkpoint
 - [ ] Events emitted during replay are dispatched live (no duplicates, no gaps)
+- [ ] Handler emission during replay does not deadlock
 - [ ] Handler registered after `start()` triggers full replay for that handler
-- [ ] `bus.stop()` drains in-flight handlers before resolving
+- [ ] `bus.stop()` finishes current event per handler, does not drain full queue
+- [ ] `bus.flush()` drains all handler queues completely (testing only)
+- [ ] Replay queries use REPEATABLE READ isolation
 - [ ] Monthly partition auto-created on first write to a new month
 - [ ] Partitions for current + next month created proactively on `start()`
 - [ ] Ephemeral events dispatch without hitting the database
@@ -522,34 +674,52 @@ dispatch to handlers. Events written while stopped will be replayed on the next 
 
 | Test | Scenario | Expected |
 | ------ | ---------- | ---------- |
-| Emit dispatches to durable handler | Register handler with id, emit matching event | Handler called with event, checkpoint advanced |
-| Emit dispatches to ephemeral handler | Register handler without id, emit matching event | Handler called, no checkpoint row created |
+| Emit enqueues to durable handler | Register handler with id, emit, flush | Handler called with event, checkpoint advanced |
+| Emit dispatches to ephemeral handler | Register handler without id, emit | Handler called, no checkpoint row created |
 | Handler isolation | Two handlers, first throws | Second still runs and succeeds |
-| Checkpoint advances | Durable handler succeeds | `handler_cursors` row updated to event ULID |
-| Dead-letter after retries | Handler always throws | After 3 failures: cursor advances, `system.handler.dead_lettered` event emitted |
+| Checkpoint advances atomically | Durable handler succeeds | `handler_cursors` row updated in same tx as handler |
+| Checkpoint never regresses | Emit 100 events, verify cursor after flush | Cursor advances monotonically |
+| Dead-letter after retries | Handler always throws | After 3 failures: cursor advances, `system.handler.dead_lettered` emitted |
+| Dead-letter atomicity | Handler always throws, inspect DB | Dead-letter event + cursor advance in same tx |
 | Retry succeeds on second attempt | Handler throws once, then succeeds | Checkpoint advances, no dead-letter event |
 | Replay on start | Events in DB, fresh durable handler | Handler receives all past events in order |
 | Replay respects checkpoint | Events in DB, handler cursor at event3 | Handler receives events after event3 only |
-| Emit during replay | Emit a new event while start() is replaying | Replaying handler sees old events from replay AND new event via live dispatch |
+| Concurrent emit during replay | Emit new events while start() replays | All events processed in ULID order, no gaps |
+| Duplicate delivery skipped | Queue receives event with ULID <= last processed | Event skipped, handler not called |
+| Handler emission during replay | Handler emits event while processing replay event | No deadlock, emitted event processed after current |
 | Late handler registration | Register durable handler after start() | Handler replays from beginning, receives subsequent live events |
 | Late ephemeral handler | Register ephemeral handler after start() | Handler receives only events emitted after registration |
 | Emit with tx | Emit inside a transaction | Event persisted atomically with other tx writes |
-| Stop drains handlers | Emit event, call stop() | Handlers finish before stop() resolves |
+| Stop mid-replay | Call stop() during replay | Current event finishes, restart replays correctly |
+| Flush drains all queues | Emit events, call flush() | All handlers finish before flush() resolves |
 | Ephemeral skip persistence | emitEphemeral() | No DB write, handler receives event |
 | Partition proactive creation | Call start() | Partitions exist for current and next month |
 
 ## Risks
 
-**Medium-high risk.** The "write then dispatch" invariant is critical — violating it means lost
-events or phantom dispatches. The replay-to-live transition relies on PostgreSQL MVCC guarantees
-that must be verified with integration tests, not just unit tests.
+**Medium-high risk.** The "write then enqueue" invariant is critical — violating it means lost
+events or phantom dispatches. The per-handler queue mechanism adds complexity but eliminates the
+concurrency flaw in the previous design.
+
+**Failure modes addressed:**
+
+| ID | Mode | Severity | Mitigation |
+| ---- | ------ | ---------- | ------------ |
+| FM-1 | Crash between handler success + checkpoint | HIGH | Atomic tx (handler + checkpoint) |
+| FM-8 | Non-idempotent handlers on replay | HIGH | Atomic tx (handler + checkpoint) |
+| FM-9 | Queue re-entrancy | HIGH | `draining` flag + single drain loop |
+| FM-10 | Dead-letter emit fails, cursor advanced | MEDIUM | Atomic tx (dead-letter + cursor) |
+| FM-11 | MVCC timing window duplicate delivery | MEDIUM | ULID dedup in queue drain |
+| FM-12 | postgres.js cursor batching breaks snapshot | LOW | REPEATABLE READ for replay |
+| FM-5 | `stop()` with pending queue | MEDIUM | Discard + shutdown timeout |
 
 **Mitigations:**
 
-- The transaction boundary is explicit and simple: INSERT commits, then dispatch runs. No
-  interleaving.
-- MVCC snapshot isolation means replay queries are immune to concurrent writes — this is a
-  PostgreSQL guarantee, not application-level logic.
+- Per-handler queues serialize all event processing — no concurrent handler execution.
+- Replay-first drain order preserves ULID ordering without sorting.
+- ULID dedup catches any MVCC timing window duplicates.
+- Atomic handler+checkpoint transactions eliminate crash windows.
+- REPEATABLE READ freezes the replay snapshot for the entire cursor iteration.
 - The retry loop is bounded (3 attempts) and uses dead-lettering to prevent infinite loops.
 - Partition auto-creation uses `IF NOT EXISTS` to be idempotent under concurrency.
 - Integration tests verify the replay-to-live transition with concurrent emits.
