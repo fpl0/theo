@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: theo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-theo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-theo}
+      POSTGRES_DB: ${POSTGRES_DB:-theo}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    shm_size: 256mb
+    volumes:
+      - theo-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-theo} -d ${POSTGRES_DB:-theo}"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+volumes:
+  theo-data:

@@ -1,0 +1,58 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(bun run:*)",
+      "Bash(bun test:*)",
+      "Bash(bun build:*)",
+      "Bash(bun install:*)",
+      "Bash(bun add:*)",
+      "Bash(bun remove:*)",
+      "Bash(bun --hot:*)",
+      "Bash(bunx:*)",
+      "Bash(just:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker ps:*)",
+      "Edit(.claude/**)",
+      "Write(.claude/**)"
+    ]
+  },
+  "enabledPlugins": {
+    "typescript-lsp@claude-plugins-official": true
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=$(echo \"$TOOL_INPUT\" | bun -e \"const d=JSON.parse(await Bun.stdin.text()); console.log(d.file_path||'')\"); case \"$file\" in *.ts|*.tsx|*.js|*.jsx|*.json|*.jsonc) cd \"$CLAUDE_PROJECT_DIR\" && bunx biome format --write \"$file\" 2>/dev/null;; esac; exit 0"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=$(echo \"$TOOL_INPUT\" | bun -e \"const d=JSON.parse(await Bun.stdin.text()); console.log(d.file_path||'')\"); cd \"$CLAUDE_PROJECT_DIR\"; case \"$file\" in *.test.ts) bun test \"$file\" 2>&1 | tail -20;; src/*.ts) test_file=$(echo \"$file\" | sed 's|^src/||' | sed 's|\\.ts$|.test.ts|'); for candidate in \"tests/$test_file\" \"tests/${test_file%/*}/${test_file##*/}\"; do [ -f \"$candidate\" ] && bun test \"$candidate\" 2>&1 | tail -20 && break; done;; esac; exit 0"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=$(echo \"$TOOL_INPUT\" | bun -e \"const d=JSON.parse(await Bun.stdin.text()); console.log(d.file_path||'')\"); case \"$file\" in */bun.lock|*/node_modules/*|*/dist/*|*/out/*|*/.git/*) echo 'BLOCK: This file is generated or locked — do not edit directly.' >&2; exit 2;; esac; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
