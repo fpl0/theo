@@ -32,7 +32,15 @@ Every event implements `TheoEvent<Type, Data>` with:
 
 ## Upcasters
 
-When an event type's schema changes:
+The upcaster registry exists for post-production schema evolution. During the
+foundation plan (pre-production), do NOT write upcasters:
+
+- Modify event types directly — there are no persisted events to migrate
+- All events stay at version 1 throughout foundation
+- CURRENT_VERSIONS map stays at 1 — no version bumps pre-production
+- The registry infrastructure and its tests remain for post-launch use
+
+Post-production upcaster workflow (not yet applicable):
 
 1. Increment the version number in new emissions
 2. Register an upcaster: `upcasters.register("event.type", oldVersion, transformFn)`

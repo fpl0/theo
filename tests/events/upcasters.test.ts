@@ -1,10 +1,9 @@
 /**
  * Tests for the upcaster registry: registration, chain execution, gap detection,
- * and CURRENT_VERSIONS initialization.
+ * and version tracking.
  */
 
 import { beforeEach, describe, expect, test } from "bun:test";
-import { ALL_EVENT_TYPES } from "../../src/events/types.ts";
 import type { UpcasterRegistry } from "../../src/events/upcasters.ts";
 import { createUpcasterRegistry } from "../../src/events/upcasters.ts";
 
@@ -15,13 +14,8 @@ describe("UpcasterRegistry", () => {
 		registry = createUpcasterRegistry();
 	});
 
-	test("CURRENT_VERSIONS initialized with all event types at version 1", () => {
-		const versions = registry.currentVersions;
-		for (const eventType of ALL_EVENT_TYPES) {
-			expect(versions.get(eventType)).toBe(1);
-		}
-		// Verify the map contains exactly the right number of entries
-		expect(versions.size).toBe(ALL_EVENT_TYPES.length);
+	test("fresh registry has empty version map", () => {
+		expect(registry.currentVersions.size).toBe(0);
 	});
 
 	test("single upcaster -- v1 data transformed to v2", () => {
@@ -79,12 +73,11 @@ describe("UpcasterRegistry", () => {
 		});
 	});
 
-	test("no upcaster needed -- data at current version returned unchanged", () => {
-		// turn.completed starts at version 1, no upcasters registered
+	test("no upcaster needed -- data at version 1 returned unchanged", () => {
+		// No upcasters registered for this type -- implicitly version 1
 		const input = { responseBody: "hello", durationMs: 100, tokensUsed: 50 };
 		const result = registry.upcast("turn.completed", 1, input);
 
-		// Same data returned (fromVersion === currentVersion)
 		expect(result).toEqual(input);
 	});
 
@@ -106,13 +99,12 @@ describe("UpcasterRegistry", () => {
 		const input = { someField: "value" };
 		const result = registry.upcast("completely.unknown.type", 1, input);
 
-		// No upcaster, unknown type -- data returned unchanged
 		expect(result).toEqual(input);
 	});
 
 	test("register updates currentVersions", () => {
-		// Before: version 1
-		expect(registry.currentVersions.get("turn.completed")).toBe(1);
+		// Before: not in map (implicitly version 1)
+		expect(registry.currentVersions.get("turn.completed")).toBeUndefined();
 
 		// Register v1->v2
 		registry.register("turn.completed", 1, (data) => data);
@@ -131,7 +123,6 @@ describe("UpcasterRegistry", () => {
 	});
 
 	test("validate returns empty array with no upcasters registered", () => {
-		// No upcasters -- all types at version 1, no chains to validate
 		const gaps = registry.validate();
 		expect(gaps.length).toBe(0);
 	});

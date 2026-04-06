@@ -6,8 +6,6 @@
  * that no gaps exist before any event replay begins.
  */
 
-import { ALL_EVENT_TYPES } from "./types.ts";
-
 /** An upcaster transforms event data from one version to the next. */
 export type Upcaster = (data: Record<string, unknown>) => Record<string, unknown>;
 
@@ -59,15 +57,14 @@ export interface UpcasterRegistry {
 }
 
 /**
- * Create a new upcaster registry with CURRENT_VERSIONS initialized to version 1
- * for all known event types.
+ * Create a new upcaster registry.
+ *
+ * The version map starts empty. Any event type without a registered upcaster
+ * is implicitly at version 1 -- no need to pre-populate with all known types.
+ * Entries are created automatically when register() is called.
  */
 export function createUpcasterRegistry(): UpcasterRegistry {
-	// Internal mutable version map -- exposed as readonly via the interface
 	const versions = new Map<string, number>();
-	for (const eventType of ALL_EVENT_TYPES) {
-		versions.set(eventType, 1);
-	}
 
 	// Upcaster storage: Map<"eventType::fromVersion", Upcaster>
 	const upcasters = new Map<string, Upcaster>();
@@ -90,9 +87,9 @@ export function createUpcasterRegistry(): UpcasterRegistry {
 		fromVersion: number,
 		data: Record<string, unknown>,
 	): Record<string, unknown> {
-		const currentVersion = versions.get(eventType);
-		// Unknown event type or already at current version -- return unchanged
-		if (currentVersion === undefined || fromVersion >= currentVersion) {
+		// Implicit version 1 for types without registered upcasters
+		const currentVersion = versions.get(eventType) ?? 1;
+		if (fromVersion >= currentVersion) {
 			return data;
 		}
 

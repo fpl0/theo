@@ -213,6 +213,10 @@ Phase M: [Name] — ready to begin
 6. **Follow CLAUDE.md conventions.** The implementer must read and follow all conventions in
    CLAUDE.md — especially: postgres.js tagged templates, Result<T,E> error pattern, Bun APIs, strict
    TypeScript.
+7. **No upcasters during foundation.** Theo is not in production — there are no persisted events.
+   When event schemas change, modify the types directly. All events stay at version 1 throughout the
+   foundation plan. The upcaster registry infrastructure stays (it's needed post-launch), but no
+   upcasters are registered during foundation development. CURRENT_VERSIONS stays at 1 for everything.
 
 ## Briefing the Implementer
 
