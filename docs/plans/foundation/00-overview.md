@@ -39,6 +39,8 @@ Phase 12: Scheduler (jobs, cron, execution, built-in jobs)
     |
 Phase 13: Background Intelligence (contradiction detection, auto-edges, consolidation)
     |
+Phase 13a: Memory Resilience (episode salience, recency RRF, kind decay, provenance)
+    |
 Phase 14: Subagents, Onboarding & Engine Lifecycle
     |
 Phase 15: Operationalization (launchd, self-update, observability, logging)
@@ -63,10 +65,11 @@ Phase 15: Operationalization (launchd, self-update, observability, logging)
 | 11 | CLI Gate | Interactive terminal gate, streaming responses, ephemeral events | ~600 | Low |
 | 12 | Scheduler | Job store, cron runner, built-in jobs (consolidation, reflection, scanning) | ~1000 | Medium |
 | 13 | Background Intelligence | Contradiction detection (rate-limited, haiku), auto-edges, consolidation with node merging, importance propagation, forgetting curves, abstraction hierarchy synthesis | ~1100 | Medium |
+| 13a | Memory Resilience | Episode salience scoring, recency RRF signal, node metadata, windowed self-model calibration, kind-specific decay, node provenance, topic-level consolidation, Big Five dimensions | ~600 | Low-Medium |
 | 14 | Subagents, Onboarding & Lifecycle | 8 subagent `AgentDefinition`s, psychologist-led onboarding, `Engine` state machine, reflector creates/refines skills, SkillRepository | ~1000 | Low-Medium |
 | 15 | Operationalization | `launchd` plist, structured logging (JSON + file rotation), OTel tracing + metrics, self-update with rollback, workspace layout | ~1200 | Medium |
 
-**Total: ~13,800 lines across 16 phases.**
+**Total: ~14,400 lines across 17 phases.**
 
 ## Systemic Decisions
 
