@@ -117,7 +117,7 @@ type NodeKind =
   | "fact" | "preference" | "observation" | "belief"
   | "goal" | "person" | "place" | "event"
   | "pattern" | "principle";
-type Sensitivity = "normal" | "financial" | "medical" | "identity" | "location" | "relationship";
+type Sensitivity = "none" | "sensitive" | "restricted";
 
 interface NodeCreatedData {
   readonly nodeId: number;

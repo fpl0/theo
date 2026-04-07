@@ -237,94 +237,88 @@ The privacy filter is a set of **pure functions** -- no database, no state, no s
 classifies content sensitivity using regex heuristics and enforces trust tier limits. Pure functions
 make it trivially testable and impossible to accidentally couple to runtime state.
 
-#### Sensitivity Ordering
+#### Sensitivity Tiers
 
-The ordering reflects **exploitability by a malicious third party**, not subjective emotional
-sensitivity:
+Three tiers, ordered by exploitability. The granular category (financial, medical, etc.) is still
+detected by regex heuristics, but the database column and trust enforcement use the 3-tier model.
+This keeps the schema simple while preserving detection specificity in log messages and denial
+reasons.
 
 ```typescript
-type Sensitivity = "normal" | "location" | "relationship" | "identity" | "medical" | "financial";
+type Sensitivity = "none" | "sensitive" | "restricted";
 
 // Numeric levels for comparison. Higher = more exploitable.
 const SENSITIVITY_LEVEL: Record<Sensitivity, number> = {
-  normal: 0,       // no sensitivity
-  location: 1,     // physical safety implications (stalking, burglary)
-  relationship: 2, // interpersonal privacy (social engineering vector)
-  identity: 3,     // identity theft risk (passport, driver's license)
-  medical: 4,      // health privacy, heavily regulated (HIPAA)
-  financial: 5,    // direct fraud risk -- most actionable by attackers (SSN, credit cards)
+  none: 0,        // no sensitivity concern
+  sensitive: 1,   // location, relationship, identity data -- exploitable with effort
+  restricted: 2,  // financial, medical -- direct fraud risk or heavy regulation
 };
 ```
 
-Rationale for the ordering:
+Rationale for the 3-tier simplification (vs. the original 6-tier model):
 
-- **Financial (5):** SSNs and credit card numbers enable direct, immediate fraud. An attacker with a
-  credit card number can make purchases within minutes. This is the most exploitable category.
-- **Medical (4):** Health data is heavily regulated (HIPAA in the US, GDPR special category in the
-  EU). Exposure creates legal liability and can be used for insurance fraud or discrimination.
-- **Identity (3):** Passport and license numbers enable identity theft, but exploiting them
-  typically requires additional steps (forging documents, opening accounts).
-- **Relationship (2):** Personal relationship details are social engineering vectors but require
-  interpretation and context to exploit.
-- **Location (1):** Physical addresses and GPS coordinates have safety implications (stalking,
-  burglary) but are often semi-public information.
-- **Normal (0):** No sensitivity concern.
+- **Restricted (2):** Financial (SSN, credit cards, IBAN) and medical (diagnoses, prescriptions,
+  ICD codes) data. These enable direct fraud or carry heavy regulatory burden (HIPAA, GDPR special
+  category). An attacker with a credit card number can act within minutes.
+- **Sensitive (1):** Identity (passport, driver's license), location (addresses, GPS), and
+  relationship data. Exploitable but requires additional steps or context. Semi-public information
+  in many cases.
+- **None (0):** No sensitivity concern.
 
 #### Sensitivity Detection (Regex Heuristics)
 
+The detector maps granular pattern labels to the 3-tier sensitivity model. The label is preserved
+for denial messages (e.g., "content contains SSN (restricted)").
+
 ```typescript
 interface SensitivityMatch {
-  readonly category: Sensitivity;
+  readonly tier: Sensitivity;
   readonly label: string;
 }
 
 const SENSITIVITY_PATTERNS: ReadonlyArray<{
-  readonly category: Sensitivity;
+  readonly tier: Sensitivity;
   readonly pattern: RegExp;
   readonly label: string;
 }> = [
-  // Financial -- highest exploitability
-  { category: "financial", pattern: /\b\d{3}-\d{2}-\d{4}\b/, label: "SSN" },
+  // Restricted -- direct fraud risk or heavy regulation
+  { tier: "restricted", pattern: /\b\d{3}-\d{2}-\d{4}\b/, label: "SSN" },
   {
-    category: "financial",
+    tier: "restricted",
     pattern: /\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b/,
     label: "credit card",
   },
   {
-    category: "financial",
+    tier: "restricted",
     pattern: /\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]?){0,16}\b/,
     label: "IBAN",
   },
-
-  // Medical
-  { category: "medical", pattern: /\bdiagnos(?:ed|is)\b.*?\b(?:with|of)\b/i, label: "diagnosis" },
+  { tier: "restricted", pattern: /\bdiagnos(?:ed|is)\b.*?\b(?:with|of)\b/i, label: "diagnosis" },
   {
-    category: "medical",
+    tier: "restricted",
     pattern: /\b(?:prescribed?|prescription|dosage|mg\/day)\b/i,
     label: "prescription",
   },
-  { category: "medical", pattern: /\b[A-Z]\d{2}(?:\.\d{1,4})?\b/, label: "ICD code" },
+  { tier: "restricted", pattern: /\b[A-Z]\d{2}(?:\.\d{1,4})?\b/, label: "ICD code" },
 
-  // Identity
+  // Sensitive -- exploitable with effort
   {
-    category: "identity",
+    tier: "sensitive",
     pattern: /\bpassport\s*(?:#|no|number)?\s*[:.]?\s*[A-Z0-9]{6,9}\b/i,
     label: "passport",
   },
   {
-    category: "identity",
+    tier: "sensitive",
     pattern: /\b(?:driver'?s?\s*licen[cs]e|DL)\s*(?:#|no|number)?\s*[:.]?\s*[A-Z0-9]{5,15}\b/i,
     label: "drivers license",
   },
-
-  // Location
   {
-    category: "location",
+    tier: "sensitive",
     pattern: /\b\d{1,5}\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:St|Ave|Blvd|Rd|Dr|Ln|Way|Ct)\b/,
     label: "street address",
   },
   {
-    category: "location",
+    tier: "sensitive",
     pattern: /-?\d{1,3}\.\d{4,},\s*-?\d{1,3}\.\d{4,}/,
     label: "GPS coordinates",
   },
@@ -332,18 +326,18 @@ const SENSITIVITY_PATTERNS: ReadonlyArray<{
 
 /**
  * Scan content for sensitive data patterns.
- * Returns the highest-severity match, or { category: "normal" } if nothing detected.
+ * Returns the highest-severity match, or { tier: "none" } if nothing detected.
  * Pure function -- no state, no side effects.
  */
 function detectSensitivity(content: string): SensitivityMatch {
-  let highest: SensitivityMatch = { category: "normal", label: "none" };
+  let highest: SensitivityMatch = { tier: "none", label: "none" };
   let highestLevel = 0;
 
   for (const entry of SENSITIVITY_PATTERNS) {
     if (entry.pattern.test(content)) {
-      const level = SENSITIVITY_LEVEL[entry.category];
+      const level = SENSITIVITY_LEVEL[entry.tier];
       if (level > highestLevel) {
-        highest = { category: entry.category, label: entry.label };
+        highest = { tier: entry.tier, label: entry.label };
         highestLevel = level;
       }
     }
@@ -358,15 +352,15 @@ function detectSensitivity(content: string): SensitivityMatch {
 ```typescript
 type PrivacyDecision =
   | { readonly allowed: true }
-  | { readonly allowed: false; readonly reason: string; readonly category: Sensitivity };
+  | { readonly allowed: false; readonly reason: string; readonly tier: Sensitivity };
 
 const TRUST_SENSITIVITY_MAP: Record<TrustTier, Sensitivity> = {
-  owner: "financial",            // can store anything
-  owner_confirmed: "financial",  // can store anything
-  verified: "location",          // up to location data
-  inferred: "normal",            // non-sensitive only
-  external: "normal",            // non-sensitive only
-  untrusted: "normal",           // non-sensitive only
+  owner: "restricted",            // can store anything
+  owner_confirmed: "restricted",  // can store anything
+  verified: "sensitive",          // up to sensitive data
+  inferred: "none",               // non-sensitive only
+  external: "none",               // non-sensitive only
+  untrusted: "none",              // non-sensitive only
 };
 
 /**
@@ -374,19 +368,19 @@ const TRUST_SENSITIVITY_MAP: Record<TrustTier, Sensitivity> = {
  * Pure function -- no database, no state, no side effects.
  *
  * Compares detected sensitivity against the maximum allowed for the trust tier.
- * Returns { allowed: true } or { allowed: false, reason, category }.
+ * Returns { allowed: true } or { allowed: false, reason, tier }.
  */
 function checkPrivacy(content: string, trustTier: TrustTier): PrivacyDecision {
   const detected = detectSensitivity(content);
   const maxAllowed = TRUST_SENSITIVITY_MAP[trustTier];
 
-  if (SENSITIVITY_LEVEL[detected.category] > SENSITIVITY_LEVEL[maxAllowed]) {
+  if (SENSITIVITY_LEVEL[detected.tier] > SENSITIVITY_LEVEL[maxAllowed]) {
     return {
       allowed: false,
       reason: `Content contains ${detected.label} ` +
-        `(${detected.category}), which exceeds the ` +
+        `(${detected.tier}), which exceeds the ` +
         `${trustTier} trust tier limit (max: ${maxAllowed})`,
-      category: detected.category,
+      tier: detected.tier,
     };
   }
 
@@ -406,13 +400,12 @@ function checkPrivacy(content: string, trustTier: TrustTier): PrivacyDecision {
 - [ ] `SelfModelRepository.getCalibration()` returns `correct / predictions` ratio
 - [ ] `detectSensitivity()` is a pure function -- no state, no DB
 - [ ] `checkPrivacy()` is a pure function -- no state, no DB
-- [ ] `detectSensitivity()` matches SSN patterns and returns `{ category: "financial", label: "SSN"
-  }`
-- [ ] `detectSensitivity()` matches credit card patterns
+- [ ] `detectSensitivity()` matches SSN patterns and returns `{ tier: "restricted", label: "SSN" }`
+- [ ] `detectSensitivity()` matches credit card patterns and returns `tier: "restricted"`
 - [ ] `detectSensitivity()` returns highest-severity match when multiple patterns match
-- [ ] `checkPrivacy()` blocks financial data for non-owner trust tiers
+- [ ] `checkPrivacy()` blocks restricted data for non-owner trust tiers
 - [ ] `checkPrivacy()` allows everything for `owner` trust tier
-- [ ] `checkPrivacy()` allows normal text for all trust tiers
+- [ ] `checkPrivacy()` allows `none`-tier text for all trust tiers
 - [ ] `just check` passes
 
 ## Test Cases
@@ -455,38 +448,38 @@ defense before immutable storage.
 
 | Test | Input | Expected |
 | ------ | ------- | ---------- |
-| Clean text | "User likes coffee" | `{ category: "normal", label: "none" }` |
-| SSN pattern | "SSN: 123-45-6789" | `{ category: "financial", label: "SSN" }` |
-| Credit card (Visa) | "card 4111111111111111" | `{ category: "financial", label: "credit card" }` |
-| Credit card (Mastercard) | "pay with 5500000000000004" | `{ category: "financial", label: "credit card" }` |
-| Credit card (Amex) | "amex 340000000000009" | `{ category: "financial", label: "credit card" }` |
-| IBAN | "transfer to GB29NWBK60161331926819" | `{ category: "financial", label: "IBAN" }` |
-| Diagnosis | "diagnosed with diabetes" | `{ category: "medical", label: "diagnosis" }` |
-| Prescription | "prescribed 50mg/day" | `{ category: "medical", label: "prescription" }` |
-| ICD code | "code E11.65 in chart" | `{ category: "medical", label: "ICD code" }` |
-| Passport number | "passport #AB1234567" | `{ category: "identity", label: "passport" }` |
-| Drivers license | "driver's license DL12345678" | `{ category: "identity", label: "drivers license" }` |
-| Street address | "lives at 123 Main St" | `{ category: "location", label: "street address" }` |
-| GPS coordinates | "37.7749, -122.4194" | `{ category: "location", label: "GPS coordinates" }` |
-| Partial SSN | "123-45" (not full pattern) | `{ category: "normal", label: "none" }` |
-| Empty text | "" | `{ category: "normal", label: "none" }` |
-| Numbers in context | "Room 123, Floor 4" | `{ category: "normal", label: "none" }` |
-| Multiple patterns (SSN + address) | "SSN 123-45-6789 at 123 Main St" | `{ category: "financial", label: "SSN" }` (highest severity wins) |
+| Clean text | "User likes coffee" | `{ tier: "none", label: "none" }` |
+| SSN pattern | "SSN: 123-45-6789" | `{ tier: "restricted", label: "SSN" }` |
+| Credit card (Visa) | "card 4111111111111111" | `{ tier: "restricted", label: "credit card" }` |
+| Credit card (Mastercard) | "pay with 5500000000000004" | `{ tier: "restricted", label: "credit card" }` |
+| Credit card (Amex) | "amex 340000000000009" | `{ tier: "restricted", label: "credit card" }` |
+| IBAN | "transfer to GB29NWBK60161331926819" | `{ tier: "restricted", label: "IBAN" }` |
+| Diagnosis | "diagnosed with diabetes" | `{ tier: "restricted", label: "diagnosis" }` |
+| Prescription | "prescribed 50mg/day" | `{ tier: "restricted", label: "prescription" }` |
+| ICD code | "code E11.65 in chart" | `{ tier: "restricted", label: "ICD code" }` |
+| Passport number | "passport #AB1234567" | `{ tier: "sensitive", label: "passport" }` |
+| Drivers license | "driver's license DL12345678" | `{ tier: "sensitive", label: "drivers license" }` |
+| Street address | "lives at 123 Main St" | `{ tier: "sensitive", label: "street address" }` |
+| GPS coordinates | "37.7749, -122.4194" | `{ tier: "sensitive", label: "GPS coordinates" }` |
+| Partial SSN | "123-45" (not full pattern) | `{ tier: "none", label: "none" }` |
+| Empty text | "" | `{ tier: "none", label: "none" }` |
+| Numbers in context | "Room 123, Floor 4" | `{ tier: "none", label: "none" }` |
+| Multiple patterns (SSN + address) | "SSN 123-45-6789 at 123 Main St" | `{ tier: "restricted", label: "SSN" }` (highest severity wins) |
 
 #### `checkPrivacy()` (trust tier enforcement)
 
 | Test | Content | Trust Tier | Expected |
 | ------ | --------- | ------------ | ---------- |
-| Normal text, any tier | "User likes coffee" | inferred | allowed |
+| Clean text, any tier | "User likes coffee" | inferred | allowed |
 | SSN, owner | "SSN: 123-45-6789" | owner | allowed |
 | SSN, owner_confirmed | "SSN: 123-45-6789" | owner_confirmed | allowed |
-| SSN, verified | "SSN: 123-45-6789" | verified | blocked (financial > location) |
-| SSN, inferred | "SSN: 123-45-6789" | inferred | blocked (financial > normal) |
-| SSN, external | "SSN: 123-45-6789" | external | blocked (financial > normal) |
-| GPS, verified | "37.7749, -122.4194" | verified | allowed (location <= location) |
-| GPS, inferred | "37.7749, -122.4194" | inferred | blocked (location > normal) |
+| SSN, verified | "SSN: 123-45-6789" | verified | blocked (restricted > sensitive) |
+| SSN, inferred | "SSN: 123-45-6789" | inferred | blocked (restricted > none) |
+| SSN, external | "SSN: 123-45-6789" | external | blocked (restricted > none) |
+| GPS, verified | "37.7749, -122.4194" | verified | allowed (sensitive <= sensitive) |
+| GPS, inferred | "37.7749, -122.4194" | inferred | blocked (sensitive > none) |
 | Medical, owner | "diagnosed with diabetes" | owner | allowed |
-| Medical, verified | "diagnosed with diabetes" | verified | blocked (medical > location) |
+| Medical, verified | "diagnosed with diabetes" | verified | blocked (restricted > sensitive) |
 | Empty text, untrusted | "" | untrusted | allowed |
 
 ## Risks

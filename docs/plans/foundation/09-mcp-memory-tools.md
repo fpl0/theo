@@ -143,7 +143,7 @@ function storeMemoryTool(deps: MemoryDependencies) {
         "pattern", "principle",
       ]),
       body: z.string().min(1).max(2000),
-      sensitivity: z.enum(["normal", "financial", "medical", "identity", "location", "relationship"]).default("normal"),
+      sensitivity: z.enum(["none", "sensitive", "restricted"]).default("none"),
       trust: z.enum(["owner_confirmed", "inferred", "external", "untrusted"]).default("inferred"),
     },
     async ({ kind, body, sensitivity, trust }) => {

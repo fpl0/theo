@@ -147,7 +147,7 @@ async create(data: CreateNodeInput): Promise<Node> {
       ${data.trust ?? "inferred"},
       ${data.confidence ?? 1.0},
       ${data.importance ?? 0.5},
-      ${data.sensitivity ?? "normal"}
+      ${data.sensitivity ?? "none"}
     )
     RETURNING *
   `;
@@ -182,7 +182,7 @@ type NodeKind =
   | "goal" | "person" | "place" | "event"
   | "pattern" | "principle";
 
-type Sensitivity = "normal" | "financial" | "medical" | "identity" | "location" | "relationship";
+type Sensitivity = "none" | "sensitive" | "restricted";
 
 type TrustTier = "owner" | "owner_confirmed" | "verified" | "inferred" | "external" | "untrusted";
 

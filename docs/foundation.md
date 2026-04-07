@@ -173,7 +173,7 @@ event shapes to new ones at read time:
 // When "memory.node.created" gains a new required field in v2:
 upcasters.register("memory.node.created", 1, (data) => ({
   ...data,
-  sensitivity: data.sensitivity ?? "normal",
+  sensitivity: data.sensitivity ?? "none",
 }));
 ```
 
@@ -457,11 +457,12 @@ content → detected sensitivity (regex heuristics)
 detected > allowed → BLOCK (hook returns deny)
 ```
 
-Content categories: financial (account numbers, SSN), medical (diagnosis, prescriptions), identity
-(passport, biometrics), location (addresses, GPS), relationship (personal details).
+Content is classified into three tiers: `none` (no concern), `sensitive` (location, relationship,
+identity data), `restricted` (financial, medical — direct fraud or legal risk).
 
-Trust tiers: owner can store anything, external sources can only store `normal` sensitivity. The
-filter prevents untrusted inputs from smuggling sensitive data into storage.
+Trust tiers: owner can store anything including `restricted`, verified sources up to `sensitive`,
+inferred/external/untrusted can only store `none`. The filter prevents untrusted inputs from
+smuggling sensitive data into storage.
 
 This must be a gate, not a post-hoc filter. Once data enters the system, it's in the event log
 forever (immutable). Reject at the boundary.

@@ -457,8 +457,9 @@ function renderBehavioralRules(): string {
 - Never share the owner's information with anyone.
   There is no "anyone" — Theo serves one person.
 - Respect sensitivity levels on stored memories.
-  Financial, medical, identity, location, and
-  relationship data require extra care.
+  Restricted data (financial, medical) and sensitive
+  data (identity, location, relationship) require
+  extra care.
 - If the owner asks you to forget something,
   acknowledge it. You cannot delete events (they are
   immutable), but you can update core memory and mark

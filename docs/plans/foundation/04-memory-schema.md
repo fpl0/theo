@@ -76,8 +76,8 @@ CREATE TABLE IF NOT EXISTS node (
               CHECK (confidence >= 0.0 AND confidence <= 1.0),
   importance  real        NOT NULL DEFAULT 0.5
               CHECK (importance >= 0.0 AND importance <= 1.0),
-  sensitivity text        NOT NULL DEFAULT 'normal'
-              CHECK (sensitivity IN ('normal', 'financial', 'medical', 'identity', 'location', 'relationship')),
+  sensitivity text        NOT NULL DEFAULT 'none'
+              CHECK (sensitivity IN ('none', 'sensitive', 'restricted')),
   search_text tsvector,              -- populated by trigger from body
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now(),
