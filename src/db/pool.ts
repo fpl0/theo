@@ -64,12 +64,13 @@ export interface Pool {
  * Does NOT connect immediately -- postgres.js connects on first query.
  * Call pool.connect() to verify connectivity at startup.
  */
-export function createPool(config: DbConfig): Pool {
+export function createPool(config: DbConfig, options?: { onnotice?: () => void }): Pool {
 	const sql = postgres(config.DATABASE_URL, {
 		max: config.DB_POOL_MAX,
 		idle_timeout: config.DB_IDLE_TIMEOUT,
 		connect_timeout: config.DB_CONNECT_TIMEOUT,
 		max_lifetime: MAX_LIFETIME_SECONDS,
+		...(options?.onnotice ? { onnotice: options.onnotice } : {}),
 	});
 
 	return {

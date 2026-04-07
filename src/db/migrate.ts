@@ -113,7 +113,7 @@ async function main(): Promise<void> {
 		process.exit(1);
 	}
 
-	const pool = createPool(configResult.value);
+	const pool = createPool(configResult.value, { onnotice() {} });
 
 	const connectResult = await pool.connect();
 	if (!connectResult.ok) {

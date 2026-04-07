@@ -7,32 +7,26 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { migrate } from "../../src/db/migrate.ts";
 import type { Pool } from "../../src/db/pool.ts";
-import { createPool } from "../../src/db/pool.ts";
 import type { EventId } from "../../src/events/ids.ts";
 import type { EventLog } from "../../src/events/log.ts";
 import { createEventLog, partitionBounds, partitionName } from "../../src/events/log.ts";
 import type { Event } from "../../src/events/types.ts";
 import type { UpcasterRegistry } from "../../src/events/upcasters.ts";
 import { createUpcasterRegistry } from "../../src/events/upcasters.ts";
-import { cleanEventTables, collectEvents, testDbConfig } from "../helpers.ts";
+import { cleanEventTables, collectEvents, createTestPool, expectMonotonicIds } from "../helpers.ts";
 
 let pool: Pool;
 let log: EventLog;
 let upcasters: UpcasterRegistry;
 
 beforeAll(async () => {
-	pool = createPool(testDbConfig);
+	pool = createTestPool();
 	const connectResult = await pool.connect();
 	if (!connectResult.ok) {
 		throw new Error(`Test setup failed: ${connectResult.error.message}`);
 	}
-
-	const migrateResult = await migrate(pool.sql);
-	if (!migrateResult.ok) {
-		throw new Error(`Migration failed: ${migrateResult.error.message}`);
-	}
+	// Schema is set up by `just test-db` before bun test starts.
 });
 
 beforeEach(async () => {
@@ -148,8 +142,10 @@ describe("EventLog", () => {
 		expect(events).toHaveLength(1);
 		const event = events[0];
 		expect(event?.version).toBe(2);
-		expect((event?.data as unknown as Record<string, unknown>)["newField"]).toBe("added-in-v2");
-		expect((event?.data as unknown as Record<string, unknown>)["body"]).toBe("original");
+		// Upcasted data has fields beyond the static type — use Record for dynamic access
+		const data: Record<string, unknown> = event?.data as unknown as Record<string, unknown>;
+		expect(data["newField"]).toBe("added-in-v2");
+		expect(data["body"]).toBe("original");
 	});
 
 	test("type filter returns only matching events", async () => {
@@ -268,6 +264,8 @@ describe("EventLog", () => {
 			data: { body: "first", channel: "cli" },
 			metadata: {},
 		});
+		// Ensure e2 gets a different millisecond timestamp so there's ULID space between them
+		await Bun.sleep(2);
 		const e2 = await log.append({
 			type: "message.received",
 			version: 1,
@@ -276,8 +274,11 @@ describe("EventLog", () => {
 			metadata: {},
 		});
 
-		// Fabricate a cursor between e1 and e2 by taking e1's ID and incrementing last char
-		const fabricated = `${e1.id.slice(0, -1)}Z` as EventId;
+		// Fabricate a cursor between e1 and e2. Same-ms monotonic ULIDs are adjacent
+		// (increment by 1), so we force different timestamps with a small sleep.
+		// Then: e1's 10-char timestamp prefix + max random (all Z's) is guaranteed
+		// > e1 (same ts, higher random) and < e2 (lower timestamp prefix).
+		const fabricated = `${e1.id.slice(0, 10)}ZZZZZZZZZZZZZZZZ` as EventId;
 		expect(fabricated > e1.id).toBe(true);
 		expect(fabricated < e2.id).toBe(true);
 
@@ -334,13 +335,7 @@ describe("EventLog", () => {
 		expect(events).toHaveLength(count);
 
 		// Verify ULID ordering across batch boundary
-		for (let i = 1; i < events.length; i++) {
-			const prev = events[i - 1];
-			const curr = events[i];
-			if (prev !== undefined && curr !== undefined) {
-				expect(prev.id < curr.id).toBe(true);
-			}
-		}
+		expectMonotonicIds(events.map((e) => e.id));
 	});
 });
 

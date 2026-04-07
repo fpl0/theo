@@ -5,12 +5,15 @@
  * secret detection on the connection string literal.
  */
 
+import { expect } from "bun:test";
 import type { Sql } from "postgres";
 import type { DbConfig } from "../src/config.ts";
-import type { Event } from "../src/events/types.ts";
+import type { Pool } from "../src/db/pool.ts";
+import { createPool } from "../src/db/pool.ts";
+import type { Event, EventOfType } from "../src/events/types.ts";
 
 /** Test pool tuning: small pool, short timeouts. */
-const TEST_POOL_MAX = 2;
+const TEST_POOL_MAX = 5;
 const TEST_TIMEOUT = 5;
 
 /** Assemble the local development database URL for tests. */
@@ -31,25 +34,44 @@ export const testDbConfig: DbConfig = {
 };
 
 /** Collect all events from an async generator into an array. */
-export async function collectEvents(gen: AsyncGenerator<Event>): Promise<Event[]> {
+export async function collectEvents(gen: AsyncGenerator<Event>): Promise<Event[]>;
+/** Collect all events, asserting each matches the expected type. */
+export async function collectEvents<T extends Event["type"]>(
+	gen: AsyncGenerator<Event>,
+	expectedType: T,
+): Promise<EventOfType<T>[]>;
+export async function collectEvents(
+	gen: AsyncGenerator<Event>,
+	expectedType?: string,
+): Promise<Event[]> {
 	const events: Event[] = [];
 	for await (const event of gen) {
+		if (expectedType !== undefined && event.type !== expectedType) {
+			throw new Error(`collectEvents: expected "${expectedType}", got "${event.type}"`);
+		}
 		events.push(event);
 	}
 	return events;
 }
 
-/** Drop all event partitions and clean handler_cursors for test isolation. */
-export async function cleanEventTables(sql: Sql): Promise<void> {
-	const partitions = await sql`
-		SELECT c.relname AS name
-		FROM pg_catalog.pg_inherits i
-		JOIN pg_catalog.pg_class c ON c.oid = i.inhrelid
-		JOIN pg_catalog.pg_class p ON p.oid = i.inhparent
-		WHERE p.relname = 'events'
-	`;
-	for (const row of partitions) {
-		await sql.unsafe(`DROP TABLE IF EXISTS "${String(row["name"])}"`);
+/** Assert that a string array is in strictly ascending (ULID) order. */
+export function expectMonotonicIds(ids: readonly string[]): void {
+	for (let i = 1; i < ids.length; i++) {
+		const prev = ids[i - 1];
+		const curr = ids[i];
+		if (prev !== undefined && curr !== undefined) {
+			expect(prev < curr).toBe(true);
+		}
 	}
-	await sql`DELETE FROM handler_cursors`;
+}
+
+/** Create a test pool with PostgreSQL notices suppressed. */
+export function createTestPool(): Pool {
+	return createPool(testDbConfig, { onnotice() {} });
+}
+
+/** Clean event data for test isolation. Uses TRUNCATE for speed and to avoid
+ *  DDL lock conflicts with parallel test files operating on other tables. */
+export async function cleanEventTables(sql: Sql): Promise<void> {
+	await sql`TRUNCATE events, handler_cursors CASCADE`;
 }
