@@ -23,7 +23,7 @@ import { asNodeId, type NodeId } from "./types.ts";
 // ---------------------------------------------------------------------------
 
 /** Map a postgres.js row (snake_case columns) to a typed Node. */
-function rowToNode(row: Record<string, unknown>): Node {
+export function rowToNode(row: Record<string, unknown>): Node {
 	const embeddingRaw = row["embedding"];
 	return {
 		id: asNodeId(row["id"] as number),
