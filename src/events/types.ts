@@ -183,6 +183,7 @@ export interface UserModelUpdatedData {
 export interface SelfModelUpdatedData {
 	readonly domain: string;
 	readonly calibration: number;
+	readonly correct?: boolean | undefined;
 }
 
 export interface SkillCreatedData {
