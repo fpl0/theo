@@ -18,6 +18,12 @@ import type { EventId } from "./ids.ts";
 /** Actor who caused the event. */
 export type Actor = "user" | "theo" | "scheduler" | "system";
 
+/** Role of a message in a conversation. */
+export type MessageRole = "user" | "assistant";
+
+/** The four named slots that comprise core memory. */
+export type CoreMemorySlot = "persona" | "goals" | "user_model" | "context";
+
 /** Optional metadata attached to every event. */
 export interface EventMetadata {
 	readonly traceId?: string | undefined;
@@ -155,11 +161,11 @@ export interface EdgeExpiredData {
 export interface EpisodeCreatedData {
 	readonly episodeId: number;
 	readonly sessionId: string;
-	readonly role: string;
+	readonly role: MessageRole;
 }
 
 export interface CoreUpdatedData {
-	readonly slot: string;
+	readonly slot: CoreMemorySlot;
 	readonly changedBy: Actor;
 }
 
