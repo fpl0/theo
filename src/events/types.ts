@@ -117,6 +117,7 @@ export interface NodeCreatedData {
 	readonly kind: NodeKind;
 	readonly body: string;
 	readonly sensitivity: Sensitivity;
+	readonly hasEmbedding: boolean;
 }
 
 /**
