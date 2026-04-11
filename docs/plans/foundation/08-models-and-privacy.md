@@ -1,5 +1,23 @@
 # Phase 8: User Model, Self Model & Privacy Filter
 
+> **Status: SHIPPED.** This phase is implemented. Three post-foundation amendments are
+> planned and documented in subsequent phases; they are listed here so nothing is lost:
+>
+> 1. **`checkPrivacy(content, effectiveTrust)` signature upgrade** — the second argument
+>    changes from the actor's raw tier to the effective trust computed from the causation
+>    chain. Arrives in Phase 13b along with the `effective_trust_tier` column on events.
+>    See `foundation.md §7.3`.
+> 2. **`egress_sensitivity` per user-model dimension** — new column on
+>    `user_model_dimension` with values `public` / `private` / `local_only`. Enforces the
+>    egress privacy filter at the `query()` call site. Arrives in Phase 13b's migration
+>    0006. See `foundation.md §7.8`.
+> 3. **`autonomy_level` on `self_model_domain`** — couples the self model's calibration
+>    to the autonomy ladder. Arrives in Phase 12a's migration 0005. See
+>    `foundation.md §7.7`.
+>
+> The shipped privacy filter still gates storage correctly; these amendments add the
+> causation-based and egress-side controls without changing the storage-side semantics.
+
 ## Motivation
 
 These three concerns share a common boundary: the memory system's trust interface. The user model

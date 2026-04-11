@@ -1,5 +1,42 @@
 # Phase 14: Subagents, Onboarding & Engine Lifecycle
 
+## Cross-cutting dependencies
+
+Subagent definitions in this phase are consumed by Phase 12a (executive dispatch), Phase
+13b (reflex dispatch, ideation), and Phase 10 (main chat delegation). Three
+cross-cutting invariants apply:
+
+1. **Advisor integration** (`foundation.md §4 Advisor-Assisted Execution`). Each
+   `AgentDefinition` gains an optional `advisorModel?: string` field. Subagents whose
+   work is plan-then-execute use `claude-sonnet-4-6` as executor + `claude-opus-4-6` as
+   advisor:
+
+   | Subagent | Executor | Advisor | Notes |
+   | -------- | -------- | ------- | ----- |
+   | `planner` | sonnet | opus | Canonical advisor use case |
+   | `coder` | sonnet | opus | Downgraded from pure opus; big cost save |
+   | `researcher` | sonnet | opus | Advisor suggests follow-ups |
+   | `writer` | sonnet | opus | Voice checks on long drafts |
+   | `reflector` | sonnet | opus | Meta perspective |
+   | `psychologist` | opus | — | Already max |
+   | `consolidator` | haiku | — | Mechanical |
+   | `scanner` | haiku | — | Reflex-speed |
+
+   The dispatch call site (Phase 10's chat engine, Phase 12a's executive loop, Phase
+   13b's ideation job) passes `options.settings.advisorModel = subagent.advisorModel`
+   when set and prepends the advisor timing block to the subagent's system prompt.
+
+2. **Autonomy ladder integration** (`foundation.md §7.7`). The `self_model_domain` table
+   from Phase 8 gains an `autonomy_level` column in Phase 12a's migration. The reflector
+   subagent observes calibration per domain and recommends autonomy-level changes to the
+   owner via notifications; the reflector **never auto-raises** a level, only recommends.
+   The owner executes `/autonomy <domain> <level>` via the CLI gate.
+
+3. **Skill creation with trust awareness.** When the reflector creates a skill via
+   `store_skill`, the skill inherits the effective trust of the turn that triggered its
+   creation. Skills created during external-tier reflex turns are capped at `external`
+   trust and are filtered out of regular trigger-based retrieval.
+
 ## Motivation
 
 This phase completes Theo. Subagents give Theo specialized cognitive modes -- a coder for

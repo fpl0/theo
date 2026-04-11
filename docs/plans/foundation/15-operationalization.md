@@ -1,5 +1,42 @@
 # Phase 15: Operationalization
 
+## Cross-cutting dependencies
+
+Observability must cover the autonomous agency layer introduced by Phases 12a and 13b.
+The metric list below extends Phase 15's baseline:
+
+| Metric | Type | Phase | Tracks |
+| ------ | ---- | ----- | ------ |
+| `theo.goals.active_gauge` | Gauge | 12a | Currently active goals |
+| `theo.goals.quarantined_gauge` | Gauge | 12a | Quarantined goals awaiting owner |
+| `theo.goals.task_turns_total` | Counter | 12a | Executive task turns (by status) |
+| `theo.goals.lease_contention_total` | Counter | 12a | Failed lease acquisitions |
+| `theo.reflex.received_total` | Counter | 13b | Webhooks received (by source) |
+| `theo.reflex.rejected_total` | Counter | 13b | Rejected (by reason) |
+| `theo.reflex.rate_limited_total` | Counter | 13b | Rate limited (by source) |
+| `theo.reflex.dispatched_total` | Counter | 13b | Reflex turns dispatched |
+| `theo.ideation.runs_total` | Counter | 13b | Ideation runs (by outcome) |
+| `theo.ideation.cost_usd_total` | Counter | 13b | Cumulative ideation cost |
+| `theo.ideation.proposals_total` | Counter | 13b | Proposals generated |
+| `theo.proposals.pending_gauge` | Gauge | 13b | Pending proposals awaiting approval |
+| `theo.proposals.approved_total` | Counter | 13b | Approved (by kind) |
+| `theo.proposals.expired_total` | Counter | 13b | Expired without approval |
+| `theo.cloud_egress.cost_usd_total` | Counter | 13b | Cumulative autonomous cloud spend |
+| `theo.cloud_egress.tokens_total` | Counter | 13b | Cumulative autonomous cloud tokens |
+| `theo.degradation.level_gauge` | Gauge | 13b | Current degradation level (0-4) |
+| `theo.advisor.iterations_total` | Counter | 14 | Advisor sub-inferences (by subagent) |
+| `theo.advisor.cost_usd_total` | Counter | 14 | Cumulative advisor cost (by model) |
+| `theo.autonomy.violations_total` | Counter | 13b | Denylist violations by domain |
+
+Additionally, Phase 15 owns the **degradation healing timer** that emits
+`degradation.level_changed` events when conditions improve for a configurable window (see
+`foundation.md §7.5`). The healing timer runs as a periodic task inside the engine's
+scheduler tick loop.
+
+The observability layer reads `usage.iterations[]` from every turn result and emits one
+metric sample per iteration type (`message` vs `advisor_message`) so cost dashboards can
+break down executor vs advisor contribution.
+
 ## Motivation
 
 Theo runs on macOS as an always-on process with complete OS access, access to its own source code

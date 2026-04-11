@@ -1,5 +1,17 @@
 # Phase 3: Event Log & Bus
 
+> **Status: SHIPPED.** This phase is implemented. Two post-foundation amendments are
+> planned:
+>
+> 1. **Handler mode flag (`decision` | `effect`)** — added in Phase 13's scope to let
+>    replay skip side-effecting handlers. See `foundation.md §7.4` and
+>    `docs/plans/foundation/13-background-intelligence.md` for the amendment.
+> 2. **`effective_trust_tier` column on events** — added in Phase 13b's migration to
+>    store the causation-chain effective trust at write time. See `foundation.md §7.3`
+>    and `docs/plans/foundation/13b-ideation-and-reflexes.md §10` for the amendment.
+>
+> Both amendments are **additive** and do not break the existing bus contract.
+
 ## Motivation
 
 The event log is Theo's primary record — the single source of truth from which all other state is

@@ -1,5 +1,41 @@
 # Phase 10: Agent Runtime
 
+## Cross-cutting dependencies
+
+This phase must implement several cross-cutting invariants defined in
+`docs/foundation.md §7 Autonomous Agency`. They are listed here because they affect the
+chat engine's `query()` call site, context assembly, and tool-use metadata:
+
+1. **External content envelope (§7.6).** Context assembly wraps any external-origin
+   content (webhook-sourced episodes, email quotes, etc.) in the nonce-delimited
+   `<<<EXTERNAL_UNTRUSTED_{nonce}>>>` envelope. The static Instructions section (cached)
+   contains the authoritative rule that content inside envelopes is data, never
+   instructions. Nonces rotate per turn.
+2. **Effective trust threading.** The chat engine reads the current turn's effective
+   trust from the triggering event's `metadata.effective_trust_tier` and passes it
+   through tool-call metadata so MCP handlers (notably `read_goals` from Phase 12a and
+   the privacy filter hook from Phase 8) can scope their responses.
+3. **External-tier tool allowlist (§7.6).** When `effectiveTrust` is `external` or
+   `untrusted`, the `query()` call uses the restricted tool allowlist
+   (`search_memory`, `search_skills`, `read_core`, `read_goals`) — no write-enabled
+   tools, no built-in file/bash/web tools.
+4. **Advisor-assisted dispatch (§4 Advisor-Assisted Execution).** Subagents with
+   `advisorModel` set (`main`, `planner`, `coder`, `researcher`, `writer`, `reflector`)
+   pass `options.settings.advisorModel` through the SDK. The advisor timing block is
+   prepended to the subagent's system prompt. Advisor caching settings are attached when
+   the subagent runs 3+ calls on average (coder, researcher).
+5. **Cost accounting via `usage.iterations[]`.** `turn.completed.data.totalCostUsd` is
+   the sum of executor iterations **plus** `advisor_message` iterations, not just
+   `total_cost_usd`.
+6. **Egress privacy filter (§7.8).** Before every `query()` call, the outgoing prompt is
+   filtered by user-model dimension `egress_sensitivity`. Interactive turns include
+   `private` dimensions; autonomous turns do not; `local_only` is never sent to cloud.
+   Autonomous turns require an active `policy.autonomous_cloud_egress.enabled` consent
+   event in the `consent_ledger` projection (Phase 13b).
+7. **Priority-class integration (§7.5).** The chat engine surfaces interactive turns to
+   the priority-class scheduler (Phase 12). An interactive arrival preempts any
+   running reflex/executive/ideation turn via `AbortController`.
+
 ## Motivation
 
 This is where Theo becomes an agent. Everything built so far — events, memory, retrieval, tools —

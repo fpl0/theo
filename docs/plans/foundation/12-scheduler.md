@@ -1,5 +1,34 @@
 # Phase 12: Scheduler
 
+## Cross-cutting dependencies
+
+The original draft of this phase used a simple `maxConcurrent: 1` cap. The reviewed 12a
+and 13b plans require a richer scheduler: **four priority classes with preemption via
+`AbortController`**. This phase is the authoritative home for that scheduler; 12a and
+13b register their classes with it.
+
+From `docs/foundation.md §7.5`:
+
+1. **Four priority classes**: `interactive` > `reflex` > `executive` > `ideation`.
+2. **Single runner** at a time. Only one class's task actively runs.
+3. **Preemption**. Higher-class arrivals abort the currently running lower-class turn
+   via the shared `AbortController`. The preempted handler has 2 s to emit its
+   `*.yielded` event and drain state before force-abort.
+4. **Bounded queues** per class (default: interactive = 4, reflex = 16, executive = 8,
+   ideation = 2) with class-specific overflow behavior (coalesce, defer, drop).
+5. **Degradation ladder** (L0 healthy → L4 down). Level changes are
+   `degradation.level_changed` events. Level is a projection. Each level restricts which
+   classes and whether the advisor is allowed to run. See `foundation.md §7.5` table.
+6. **Cost accounting** reads `usage.iterations[]` for every turn — executor iterations
+   are billed at the executor rate, `type: "advisor_message"` iterations at the advisor
+   rate. `max_budget_usd` is enforced by summing both.
+7. **Resume context** table for preempted turns — opaque state per turn that lets the
+   next executor pick up mid-plan. Referenced by `goal.task_yielded.resumeKey` (12a).
+
+This phase creates the priority scheduler; 12a registers the `executive` class and 13b
+registers the `reflex` and `ideation` classes. Phase 15 adds the degradation level healing
+timer.
+
 ## Motivation
 
 The scheduler is what makes Theo an agent, not a chatbot. It acts without being asked — running

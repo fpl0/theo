@@ -1,5 +1,30 @@
 # Phase 13: Background Intelligence
 
+## Cross-cutting dependencies
+
+This phase owns two cross-cutting amendments that 12a and 13b depend on:
+
+1. **Decision / effect handler mode** (`foundation.md §7.4`). The bus from Phase 3 gains
+   a `HandlerMode = "decision" | "effect"` flag on handler registration. Decision
+   handlers run on both live dispatch and replay; effect handlers run only in live mode.
+   This phase implements the bus amendment **as a precondition to its own LLM handlers**
+   (contradiction detection, episode summarization).
+2. **LLM-driven handlers split into `*_requested` + `*_classified`** event pairs:
+   - `contradiction.requested` (decision, stores the request) +
+     `contradiction.classified` (effect, stores the LLM output). Downstream decision
+     handlers read the classified event to create the `contradicts` edge or adjust
+     confidence.
+   - `episode.summarize_requested` (decision, enumerates the episodes) +
+     `episode.summarized` (effect, stores the full summary text). Downstream decision
+     handlers update `episode.superseded_by` from the event data.
+
+   This guarantees replay determinism: the outside world's answer is an event, not a
+   call. See `foundation.md §7.4` for the rationale.
+
+Phases 12a and 13b consume both amendments. 12a's executive loop is registered as an
+effect handler; its projection handlers are decision handlers. 13b's reflex and ideation
+flows follow the same pattern.
+
 ## Motivation
 
 Background intelligence is what makes Theo's memory system alive rather than a static store. Three
