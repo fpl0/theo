@@ -1,6 +1,6 @@
 # Theo Implementation Plan -- Overview
 
-16 phases. Each is incremental, testable, and completable in one Opus 4.6 (1M) context window.
+19 phases. Each is incremental, testable, and completable in one Opus 4.6 (1M) context window.
 
 ## Dependency Graph
 
@@ -37,7 +37,11 @@ Phase 11: CLI Gate (interactive CLI, streaming)
     |
 Phase 12: Scheduler (jobs, cron, execution, built-in jobs)
     |
+Phase 12a: Goal Loops & Executive Function (continuous pursuit, task switching)
+    |
 Phase 13: Background Intelligence (contradiction detection, auto-edges, consolidation)
+    |
+Phase 13b: Autonomous Ideation & Reflexes (webhooks, proactive proposals, dreaming)
     |
 Phase 13a: Memory Resilience (episode salience, recency RRF, kind decay, provenance)
     |
@@ -64,12 +68,14 @@ Phase 15: Operationalization (launchd, self-update, observability, logging)
 | 10 | Agent Runtime | Context assembly from memory tiers, SDK `query()` integration (verified v0.2.92), hooks, session management, cache-optimized prompt ordering, smart session management (topic continuity, depth tracking) | ~1800 | High |
 | 11 | CLI Gate | Interactive terminal gate, streaming responses, ephemeral events | ~600 | Low |
 | 12 | Scheduler | Job store, cron runner, built-in jobs (consolidation, reflection, scanning) | ~1000 | Medium |
+| 12a | Goal Loops | Executive loop, GoalRepository, task switching, background execution | ~900 | High |
 | 13 | Background Intelligence | Contradiction detection (rate-limited, haiku), auto-edges, consolidation with node merging, importance propagation, forgetting curves, abstraction hierarchy synthesis | ~1100 | Medium |
+| 13b | Ideation & Reflexes | Thinking Space (dreaming), Webhook handlers, Proactive proposals | ~1000 | Medium |
 | 13a | Memory Resilience | Episode salience scoring, recency RRF signal, node metadata, windowed self-model calibration, kind-specific decay, node provenance, topic-level consolidation, Big Five dimensions | ~600 | Low-Medium |
 | 14 | Subagents, Onboarding & Lifecycle | 8 subagent `AgentDefinition`s, psychologist-led onboarding, `Engine` state machine, reflector creates/refines skills, SkillRepository | ~1000 | Low-Medium |
 | 15 | Operationalization | `launchd` plist, structured logging (JSON + file rotation), OTel tracing + metrics, self-update with rollback, workspace layout | ~1200 | Medium |
 
-**Total: ~14,400 lines across 17 phases.**
+**Total: ~16,300 lines across 19 phases.**
 
 ## Systemic Decisions
 
