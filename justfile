@@ -1,5 +1,8 @@
 set dotenv-filename := ".env.local"
 
+# Prepend mise shims so `bun` / `bunx` resolve via mise in any shell
+export PATH := env_var("HOME") + "/.local/share/mise/shims:" + env_var("PATH")
+
 # Full quality gate: biome + markdownlint + tsc + tests
 check: lint mdlint typecheck test
 
@@ -29,6 +32,10 @@ test-db:
 # Run tests (ensures test db is ready)
 test: test-db
     bun test
+
+# Run a specific test file (no DB dependency — use for pure unit tests)
+test-file FILE:
+    bun test {{FILE}}
 
 # Start infra + agent
 dev: up

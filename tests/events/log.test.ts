@@ -74,14 +74,22 @@ describe("EventLog", () => {
 			type: "turn.started",
 			version: 1,
 			actor: "theo",
-			data: { sessionId: "s1" },
+			data: { sessionId: "s1", prompt: "first" },
 			metadata: {},
 		});
 		const e3 = await log.append({
 			type: "turn.completed",
 			version: 1,
 			actor: "theo",
-			data: { responseBody: "hi", durationMs: 50, tokensUsed: 10 },
+			data: {
+				sessionId: "s1",
+				responseBody: "hi",
+				durationMs: 50,
+				inputTokens: 5,
+				outputTokens: 5,
+				totalTokens: 10,
+				costUsd: 0.0001,
+			},
 			metadata: {},
 		});
 

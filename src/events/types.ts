@@ -57,17 +57,35 @@ export interface MessageReceivedData {
 
 export interface TurnStartedData {
 	readonly sessionId: string;
+	readonly prompt: string;
 }
 
 export interface TurnCompletedData {
+	readonly sessionId: string;
 	readonly responseBody: string;
 	readonly durationMs: number;
-	readonly tokensUsed: number;
+	readonly inputTokens: number;
+	readonly outputTokens: number;
+	readonly totalTokens: number;
+	readonly costUsd: number;
 }
 
+/**
+ * Subtype of the SDK's terminal error result. Mirrors
+ * `SDKResultError["subtype"]` so the event log stays canonical when the SDK
+ * classifies a failed turn.
+ */
+export type TurnErrorType =
+	| "error_during_execution"
+	| "error_max_turns"
+	| "error_max_budget_usd"
+	| "error_max_structured_output_retries";
+
 export interface TurnFailedData {
-	readonly errorType: string;
-	readonly message: string;
+	readonly sessionId: string;
+	readonly errorType: TurnErrorType;
+	readonly errors: readonly string[];
+	readonly durationMs: number;
 }
 
 export interface SessionCreatedData {
@@ -79,14 +97,20 @@ export interface SessionReleasedData {
 	readonly reason: string;
 }
 
+/**
+ * Trigger reported by the SDK's PreCompact/PostCompact hooks. `"manual"` comes
+ * from `/compact`; `"auto"` from automatic context compaction.
+ */
+export type CompactTrigger = "manual" | "auto";
+
 export interface SessionCompactingData {
 	readonly sessionId: string;
-	readonly messageCount: number;
+	readonly trigger: CompactTrigger;
 }
 
 export interface SessionCompactedData {
 	readonly sessionId: string;
-	readonly preservedTokens: number;
+	readonly summary: string;
 }
 
 export type ChatEvent =

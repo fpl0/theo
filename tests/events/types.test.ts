@@ -114,7 +114,15 @@ describe("Event type system", () => {
 			version: 1,
 			timestamp: new Date(),
 			actor: "theo",
-			data: { responseBody: "hello", durationMs: 100, tokensUsed: 50 },
+			data: {
+				sessionId: "session-1",
+				responseBody: "hello",
+				durationMs: 100,
+				inputTokens: 30,
+				outputTokens: 20,
+				totalTokens: 50,
+				costUsd: 0.001,
+			},
 			metadata: {},
 		};
 		expect(eventLabel(event)).toBe("turn.completed");
@@ -145,16 +153,26 @@ describe("Event type system", () => {
 			version: 1,
 			timestamp: new Date(),
 			actor: "theo",
-			data: { responseBody: "hello", durationMs: 100, tokensUsed: 50 },
+			data: {
+				sessionId: "session-1",
+				responseBody: "hello",
+				durationMs: 100,
+				inputTokens: 30,
+				outputTokens: 20,
+				totalTokens: 50,
+				costUsd: 0.001,
+			},
 			metadata: {},
 		};
 
 		// Verify data is accessible
 		expect(event.data.responseBody).toBe("hello");
 		expect(event.data.durationMs).toBe(100);
+		expect(event.data.totalTokens).toBe(50);
 
 		// The following would fail tsc if uncommented (readonly):
-		// event.data = { responseBody: "bye", durationMs: 0, tokensUsed: 0 };
+		// event.data = { sessionId: "x", responseBody: "bye", durationMs: 0,
+		//   inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0 };
 		// event.type = "turn.failed";
 
 		// Runtime assertion: the structure is as expected
@@ -185,23 +203,31 @@ describe("Event type system", () => {
 	test("EventData extraction -- resolves to correct data payload", () => {
 		// EventData<"turn.failed"> should resolve to TurnFailedData
 		const data: EventData<"turn.failed"> = {
-			errorType: "timeout",
-			message: "Request timed out",
+			sessionId: "session-1",
+			errorType: "error_during_execution",
+			errors: ["Request timed out"],
+			durationMs: 1000,
 		};
 
 		// Verify the type resolves correctly at compile time and runtime
 		const typed: TurnFailedData = data;
-		expect(typed.errorType).toBe("timeout");
-		expect(typed.message).toBe("Request timed out");
+		expect(typed.errorType).toBe("error_during_execution");
+		expect(typed.errors).toEqual(["Request timed out"]);
+		expect(typed.durationMs).toBe(1000);
 
 		// EventData<"turn.completed"> should resolve to TurnCompletedData
 		const completedData: EventData<"turn.completed"> = {
+			sessionId: "session-1",
 			responseBody: "done",
 			durationMs: 250,
-			tokensUsed: 100,
+			inputTokens: 60,
+			outputTokens: 40,
+			totalTokens: 100,
+			costUsd: 0.002,
 		};
 		const typedCompleted: TurnCompletedData = completedData;
 		expect(typedCompleted.responseBody).toBe("done");
+		expect(typedCompleted.totalTokens).toBe(100);
 	});
 
 	test("NodeUpdate discriminant -- switching on field narrows oldValue/newValue", () => {

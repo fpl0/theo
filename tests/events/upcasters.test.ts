@@ -19,6 +19,9 @@ describe("UpcasterRegistry", () => {
 	});
 
 	test("single upcaster -- v1 data transformed to v2", () => {
+		// The registry is shape-agnostic (Upcaster takes `unknown`). These fixtures
+		// use hypothetical legacy shapes to exercise the registry, not the live
+		// TurnCompletedData type (which stays at version 1 during foundation).
 		registry.register("turn.completed", 1, (data) => ({
 			...data,
 			newField: "added-in-v2",
@@ -31,13 +34,13 @@ describe("UpcasterRegistry", () => {
 		const result = registry.upcast("turn.completed", 1, {
 			responseBody: "hello",
 			durationMs: 100,
-			tokensUsed: 50,
+			legacyTokenField: 50,
 		});
 
 		expect(result).toEqual({
 			responseBody: "hello",
 			durationMs: 100,
-			tokensUsed: 50,
+			legacyTokenField: 50,
 			newField: "added-in-v2",
 		});
 	});
@@ -51,8 +54,8 @@ describe("UpcasterRegistry", () => {
 
 		// Register 2->3: rename field
 		registry.register("turn.completed", 2, (data) => {
-			const { tokensUsed, ...rest } = data;
-			return { ...rest, tokenCount: tokensUsed };
+			const { legacyTokenField, ...rest } = data;
+			return { ...rest, tokenCount: legacyTokenField };
 		});
 
 		// currentVersions updated to 3
@@ -62,7 +65,7 @@ describe("UpcasterRegistry", () => {
 		const result = registry.upcast("turn.completed", 1, {
 			responseBody: "hello",
 			durationMs: 100,
-			tokensUsed: 50,
+			legacyTokenField: 50,
 		});
 
 		expect(result).toEqual({
@@ -75,7 +78,7 @@ describe("UpcasterRegistry", () => {
 
 	test("no upcaster needed -- data at version 1 returned unchanged", () => {
 		// No upcasters registered for this type -- implicitly version 1
-		const input = { responseBody: "hello", durationMs: 100, tokensUsed: 50 };
+		const input = { responseBody: "hello", durationMs: 100, legacyTokenField: 50 };
 		const result = registry.upcast("turn.completed", 1, input);
 
 		expect(result).toEqual(input);
