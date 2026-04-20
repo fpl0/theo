@@ -327,12 +327,18 @@ describe("SessionManager lifecycle", () => {
 // ---------------------------------------------------------------------------
 
 describe("SessionManager self-model calibration", () => {
-	test("every decide() records a prediction in the session_management domain", async () => {
+	test("decide() records a prediction for every genuine decision", async () => {
 		const { repo, calls } = countingSelfModel();
 		const mgr = new SessionManager(keyedEmbeddings({}), repo);
 
+		// No active session — not a decision, so no prediction recorded.
 		await mgr.decide("hi", hasher("H"));
+		expect(calls.predictions).toEqual([]);
+
+		// Now there's an active session: each decide() is a real decision.
+		await mgr.startSession(hasher("H"));
 		await mgr.decide("hi again", hasher("H"));
+		await mgr.decide("still here", hasher("H"));
 
 		expect(calls.predictions).toEqual(["session_management", "session_management"]);
 	});

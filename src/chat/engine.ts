@@ -1,18 +1,8 @@
 /**
- * ChatEngine: the agent runtime.
+ * ChatEngine: one turn from message receipt to response emission.
  *
- * Orchestrates one full turn from message receipt to response emission:
- *   1. `message.received` audit event
- *   2. Session manager decision + prompt assembly
- *   3. `turn.started` event
- *   4. SDK `query()` — streaming chunks via ephemeral events, final result
- *      captured for token accounting
- *   5. `turn.completed` (success) or `turn.failed` (error) event
- *
- * The engine is testable via a `queryFn` seam — the real SDK `query()` runs
- * a subprocess, which is impractical in unit tests. Integration tests would
- * construct a ChatEngine without overriding the seam and let the real SDK
- * call through.
+ * The `queryFn` seam lets unit tests bypass the SDK subprocess; integration
+ * tests leave it unset so the real `query()` runs.
  */
 
 import {
@@ -31,28 +21,14 @@ import { buildHooks } from "./hooks.ts";
 import type { SessionManager } from "./session.ts";
 import type { AgentConfig, TurnResult } from "./types.ts";
 
-// ---------------------------------------------------------------------------
-// Defaults
-// ---------------------------------------------------------------------------
-
-/** Default model — Sonnet 4.6. Production can override via AgentConfig.model. */
 const DEFAULT_MODEL = "claude-sonnet-4-6";
 
-/**
- * Default per-turn budget: $0.50. A complex tool-use loop on Sonnet rarely
- * exceeds this; a bug in the loop (e.g. pathological retry) would. Turn fails
- * with `error_max_budget_usd` when exceeded.
- */
+// Normal Sonnet turns stay well under this; the ceiling catches pathological
+// tool-use loops. Turn fails with `error_max_budget_usd` when exceeded.
 const DEFAULT_MAX_BUDGET_USD = 0.5;
 
-/** Shape of the SDK's query() function; used for the test seam. */
 export type QueryFn = (params: { prompt: string; options?: Options }) => Query;
 
-// ---------------------------------------------------------------------------
-// ChatEngine
-// ---------------------------------------------------------------------------
-
-/** Dependencies wired into the ChatEngine constructor. */
 export interface ChatEngineDependencies {
 	readonly bus: EventBus;
 	readonly sessions: SessionManager;
@@ -61,10 +37,7 @@ export interface ChatEngineDependencies {
 	readonly episodic: EpisodicRepository;
 	readonly context: ContextDependencies;
 	readonly config?: AgentConfig;
-	/**
-	 * Seam for tests. When undefined, the real SDK `query()` is used.
-	 * Tests inject a mock that yields canned `SDKMessage` variants.
-	 */
+	/** Test seam. When undefined, the real SDK `query()` is used. */
 	readonly queryFn?: QueryFn;
 }
 
@@ -89,13 +62,10 @@ export class ChatEngine {
 		this.queryFn = deps.queryFn ?? sdkQuery;
 	}
 
-	/**
-	 * Process one incoming message end-to-end. Always returns a TurnResult;
-	 * errors surface as `{ ok: false, error }`, never as thrown exceptions.
-	 */
+	/** Always returns a TurnResult — errors are values, never thrown. */
 	async handleMessage(body: string, gate: string): Promise<TurnResult> {
-		// 1. Audit: the message arrived. Emitted before any failure can occur so
-		//    the event log always knows a message was received.
+		// Emit message.received before any failure can occur so the event log
+		// always records the arrival even if the turn blows up.
 		await this.bus.emit({
 			type: "message.received",
 			version: 1,
@@ -104,7 +74,6 @@ export class ChatEngine {
 			metadata: { gate },
 		});
 
-		// 2. Session decision
 		let sessionId: string;
 		try {
 			sessionId = await this.ensureSession(body);
@@ -113,8 +82,6 @@ export class ChatEngine {
 			return { ok: false, error: message };
 		}
 
-		// 3. Assemble system prompt. Errors here (e.g. empty memory guard) are
-		//    turn failures — emit turn.failed and return.
 		let systemPrompt: string;
 		const startTime = Date.now();
 		try {
@@ -137,7 +104,6 @@ export class ChatEngine {
 			return { ok: false, error: message };
 		}
 
-		// 4. Emit turn.started now that we have a session and a prompt.
 		await this.bus.emit({
 			type: "turn.started",
 			version: 1,
@@ -146,27 +112,19 @@ export class ChatEngine {
 			metadata: { sessionId, gate },
 		});
 
-		// 5. Fire the SDK query. The async generator is consumed fully to
-		//    guarantee subprocess cleanup; mid-stream exits call generator.return().
 		const hooks = buildHooks({
 			bus: this.bus,
 			episodic: this.episodic,
 			sessionId,
-			// Phase 10 seam: interactive turns come from the owner. The
-			// causation-chain walker (Phase 13b) will replace this with
-			// per-turn effective trust.
 			trustTier: "owner" satisfies TrustTier,
 		});
 		const baseOptions: Options = {
 			model: this.config.model ?? DEFAULT_MODEL,
 			systemPrompt,
-			// Empty array: critical isolation. No external CLAUDE.md, no user
+			// Empty array isolates the turn from any external CLAUDE.md or user
 			// settings — the assembled system prompt is the sole source of truth.
 			settingSources: [],
 			mcpServers: { memory: this.memoryServer },
-			// Auto-approve memory tools; the agent doesn't need permission to
-			// use its own memory. Cross-cutting allowlist scoping by effective
-			// trust lands in Phase 13b.
 			allowedTools: ["mcp__memory__*"],
 			thinking: { type: "adaptive" },
 			maxBudgetUsd: this.config.maxBudgetPerTurn ?? DEFAULT_MAX_BUDGET_USD,
@@ -175,8 +133,7 @@ export class ChatEngine {
 			hooks,
 		};
 		// `resume` must be omitted (not set to undefined) under
-		// exactOptionalPropertyTypes. It is only set when we are rejoining an
-		// existing SDK session.
+		// exactOptionalPropertyTypes.
 		const options: Options =
 			this.sessions.getActiveSessionId() === sessionId
 				? { ...baseOptions, resume: sessionId }
@@ -198,9 +155,8 @@ export class ChatEngine {
 						break;
 
 					case "assistant":
-						// Full assistant message — extract text from content
-						// blocks. This may be overwritten if the SDK later emits
-						// a successful result (the `result` field is authoritative).
+						// May be overwritten by a later `result` message, whose
+						// `result` field is authoritative.
 						responseBody = extractAssistantText(message.message.content);
 						break;
 
@@ -215,19 +171,13 @@ export class ChatEngine {
 						}
 						break;
 
-					// All other SDK message variants (system, user_replay,
-					// compact_boundary, status, api_retry, local_command_output,
-					// hook_*, tool_progress, auth_status, task_*,
-					// session_state_changed, files_persisted,
-					// tool_use_summary, rate_limit, elicitation_complete,
-					// prompt_suggestion) are informational — no action needed.
+					// SDKMessage has 20+ informational variants we don't act on.
+					// An `assertNever` would fail compilation by design.
 					default:
 						break;
 				}
 			}
 		} catch (error) {
-			// The generator itself threw (network, subprocess crash, etc.).
-			// Ensure the subprocess is cleaned up, then emit turn.failed.
 			try {
 				await generator.return();
 			} catch {
@@ -252,7 +202,6 @@ export class ChatEngine {
 
 		const durationMs = Date.now() - startTime;
 
-		// 6. Terminal outcome
 		if (failure !== null) {
 			await this.bus.emit({
 				type: "turn.failed",
@@ -294,10 +243,7 @@ export class ChatEngine {
 		return { ok: true, response: responseBody };
 	}
 
-	/**
-	 * Imperatively release the current session (user said `/reset`, etc.).
-	 * Emits `session.released` so the audit trail reflects it.
-	 */
+	/** Release the current session and emit `session.released`. */
 	async resetSession(reason = "user_request"): Promise<void> {
 		const released = this.sessions.releaseSession();
 		if (released !== null) {
@@ -315,29 +261,23 @@ export class ChatEngine {
 	// Internal helpers
 	// -------------------------------------------------------------------------
 
-	/**
-	 * Run the session manager's decision and start/release sessions as needed.
-	 * Emits `session.released` when a session is rotated out.
-	 */
 	private async ensureSession(userMessage: string): Promise<string> {
 		const decision = await this.sessions.decide(userMessage, this.coreMemory);
 
 		if (decision.continue) {
 			const active = this.sessions.getActiveSessionId();
 			if (active !== null) return active;
-			// Decision said continue but there's no active session — fall
-			// through to start one. Safety net; the session manager should
-			// not return { continue: true } when activeSessionId is null.
+			// decision.continue with no active id shouldn't happen, but fall
+			// through to start one rather than throw.
 		}
 
-		// Not continuing — release any active session first.
 		const released = this.sessions.releaseSession();
-		if (released !== null) {
+		if (released !== null && !decision.continue) {
 			await this.bus.emit({
 				type: "session.released",
 				version: 1,
 				actor: "system",
-				data: { sessionId: released, reason: decision.continue ? "active" : decision.reason },
+				data: { sessionId: released, reason: decision.reason },
 				metadata: { sessionId: released },
 			});
 		}
@@ -353,11 +293,6 @@ export class ChatEngine {
 		return newId;
 	}
 
-	/**
-	 * Emit an ephemeral `stream.chunk` for text_delta events. All other
-	 * BetaRawMessageStreamEvent variants (content_block_start, message_delta,
-	 * thinking_delta, etc.) are ignored — they're not user-visible text.
-	 */
 	private handleStreamEvent(
 		event: import("@anthropic-ai/sdk/resources/beta/messages/messages.mjs").BetaRawMessageStreamEvent,
 		sessionId: string,
@@ -371,14 +306,6 @@ export class ChatEngine {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Extract human-readable text from a BetaMessage's content array. Skips
- * non-text blocks (tool_use, thinking, etc.).
- */
 function extractAssistantText(
 	content: import("@anthropic-ai/sdk/resources/beta/messages/messages.mjs").BetaContentBlock[],
 ): string {
@@ -390,12 +317,3 @@ function extractAssistantText(
 	}
 	return parts.join("");
 }
-
-// Note on exhaustiveness: SDKMessage has 20+ variants (system, user_replay,
-// compact_boundary, status, api_retry, local_command_output, hook_*,
-// tool_progress, auth_status, task_*, session_state_changed, files_persisted,
-// tool_use_summary, rate_limit, elicitation_complete, prompt_suggestion). The
-// switch above intentionally handles only the variants that affect turn
-// semantics (`stream_event`, `assistant`, `result`) and ignores the rest via
-// `default: break`. An `assertNever` guard would fail compilation since we
-// don't handle every variant — and that's by design.

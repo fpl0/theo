@@ -116,11 +116,7 @@ export interface HookDependencies {
 	readonly bus: EventBus;
 	readonly episodic: EpisodicRepository;
 	readonly sessionId: string;
-	/**
-	 * Effective trust tier for this turn. Phase 10 seams this in; the full
-	 * per-turn causation walker lands in Phase 13b. For now, the chat engine
-	 * passes the interactive-channel owner tier.
-	 */
+	/** Effective trust tier for this turn. */
 	readonly trustTier: TrustTier;
 }
 

@@ -98,9 +98,8 @@ export async function assembleSystemPrompt(
 	const goals: JsonValue = goalsResult.value;
 	const context: JsonValue = contextResult.value;
 
-	// Onboarding is detected by the absence of any user model dimensions.
-	// The persona bootstrap (Phase 7.5) writes to core memory, not dimensions,
-	// so a freshly bootstrapped Theo still triggers onboarding until the first
+	// Bootstrap seeds core memory but not user-model dimensions, so a freshly
+	// bootstrapped Theo still triggers onboarding until the first
 	// update_user_model tool call fires.
 	const onboarding = userModel.length === 0;
 

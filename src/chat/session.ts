@@ -121,9 +121,11 @@ export class SessionManager {
 	async decide(userMessage: string, core: CoreMemoryHasher): Promise<SessionDecision> {
 		const decision = await this.compute(userMessage, core);
 
-		// Every decision is a prediction — future user corrections calibrate
-		// the self-model domain. recordCorrection() records the outcome.
-		await this.selfModel.recordPrediction(SELF_MODEL_DOMAIN, "system");
+		// `no_active_session` is not a decision — there's nothing for the user
+		// to correct. Only record genuine decisions against the self-model.
+		if (decision.reason !== "no_active_session") {
+			await this.selfModel.recordPrediction(SELF_MODEL_DOMAIN, "system");
+		}
 
 		return decision;
 	}
