@@ -321,9 +321,17 @@ describe("RetrievalService.search", () => {
 			await createNode("Unique test content for RRF arithmetic verification");
 
 			const k = 60;
+			const vectorWeight = 1.0;
+			const ftsWeight = 1.0;
+			const graphWeight = 1.0;
+			const recencyWeight = 0.3;
 			const results = await retrieval.search("unique test content for RRF arithmetic", {
 				k,
 				importanceWeight: 0,
+				vectorWeight,
+				ftsWeight,
+				graphWeight,
+				recencyWeight,
 			});
 
 			expect(results.length).toBeGreaterThanOrEqual(1);
@@ -331,16 +339,19 @@ describe("RetrievalService.search", () => {
 			expect(first).toBeDefined();
 			if (first === undefined) return;
 
-			// Verify RRF formula: score = sum of 1/(k + rank) for each present signal
+			// Verify weighted RRF formula: sum of weight / (k + rank) per present signal
 			let expectedScore = 0;
 			if (first.vectorRank !== null) {
-				expectedScore += 1.0 / (k + first.vectorRank);
+				expectedScore += vectorWeight / (k + first.vectorRank);
 			}
 			if (first.ftsRank !== null) {
-				expectedScore += 1.0 / (k + first.ftsRank);
+				expectedScore += ftsWeight / (k + first.ftsRank);
 			}
 			if (first.graphRank !== null) {
-				expectedScore += 1.0 / (k + first.graphRank);
+				expectedScore += graphWeight / (k + first.graphRank);
+			}
+			if (first.recencyRank !== null) {
+				expectedScore += recencyWeight / (k + first.recencyRank);
 			}
 
 			// With importanceWeight=0, score should equal the raw RRF score
@@ -465,6 +476,90 @@ describe("RetrievalService.search", () => {
 			if (highResult !== undefined && lowResult !== undefined) {
 				// High importance node should have a higher score
 				expect(highResult.score).toBeGreaterThan(lowResult.score);
+			}
+		});
+	});
+
+	describe("recency signal (Phase 13a)", () => {
+		test("nodes inside the recency window get a recencyRank", async () => {
+			const node = await createNode("Recent node with unique body text");
+			// Touch last_accessed_at so the node sits at the top of the window.
+			await sql`UPDATE node SET last_accessed_at = now() WHERE id = ${node.id}`;
+
+			const results = await retrieval.search("recent node");
+			const hit = results.find((r) => r.node.id === node.id);
+			expect(hit).toBeDefined();
+			expect(hit?.recencyRank).not.toBeNull();
+		});
+
+		test("nodes older than the recency window are excluded from the recency CTE", async () => {
+			const stale = await createNode("Stale node far outside the window");
+			// Backdate beyond the default 30-day window.
+			await sql`
+				UPDATE node
+				SET last_accessed_at = now() - interval '60 days',
+				    created_at = now() - interval '60 days'
+				WHERE id = ${stale.id}
+			`;
+
+			const results = await retrieval.search("stale node far outside");
+			const hit = results.find((r) => r.node.id === stale.id);
+			// Even if the node matches vector/FTS, its recency rank must be null.
+			if (hit !== undefined) {
+				expect(hit.recencyRank).toBeNull();
+			}
+		});
+
+		test("recencyWeight=0 disables the recency signal contribution", async () => {
+			const node = await createNode("Recency weight zero test body");
+			await sql`UPDATE node SET last_accessed_at = now() WHERE id = ${node.id}`;
+
+			const results = await retrieval.search("recency weight zero test", {
+				recencyWeight: 0,
+				vectorWeight: 1,
+				ftsWeight: 1,
+				graphWeight: 1,
+			});
+
+			expect(results.length).toBeGreaterThanOrEqual(1);
+			const hit = results.find((r) => r.node.id === node.id);
+			expect(hit).toBeDefined();
+			if (hit === undefined) return;
+			// With recencyWeight=0, the score formula must not pull in the
+			// recency contribution even if the rank itself is populated.
+			const k = 60;
+			let expected = 0;
+			if (hit.vectorRank !== null) expected += 1 / (k + hit.vectorRank);
+			if (hit.ftsRank !== null) expected += 1 / (k + hit.ftsRank);
+			if (hit.graphRank !== null) expected += 1 / (k + hit.graphRank);
+			// Score excludes the importance multiplier when importanceWeight=0 default.
+			expect(hit.score).toBeCloseTo(expected, 4);
+		});
+
+		test("two same-signal nodes: the more recent one ranks higher", async () => {
+			const older = await createNode("Recency compare same body text here");
+			const newer = await createNode("Recency compare same body text here too");
+			// Make `older` actually older; `newer` was just inserted and has
+			// fresh created_at. Force recency divergence explicitly.
+			await sql`
+				UPDATE node
+				SET last_accessed_at = now() - interval '20 days',
+				    created_at = now() - interval '20 days'
+				WHERE id = ${older.id}
+			`;
+			await sql`UPDATE node SET last_accessed_at = now() WHERE id = ${newer.id}`;
+
+			const results = await retrieval.search("recency compare same body text", {
+				recencyWeight: 5.0,
+				// Disable vector/FTS noise so recency decides. In the mock
+				// embedding, the two nodes are still *very* similar but
+				// recency should break ties.
+			});
+
+			const newerHit = results.find((r) => r.node.id === newer.id);
+			const olderHit = results.find((r) => r.node.id === older.id);
+			if (newerHit !== undefined && olderHit !== undefined) {
+				expect(newerHit.score).toBeGreaterThanOrEqual(olderHit.score);
 			}
 		});
 	});

@@ -70,6 +70,9 @@ function countingSelfModel(): {
 		async getCalibration() {
 			return 0;
 		},
+		async getLifetimeCalibration() {
+			return 0;
+		},
 		async getDomain(): Promise<SelfModelDomain | null> {
 			return null;
 		},

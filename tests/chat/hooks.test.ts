@@ -84,6 +84,7 @@ function createStubEpisodic(): StubEpisodic {
 				embedding: null,
 				supersededBy: null,
 				createdAt: new Date(id),
+				importance: input.importance ?? 0.5,
 			};
 		},
 		async getBySession(): Promise<readonly Episode[]> {

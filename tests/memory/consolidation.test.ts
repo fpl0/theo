@@ -11,6 +11,7 @@ import {
 	type ConsolidationDeps,
 	compressOldEpisodes,
 	consolidate,
+	groupByTopic,
 	mergeNodes,
 	registerEpisodeSummarizedApplier,
 } from "../../src/memory/consolidation.ts";
@@ -202,6 +203,136 @@ describe("mergeNodes", () => {
 		expect(keeperMatches.length).toBe(1);
 		const retiredMatches = rows.filter((row) => (row["node_id"] as number) === Number(retired.id));
 		expect(retiredMatches.length).toBe(0);
+	});
+});
+
+describe("compressOldEpisodes importance gate (Phase 13a)", () => {
+	test("high-importance episodes are preserved at full fidelity", async () => {
+		const sessionId = "session-preserve";
+		const preserved = await episodic.append({
+			sessionId,
+			role: "user",
+			body: "this is critical",
+			actor: "user",
+			importance: 0.9,
+		});
+		await sql`
+			UPDATE episode SET created_at = now() - interval '10 days'
+			WHERE id = ${preserved.id}
+		`;
+
+		const localBus = createTestBus(sql);
+		registerEpisodeSummarizedApplier({ bus: localBus, sql, episodic });
+		await localBus.start();
+
+		const compressed = await compressOldEpisodes(
+			makeConsolidationDeps({ bus: localBus }),
+			async () => "should not be called",
+		);
+		expect(compressed).toBe(0);
+		await localBus.flush();
+
+		const stillActive = await sql`
+			SELECT id FROM episode WHERE id = ${preserved.id} AND superseded_by IS NULL
+		`;
+		expect(stillActive).toHaveLength(1);
+		await localBus.stop();
+	});
+
+	test("low-importance episodes are still compressed", async () => {
+		const sessionId = "session-compress";
+		const compressible = await episodic.append({
+			sessionId,
+			role: "user",
+			body: "ordinary turn",
+			actor: "user",
+			importance: 0.3,
+		});
+		await sql`
+			UPDATE episode SET created_at = now() - interval '10 days'
+			WHERE id = ${compressible.id}
+		`;
+
+		const localBus = createTestBus(sql);
+		registerEpisodeSummarizedApplier({ bus: localBus, sql, episodic });
+		await localBus.start();
+
+		const compressed = await compressOldEpisodes(
+			makeConsolidationDeps({ bus: localBus }),
+			async () => "low-importance summary",
+		);
+		expect(compressed).toBeGreaterThan(0);
+		await localBus.flush();
+
+		const superseded = await sql`
+			SELECT 1 FROM episode WHERE id = ${compressible.id} AND superseded_by IS NOT NULL
+		`;
+		expect(superseded).toHaveLength(1);
+		await localBus.stop();
+	});
+});
+
+describe("groupByTopic (Phase 13a)", () => {
+	const baseDate = new Date("2026-01-01T00:00:00Z");
+	const makeEp = (id: number, sessionId: string) => ({
+		id,
+		sessionId,
+		role: "user" as const,
+		body: `body-${String(id)}`,
+		createdAt: baseDate,
+	});
+
+	test("two topics in one session produce two groups", () => {
+		const episodes = [makeEp(1, "s"), makeEp(2, "s"), makeEp(3, "s"), makeEp(4, "s")];
+		// 1 and 2 share node 100; 3 and 4 share node 200.
+		const links = new Map<number, readonly number[]>([
+			[1, [100]],
+			[2, [100]],
+			[3, [200]],
+			[4, [200]],
+		]);
+		const groups = groupByTopic(episodes, links);
+		expect(groups.size).toBe(2);
+		const sizes = [...groups.values()].map((g) => g.length).sort();
+		expect(sizes).toEqual([2, 2]);
+	});
+
+	test("transitive sharing unions into a single group", () => {
+		const episodes = [makeEp(1, "s"), makeEp(2, "s"), makeEp(3, "s")];
+		// 1 <- node A -> 2; 2 <- node B -> 3. Union-find should produce one group.
+		const links = new Map<number, readonly number[]>([
+			[1, [10]],
+			[2, [10, 20]],
+			[3, [20]],
+		]);
+		const groups = groupByTopic(episodes, links);
+		expect(groups.size).toBe(1);
+	});
+
+	test("episodes with no node links fall back to per-session grouping", () => {
+		const episodes = [makeEp(1, "s1"), makeEp(2, "s1"), makeEp(3, "s2")];
+		const links = new Map<number, readonly number[]>();
+		const groups = groupByTopic(episodes, links);
+		expect(groups.size).toBe(2);
+		const s1 = groups.get("session:s1");
+		const s2 = groups.get("session:s2");
+		expect(s1?.length).toBe(2);
+		expect(s2?.length).toBe(1);
+	});
+
+	test("mix of topic-linked and unlinked episodes produces both kinds of groups", () => {
+		const episodes = [makeEp(1, "s"), makeEp(2, "s"), makeEp(3, "s")];
+		// 1 and 2 share a node; 3 has no links.
+		const links = new Map<number, readonly number[]>([
+			[1, [42]],
+			[2, [42]],
+		]);
+		const groups = groupByTopic(episodes, links);
+		expect(groups.size).toBe(2);
+		// One group is a "topic:*" key; the other is "session:s".
+		const keys = [...groups.keys()].sort();
+		expect(keys.some((k) => k.startsWith("topic:"))).toBe(true);
+		expect(keys.some((k) => k.startsWith("session:"))).toBe(true);
 	});
 });
 

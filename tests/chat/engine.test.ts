@@ -182,6 +182,9 @@ function stubSelfModel(): SelfModelRepository {
 		async getCalibration() {
 			return 0;
 		},
+		async getLifetimeCalibration() {
+			return 0;
+		},
 		async getDomain() {
 			return null;
 		},

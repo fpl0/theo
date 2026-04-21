@@ -11,7 +11,10 @@ import type { Pool } from "../../src/db/pool.ts";
 import type { EventBus } from "../../src/events/bus.ts";
 import {
 	createSelfModelRepository,
+	isWindowDue,
 	type SelfModelRepository,
+	WINDOW_DAYS,
+	WINDOW_MAX_PREDICTIONS,
 } from "../../src/memory/self_model.ts";
 import { cleanEventTables, createTestBus, createTestPool } from "../helpers.ts";
 
@@ -199,7 +202,106 @@ describe("getDomain", () => {
 		expect(domain?.name).toBe("scheduling");
 		expect(domain?.predictions).toBe(1);
 		expect(domain?.correct).toBe(0);
+		expect(domain?.recentPredictions).toBe(1);
+		expect(domain?.recentCorrect).toBe(0);
+		expect(domain?.windowResetAt).toBeInstanceOf(Date);
 		expect(domain?.createdAt).toBeInstanceOf(Date);
 		expect(domain?.updatedAt).toBeInstanceOf(Date);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Windowed calibration (Phase 13a)
+// ---------------------------------------------------------------------------
+
+describe("windowed calibration (Phase 13a)", () => {
+	test("recent_* counters track alongside lifetime counters", async () => {
+		await repo.recordPrediction("drafting", "theo");
+		await repo.recordOutcome("drafting", true, "theo");
+		await repo.recordPrediction("drafting", "theo");
+		await repo.recordOutcome("drafting", false, "theo");
+
+		const domain = await repo.getDomain("drafting");
+		expect(domain?.predictions).toBe(2);
+		expect(domain?.correct).toBe(1);
+		expect(domain?.recentPredictions).toBe(2);
+		expect(domain?.recentCorrect).toBe(1);
+	});
+
+	test("getCalibration returns the windowed ratio", async () => {
+		for (let i = 0; i < 4; i++) {
+			await repo.recordPrediction("recommendations", "theo");
+		}
+		await repo.recordOutcome("recommendations", true, "theo");
+		await repo.recordOutcome("recommendations", true, "theo");
+		await repo.recordOutcome("recommendations", true, "theo");
+		await repo.recordOutcome("recommendations", false, "theo");
+
+		const windowed = await repo.getCalibration("recommendations");
+		expect(windowed).toBeCloseTo(0.75, 4);
+	});
+
+	test("getLifetimeCalibration returns the cumulative ratio", async () => {
+		await repo.recordPrediction("scheduling", "theo");
+		await repo.recordOutcome("scheduling", true, "theo");
+		await repo.recordPrediction("scheduling", "theo");
+		await repo.recordOutcome("scheduling", false, "theo");
+
+		const lifetime = await repo.getLifetimeCalibration("scheduling");
+		expect(lifetime).toBeCloseTo(0.5, 4);
+	});
+
+	test("50-prediction burst resets the window on the 51st", async () => {
+		for (let i = 0; i < WINDOW_MAX_PREDICTIONS; i++) {
+			await repo.recordPrediction("drafting", "theo");
+			await repo.recordOutcome("drafting", true, "theo");
+		}
+
+		const before = await repo.getDomain("drafting");
+		expect(before?.recentPredictions).toBe(WINDOW_MAX_PREDICTIONS);
+		expect(before?.recentCorrect).toBe(WINDOW_MAX_PREDICTIONS);
+
+		// The 51st prediction should roll the window over and start fresh.
+		await repo.recordPrediction("drafting", "theo");
+		const after = await repo.getDomain("drafting");
+		expect(after?.recentPredictions).toBe(1);
+		expect(after?.recentCorrect).toBe(0);
+		// Lifetime counters keep going up.
+		expect(after?.predictions).toBe(WINDOW_MAX_PREDICTIONS + 1);
+		expect(after?.correct).toBe(WINDOW_MAX_PREDICTIONS);
+	});
+
+	test("stale window timestamp triggers reset on next prediction", async () => {
+		await repo.recordPrediction("drafting", "theo");
+		await repo.recordOutcome("drafting", true, "theo");
+
+		// Backdate the window to simulate 31+ days of inactivity.
+		await sql`
+			UPDATE self_model_domain
+			SET window_reset_at = now() - (${WINDOW_DAYS + 1}::bigint * interval '1 day')
+			WHERE name = 'drafting'
+		`;
+
+		await repo.recordPrediction("drafting", "theo");
+
+		const after = await repo.getDomain("drafting");
+		expect(after?.recentPredictions).toBe(1);
+		expect(after?.recentCorrect).toBe(0);
+		// Lifetime counters remain intact.
+		expect(after?.predictions).toBe(2);
+		expect(after?.correct).toBe(1);
+	});
+
+	test("isWindowDue: detects prediction-count trigger", () => {
+		expect(isWindowDue(new Date(), WINDOW_MAX_PREDICTIONS)).toBe(true);
+		expect(isWindowDue(new Date(), WINDOW_MAX_PREDICTIONS - 1)).toBe(false);
+	});
+
+	test("isWindowDue: detects staleness trigger", () => {
+		const now = new Date("2026-04-21T00:00:00Z");
+		const stale = new Date(now.getTime() - (WINDOW_DAYS + 1) * 86_400 * 1000);
+		const fresh = new Date(now.getTime() - 10 * 86_400 * 1000);
+		expect(isWindowDue(stale, 1, now)).toBe(true);
+		expect(isWindowDue(fresh, 1, now)).toBe(false);
 	});
 });

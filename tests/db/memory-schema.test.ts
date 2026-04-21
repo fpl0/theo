@@ -245,6 +245,41 @@ describe("node", () => {
 			expect(e).toBeDefined();
 		}
 	});
+
+	// Phase 13a additions
+	test("metadata column defaults to empty object", async () => {
+		const rows = await pool.sql`
+			INSERT INTO node (kind, body) VALUES ('fact', 'Metadata default test')
+			RETURNING metadata
+		`;
+		expect(rows[0]?.["metadata"]).toEqual({});
+	});
+
+	test("metadata column stores structured JSON", async () => {
+		const rows = await pool.sql`
+			INSERT INTO node (kind, body, metadata)
+			VALUES ('person', 'Ada', ${pool.sql.json({ company: "Acme", role: "CTO" })})
+			RETURNING metadata
+		`;
+		expect(rows[0]?.["metadata"]).toEqual({ company: "Acme", role: "CTO" });
+	});
+
+	test("source_event_id column defaults to NULL", async () => {
+		const rows = await pool.sql`
+			INSERT INTO node (kind, body) VALUES ('fact', 'Source event id default')
+			RETURNING source_event_id
+		`;
+		expect(rows[0]?.["source_event_id"]).toBeNull();
+	});
+
+	test("idx_node_source_event partial index exists", async () => {
+		const rows = await pool.sql`
+			SELECT indexdef FROM pg_indexes
+			WHERE tablename = 'node' AND indexname = 'idx_node_source_event'
+		`;
+		expect(rows).toHaveLength(1);
+		expect(String(rows[0]?.["indexdef"])).toContain("source_event_id IS NOT NULL");
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -377,6 +412,49 @@ describe("episode", () => {
 		}
 	});
 
+	// Phase 13a: episode.importance
+	test("importance column defaults to 0.5", async () => {
+		const rows = await pool.sql`
+			INSERT INTO episode (session_id, role, body)
+			VALUES ('sess-imp-default', 'user', 'Default importance test')
+			RETURNING importance
+		`;
+		expect(rows[0]?.["importance"]).toBe(0.5);
+	});
+
+	test("importance CHECK rejects values > 1.0", async () => {
+		try {
+			await pool.sql`
+				INSERT INTO episode (session_id, role, body, importance)
+				VALUES ('sess-imp-high', 'user', 'bad', 1.5)
+			`;
+			expect.unreachable("should have thrown");
+		} catch (e) {
+			expect(e).toBeDefined();
+		}
+	});
+
+	test("importance CHECK rejects negative values", async () => {
+		try {
+			await pool.sql`
+				INSERT INTO episode (session_id, role, body, importance)
+				VALUES ('sess-imp-neg', 'user', 'bad', -0.1)
+			`;
+			expect.unreachable("should have thrown");
+		} catch (e) {
+			expect(e).toBeDefined();
+		}
+	});
+
+	test("idx_episode_importance partial index exists", async () => {
+		const rows = await pool.sql`
+			SELECT indexdef FROM pg_indexes
+			WHERE tablename = 'episode' AND indexname = 'idx_episode_importance'
+		`;
+		expect(rows).toHaveLength(1);
+		expect(String(rows[0]?.["indexdef"])).toContain("superseded_by IS NULL");
+	});
+
 	test("superseded_by ON DELETE SET NULL", async () => {
 		// Create a consolidated episode
 		const consolidated = await pool.sql`
@@ -496,6 +574,53 @@ describe("self_model_domain", () => {
 		`;
 		expect(rows[0]?.["predictions"]).toBe(10);
 		expect(rows[0]?.["correct"]).toBe(7);
+	});
+
+	// Phase 13a: windowed calibration columns
+	test("recent_predictions and recent_correct default to 0", async () => {
+		const rows = await pool.sql`
+			INSERT INTO self_model_domain (name) VALUES ('win_defaults')
+			RETURNING recent_predictions, recent_correct, window_reset_at
+		`;
+		expect(rows[0]?.["recent_predictions"]).toBe(0);
+		expect(rows[0]?.["recent_correct"]).toBe(0);
+		expect(rows[0]?.["window_reset_at"]).toBeInstanceOf(Date);
+	});
+
+	test("CHECK: rejects recent_correct > recent_predictions", async () => {
+		try {
+			await pool.sql`
+				INSERT INTO self_model_domain (name, recent_predictions, recent_correct)
+				VALUES ('win_bad', 3, 5)
+			`;
+			expect.unreachable("should have thrown");
+		} catch (e) {
+			expect(e).toBeDefined();
+		}
+	});
+
+	test("CHECK: rejects negative recent_predictions", async () => {
+		try {
+			await pool.sql`
+				INSERT INTO self_model_domain (name, recent_predictions)
+				VALUES ('win_neg_pred', -1)
+			`;
+			expect.unreachable("should have thrown");
+		} catch (e) {
+			expect(e).toBeDefined();
+		}
+	});
+
+	test("CHECK: rejects negative recent_correct", async () => {
+		try {
+			await pool.sql`
+				INSERT INTO self_model_domain (name, recent_predictions, recent_correct)
+				VALUES ('win_neg_corr', 5, -1)
+			`;
+			expect.unreachable("should have thrown");
+		} catch (e) {
+			expect(e).toBeDefined();
+		}
 	});
 });
 

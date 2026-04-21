@@ -43,6 +43,23 @@ export interface SearchOptions {
 	readonly importanceWeight?: number;
 	/** Filter by node kind(s). */
 	readonly kinds?: readonly NodeKind[];
+	/** Vector-similarity weight in RRF. Default 1.0. */
+	readonly vectorWeight?: number;
+	/** Full-text-search weight in RRF. Default 1.0. */
+	readonly ftsWeight?: number;
+	/** Graph-traversal weight in RRF. Default 1.0. */
+	readonly graphWeight?: number;
+	/**
+	 * Recency weight in RRF. Default 0.3 so temporality influences but does
+	 * not dominate vector/FTS signal. Set to 0 to disable recency entirely.
+	 */
+	readonly recencyWeight?: number;
+	/**
+	 * Window (days) beyond which a node is no longer considered "recent".
+	 * Default 30. Nodes whose `last_accessed_at` (or `created_at` as
+	 * fallback) is older than this do not participate in the recency CTE.
+	 */
+	readonly recencyWindowDays?: number;
 }
 
 /** A single search result with RRF score and per-signal rank breakdown. */
@@ -52,6 +69,7 @@ export interface SearchResult {
 	readonly vectorRank: number | null;
 	readonly ftsRank: number | null;
 	readonly graphRank: number | null;
+	readonly recencyRank: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,6 +85,11 @@ interface ResolvedOptions {
 	readonly minScore: number | undefined;
 	readonly importanceWeight: number;
 	readonly kinds: readonly NodeKind[] | undefined;
+	readonly vectorWeight: number;
+	readonly ftsWeight: number;
+	readonly graphWeight: number;
+	readonly recencyWeight: number;
+	readonly recencyWindowDays: number;
 }
 
 function resolveOptions(options?: SearchOptions): ResolvedOptions {
@@ -79,6 +102,11 @@ function resolveOptions(options?: SearchOptions): ResolvedOptions {
 		minScore: options?.minScore,
 		importanceWeight: options?.importanceWeight ?? 0,
 		kinds: options?.kinds,
+		vectorWeight: options?.vectorWeight ?? 1.0,
+		ftsWeight: options?.ftsWeight ?? 1.0,
+		graphWeight: options?.graphWeight ?? 1.0,
+		recencyWeight: options?.recencyWeight ?? 0.3,
+		recencyWindowDays: options?.recencyWindowDays ?? 30,
 	};
 }
 
@@ -113,6 +141,7 @@ function rowToSearchResult(row: Record<string, unknown>, importanceWeight: numbe
 		vectorRank: parseNumericColumn(row["vector_rank"]),
 		ftsRank: parseNumericColumn(row["fts_rank"]),
 		graphRank: parseNumericColumn(row["graph_rank"]),
+		recencyRank: parseNumericColumn(row["recency_rank"]),
 	};
 }
 
@@ -168,6 +197,11 @@ export class RetrievalService {
 			const q = asQueryable(tx);
 			await q`SET LOCAL statement_timeout = '5s'`;
 
+			// Recency window duration. Pass as a typed integer parameter;
+			// the CTE multiplies by `interval '1 day'` so postgres infers
+			// interval from numeric * interval regardless of how postgres.js
+			// types the parameter.
+			const recencyDays = Math.max(0, Math.floor(opts.recencyWindowDays));
 			return q`
 				WITH RECURSIVE
 				-- CTE 1: Vector candidates (top N by cosine similarity)
@@ -249,26 +283,54 @@ export class RetrievalService {
 					GROUP BY id
 				),
 
-				-- CTE 7: RRF fusion
+				-- CTE 7: Recency ranking. Limited to nodes whose last access
+				-- (or creation, if never accessed) falls inside the window.
+				-- The candidate set is capped to vectorTopN so a huge graph
+				-- doesn't hand every row a recency rank.
+				recency_ranked AS (
+					SELECT id,
+						ROW_NUMBER() OVER (
+							ORDER BY COALESCE(last_accessed_at, created_at) DESC
+						) AS rank
+					FROM node
+					WHERE COALESCE(last_accessed_at, created_at)
+						> now() - (${recencyDays}::integer * interval '1 day')
+						${opts.kinds ? q`AND kind = ANY(${opts.kinds})` : q``}
+					ORDER BY COALESCE(last_accessed_at, created_at) DESC
+					LIMIT ${opts.vectorTopN}
+				),
+
+				-- CTE 8: RRF fusion. Each signal's contribution is scaled
+				-- by its weight so callers can bias retrieval without
+				-- rewriting the query. Weights are cast to float8 so
+				-- postgres infers the arithmetic type without trying to
+				-- coerce the parameter to the bigint of ROW_NUMBER().
 				fused AS (
 					SELECT
-						COALESCE(v.id, f.id, g.id) AS id,
-						COALESCE(1.0 / (${opts.k} + v.rank), 0) +
-						COALESCE(1.0 / (${opts.k} + f.rank), 0) +
-						COALESCE(1.0 / (${opts.k} + g.rank), 0) AS rrf_score,
+						COALESCE(v.id, f.id, g.id, r.id) AS id,
+						COALESCE(${opts.vectorWeight}::float8 / (${opts.k} + v.rank), 0::float8) +
+						COALESCE(${opts.ftsWeight}::float8 / (${opts.k} + f.rank), 0::float8) +
+						COALESCE(${opts.graphWeight}::float8 / (${opts.k} + g.rank), 0::float8) +
+						COALESCE(${opts.recencyWeight}::float8 / (${opts.k} + r.rank), 0::float8)
+							AS rrf_score,
 						v.rank AS vector_rank,
 						f.rank AS fts_rank,
-						g.rank AS graph_rank
+						g.rank AS graph_rank,
+						r.rank AS recency_rank
 					FROM vector_ranked v
 					FULL OUTER JOIN fts_ranked f ON v.id = f.id
 					FULL OUTER JOIN graph_ranked g ON COALESCE(v.id, f.id) = g.id
+					FULL OUTER JOIN recency_ranked r
+						ON COALESCE(v.id, f.id, g.id) = r.id
 				)
 
 				SELECT
-					fused.rrf_score, fused.vector_rank, fused.fts_rank, fused.graph_rank,
+					fused.rrf_score,
+					fused.vector_rank, fused.fts_rank, fused.graph_rank, fused.recency_rank,
 					n.id, n.kind, n.body, n.trust, n.confidence, n.importance,
 					n.sensitivity, n.access_count, n.last_accessed_at,
-					n.created_at, n.updated_at
+					n.created_at, n.updated_at,
+					n.metadata, n.source_event_id
 				FROM fused
 				JOIN node n ON n.id = fused.id
 				${opts.minScore !== undefined ? q`WHERE fused.rrf_score > ${opts.minScore}` : q``}

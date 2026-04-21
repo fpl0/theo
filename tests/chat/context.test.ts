@@ -146,6 +146,8 @@ function makeNode(id: number, kind: Node["kind"], body: string): Node {
 		lastAccessedAt: null,
 		createdAt: new Date(0),
 		updatedAt: new Date(0),
+		metadata: {},
+		sourceEventId: null,
 	};
 }
 
@@ -161,6 +163,7 @@ function makeSearchResult(
 		vectorRank: 1,
 		ftsRank: 1,
 		graphRank: null,
+		recencyRank: null,
 	};
 }
 
@@ -400,5 +403,56 @@ describe("assembleSystemPrompt option budgets", () => {
 
 		expect(memoryLimit).toBe(15);
 		expect(skillLimit).toBe(5);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Phase 13a: experimental-dimension filtering
+// ---------------------------------------------------------------------------
+
+describe("assembleSystemPrompt experimental-dimension filter (Phase 13a)", () => {
+	function makeDimWithEvidence(
+		name: string,
+		evidenceCount: number,
+		confidence: number,
+	): UserModelDimension {
+		return {
+			id: 1,
+			name,
+			value: "placeholder value",
+			confidence,
+			evidenceCount,
+			threshold: 10,
+			createdAt: new Date(0),
+			updatedAt: new Date(0),
+		};
+	}
+
+	test("Jungian dimension below the evidence floor is excluded from the prompt", async () => {
+		const deps = populatedDeps({
+			userModel: stubUserModel([
+				makeDimWithEvidence("personality_type", 10, 0.5),
+				makeDimWithEvidence("communication_style", 5, 0.9),
+			]),
+		});
+		const prompt = await assembleSystemPrompt(deps, "hi");
+		expect(prompt).not.toContain("personality_type");
+		expect(prompt).toContain("communication_style");
+	});
+
+	test("Jungian dimension at the evidence floor is included", async () => {
+		const deps = populatedDeps({
+			userModel: stubUserModel([makeDimWithEvidence("archetypes", 50, 0.9)]),
+		});
+		const prompt = await assembleSystemPrompt(deps, "hi");
+		expect(prompt).toContain("archetypes");
+	});
+
+	test("Big Five dimension with low evidence is still included", async () => {
+		const deps = populatedDeps({
+			userModel: stubUserModel([makeDimWithEvidence("openness", 1, 0.1)]),
+		});
+		const prompt = await assembleSystemPrompt(deps, "hi");
+		expect(prompt).toContain("openness");
 	});
 });

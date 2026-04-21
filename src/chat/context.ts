@@ -21,7 +21,7 @@ import type { EmbeddingService } from "../memory/embeddings.ts";
 import type { RetrievalService } from "../memory/retrieval.ts";
 import type { SkillRepository } from "../memory/skills.ts";
 import type { JsonValue } from "../memory/types.ts";
-import type { UserModelRepository } from "../memory/user_model.ts";
+import { isDimensionPromptReady, type UserModelRepository } from "../memory/user_model.ts";
 import { buildPrompt } from "./prompt.ts";
 
 // ---------------------------------------------------------------------------
@@ -103,11 +103,16 @@ export async function assembleSystemPrompt(
 	// update_user_model tool call fires.
 	const onboarding = userModel.length === 0;
 
+	// Experimental dimensions (Jungian) are gated out of the prompt until
+	// their evidence count crosses the floor. They stay in the repository
+	// for later promotion but do not influence agent behavior before then.
+	const promptDimensions = userModel.filter((d) => isDimensionPromptReady(d.name, d.evidenceCount));
+
 	const prompt = buildPrompt(
 		{
 			persona,
 			goals,
-			userModel: userModel.map((d) => ({
+			userModel: promptDimensions.map((d) => ({
 				name: d.name,
 				value: d.value,
 				confidence: d.confidence,

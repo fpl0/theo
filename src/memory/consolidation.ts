@@ -36,6 +36,7 @@ import type { NodeId } from "./graph/types.ts";
 import { asNodeId } from "./graph/types.ts";
 import { cheapQuery } from "./llm.ts";
 import { normalizeImportance, type PropagationDeps } from "./propagation.ts";
+import { CONSOLIDATION_GATE } from "./salience.ts";
 
 // ---------------------------------------------------------------------------
 // Tunables
@@ -165,16 +166,23 @@ interface EpisodeRecord {
 }
 
 /**
- * Compress old episodes. Per session, emit `episode.summarize_requested`
- * (decision), call the summarizer as an effect handler surrogate, then emit
- * `episode.summarized` (effect). The summarize-applier decision handler —
- * wired by `registerEpisodeSummarizedApplier` — creates the summary episode
- * and marks originals as superseded.
+ * Compress old episodes. Low-importance episodes older than the age
+ * cutoff are grouped by topic (connected components in the
+ * episode <-> node bipartite graph) and summarized together. Episodes
+ * with no node cross-references fall back to session grouping.
  *
- * During this live call we run both stages inline for simplicity. The replay
- * determinism property is preserved because the effect stage is not replayed
- * (bus `mode: "effect"` fast-forwards), and the applier (decision) replays
- * from the captured `episode.summarized` event.
+ * For each group we emit `episode.summarize_requested` (decision),
+ * call the summarizer as an effect-handler surrogate, then emit
+ * `episode.summarized` (effect). The summarize-applier decision handler
+ * - wired by `registerEpisodeSummarizedApplier` - creates the summary
+ * episode and marks originals as superseded.
+ *
+ * The importance gate (>= CONSOLIDATION_GATE) is enforced in the
+ * candidate query so high-salience episodes are never compressed.
+ *
+ * Replay determinism: effect stage never replays (bus mode "effect"
+ * fast-forwards), applier replays from the captured
+ * `episode.summarized` event's summary text.
  */
 export async function compressOldEpisodes(
 	deps: ConsolidationDeps,
@@ -183,11 +191,14 @@ export async function compressOldEpisodes(
 	const now = deps.now?.() ?? new Date();
 	const ageCutoff = new Date(now.getTime() - EPISODE_AGE_DAYS * 86400 * 1000);
 
+	// Importance gate is enforced in SQL so preserved episodes never reach
+	// the summarizer.
 	const rawRows = await deps.sql`
 		SELECT id, session_id, role, body, created_at
 		FROM episode
 		WHERE created_at < ${ageCutoff}
 		  AND superseded_by IS NULL
+		  AND importance < ${CONSOLIDATION_GATE}
 		ORDER BY session_id, created_at ASC
 	`;
 	if (rawRows.length === 0) return 0;
@@ -200,22 +211,37 @@ export async function compressOldEpisodes(
 		createdAt: row["created_at"] as Date,
 	}));
 
-	const bySession = new Map<string, EpisodeRecord[]>();
-	for (const row of rows) {
-		const existing = bySession.get(row.sessionId);
-		if (existing) existing.push(row);
-		else bySession.set(row.sessionId, [row]);
+	// Fetch node links for all candidate episodes in one shot so topic
+	// grouping stays O(n).
+	const episodeIds = rows.map((r) => r.id);
+	const linkRows = await deps.sql`
+		SELECT episode_id, node_id
+		FROM episode_node
+		WHERE episode_id = ANY(${episodeIds}::int[])
+	`;
+	const episodeNodes = new Map<number, number[]>();
+	for (const row of linkRows) {
+		const episodeId = row["episode_id"] as number;
+		const nodeId = row["node_id"] as number;
+		const existing = episodeNodes.get(episodeId);
+		if (existing) existing.push(nodeId);
+		else episodeNodes.set(episodeId, [nodeId]);
 	}
 
+	const groups = groupByTopic(rows, episodeNodes);
+
 	let compressed = 0;
-	for (const [sessionId, episodes] of bySession) {
-		const episodeIds = episodes.map((e) => e.id);
+	for (const [groupKey, episodes] of groups) {
+		const ids = episodes.map((e) => e.id);
+		// Summaries attribute to a single session. Topic groups that span
+		// sessions use the session of the oldest episode as the anchor.
+		const sessionId = episodes[0]?.sessionId ?? groupKey;
 
 		await deps.bus.emit({
 			type: "episode.summarize_requested",
 			version: 1,
 			actor: "system",
-			data: { sessionId, episodeIds },
+			data: { sessionId, episodeIds: ids },
 			metadata: { sessionId },
 		});
 
@@ -224,7 +250,7 @@ export async function compressOldEpisodes(
 		try {
 			summary = await summarizer(transcript);
 		} catch (error: unknown) {
-			console.warn(`Summarizer failed for session ${sessionId}: ${describeError(error)}`);
+			console.warn(`Summarizer failed for group ${groupKey}: ${describeError(error)}`);
 			continue;
 		}
 		if (summary.length === 0) continue;
@@ -233,14 +259,91 @@ export async function compressOldEpisodes(
 			type: "episode.summarized",
 			version: 1,
 			actor: "system",
-			data: { sessionId, episodeIds, summary },
+			data: { sessionId, episodeIds: ids, summary },
 			metadata: { sessionId },
 		});
 
-		compressed += episodeIds.length;
+		compressed += ids.length;
 	}
 
 	return compressed;
+}
+
+// ---------------------------------------------------------------------------
+// Topic grouping (exported for tests)
+// ---------------------------------------------------------------------------
+
+/**
+ * Group episodes by topic clusters derived from the episode <-> node
+ * bipartite graph. Episodes that share node references (directly or
+ * transitively via other episodes) form one group. Episodes with no
+ * node links fall back to session grouping.
+ *
+ * Returns a Map<groupKey, Episode[]> where keys are stable strings
+ * suitable for logging ("topic:<min episode id>" or
+ * "session:<sessionId>").
+ */
+export function groupByTopic(
+	episodes: readonly EpisodeRecord[],
+	episodeNodes: ReadonlyMap<number, readonly number[]>,
+): Map<string, EpisodeRecord[]> {
+	// Union-find over episodes keyed by episode.id. Episodes that share any
+	// node are unioned. Nodes themselves are represented indirectly: each
+	// node becomes the equivalence class of its first-seen episode.
+	const parent = new Map<number, number>();
+	for (const ep of episodes) parent.set(ep.id, ep.id);
+
+	const find = (x: number): number => {
+		let root = x;
+		while (parent.get(root) !== root) {
+			const p = parent.get(root);
+			if (p === undefined) break;
+			root = p;
+		}
+		// Path compression
+		let cur = x;
+		while (parent.get(cur) !== root) {
+			const next = parent.get(cur);
+			parent.set(cur, root);
+			if (next === undefined) break;
+			cur = next;
+		}
+		return root;
+	};
+
+	const union = (a: number, b: number): void => {
+		const ra = find(a);
+		const rb = find(b);
+		if (ra !== rb) parent.set(ra, rb);
+	};
+
+	// For each node, union the episodes that reference it.
+	const nodeToFirstEpisode = new Map<number, number>();
+	for (const ep of episodes) {
+		const nodes = episodeNodes.get(ep.id);
+		if (!nodes || nodes.length === 0) continue;
+		for (const nodeId of nodes) {
+			const existing = nodeToFirstEpisode.get(nodeId);
+			if (existing === undefined) {
+				nodeToFirstEpisode.set(nodeId, ep.id);
+			} else {
+				union(existing, ep.id);
+			}
+		}
+	}
+
+	// Partition: topic-linked episodes grouped by root; unlinked episodes
+	// fall back to session grouping so they still get consolidated.
+	const groups = new Map<string, EpisodeRecord[]>();
+	for (const ep of episodes) {
+		const nodes = episodeNodes.get(ep.id);
+		const key =
+			nodes && nodes.length > 0 ? `topic:${String(find(ep.id))}` : `session:${ep.sessionId}`;
+		const existing = groups.get(key);
+		if (existing) existing.push(ep);
+		else groups.set(key, [ep]);
+	}
+	return groups;
 }
 
 /**

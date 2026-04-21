@@ -49,6 +49,8 @@ export interface Episode {
 	readonly embedding: Float32Array | null;
 	readonly supersededBy: EpisodeId | null;
 	readonly createdAt: Date;
+	/** Salience score in [0, 1]; gates background consolidation. */
+	readonly importance: number;
 }
 
 /** Input for creating a new episode. */
@@ -57,6 +59,12 @@ export interface CreateEpisodeInput {
 	readonly role: MessageRole;
 	readonly body: string;
 	readonly actor: Actor;
+	/**
+	 * Optional salience score. Defaults to 0.5 (the schema default). Use
+	 * `scoreEpisodeImportance` from `./salience.ts` to compute a value
+	 * from structured turn signals.
+	 */
+	readonly importance?: number;
 }
 
 // ---------------------------------------------------------------------------

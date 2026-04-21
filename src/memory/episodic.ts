@@ -33,6 +33,7 @@ function rowToEpisode(row: Record<string, unknown>): Episode {
 		embedding: null, // Embedding excluded from queries to avoid transferring ~3KB per row
 		supersededBy: supersededBy !== null ? asEpisodeId(supersededBy) : null,
 		createdAt: row["created_at"] as Date,
+		importance: row["importance"] as number,
 	};
 }
 
@@ -58,9 +59,15 @@ export class EpisodicRepository {
 		const episode = await this.sql.begin(async (tx) => {
 			const q = asQueryable(tx);
 			const rows = await q`
-				INSERT INTO episode (session_id, role, body, embedding)
-				VALUES (${input.sessionId}, ${input.role}, ${input.body}, ${vectorStr}::vector)
-				RETURNING id, session_id, role, body, superseded_by, created_at
+				INSERT INTO episode (session_id, role, body, embedding, importance)
+				VALUES (
+					${input.sessionId},
+					${input.role},
+					${input.body},
+					${vectorStr}::vector,
+					${input.importance ?? 0.5}
+				)
+				RETURNING id, session_id, role, body, superseded_by, created_at, importance
 			`;
 			const row = rows[0];
 			if (row === undefined) {
@@ -94,12 +101,26 @@ export class EpisodicRepository {
 	 */
 	async getBySession(sessionId: string): Promise<readonly Episode[]> {
 		const rows = await this.sql`
-			SELECT id, session_id, role, body, superseded_by, created_at
+			SELECT id, session_id, role, body, superseded_by, created_at, importance
 			FROM episode
 			WHERE session_id = ${sessionId} AND superseded_by IS NULL
 			ORDER BY created_at ASC
 		`;
 		return rows.map((row) => rowToEpisode(row as Record<string, unknown>));
+	}
+
+	/**
+	 * Update an episode's salience score. Used by the agent (via a future
+	 * MCP tool) or by post-turn heuristics. Idempotent if the new value
+	 * equals the current one.
+	 */
+	async setImportance(id: EpisodeId, importance: number): Promise<void> {
+		if (importance < 0 || importance > 1) {
+			throw new Error(`Episode importance must be in [0, 1]; got ${String(importance)}`);
+		}
+		await this.sql`
+			UPDATE episode SET importance = ${importance} WHERE id = ${id}
+		`;
 	}
 
 	/**

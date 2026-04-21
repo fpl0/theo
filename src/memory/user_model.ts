@@ -24,17 +24,40 @@ import type { JsonValue } from "./types.ts";
  * Per-dimension category thresholds.
  * Confidence = min(1.0, evidence_count / threshold).
  * Higher threshold = more evidence needed before Theo trusts its read.
+ *
+ * Dimensions are grouped by evidentiary status:
+ *
+ *   - Big Five (openness, conscientiousness, extraversion, agreeableness,
+ *     neuroticism): empirically grounded personality dimensions. Default
+ *     thresholds (10-15) reflect broad research support.
+ *   - Behavioral observables (communication_style, energy_patterns,
+ *     boundaries, cognitive_preferences, values): direct evidence every
+ *     turn. Low-to-moderate thresholds.
+ *   - Jungian / depth-psychology dimensions (personality_type,
+ *     shadow_patterns, archetypes, individuation_markers): experimental.
+ *     They remain available for the agent to populate but require far
+ *     more evidence (see EXPERIMENTAL_EVIDENCE_FLOOR) before they appear
+ *     in the system prompt. Thresholds here are raised so an accidental
+ *     early observation does not drive a high-confidence inclusion.
  */
 const CONFIDENCE_THRESHOLDS: Readonly<Record<string, number>> = {
-	personality_type: 20,
+	// Big Five (empirically grounded)
+	openness: 10,
+	conscientiousness: 10,
+	extraversion: 10,
+	agreeableness: 10,
+	neuroticism: 10,
+	// Behavioral observables
 	communication_style: 5,
 	values: 15,
 	energy_patterns: 10,
 	boundaries: 3,
 	cognitive_preferences: 8,
-	shadow_patterns: 25,
-	archetypes: 20,
-	individuation_markers: 30,
+	// Depth-psychology (experimental)
+	personality_type: 50,
+	shadow_patterns: 50,
+	archetypes: 50,
+	individuation_markers: 50,
 };
 
 const DEFAULT_THRESHOLD = 10;
@@ -42,6 +65,40 @@ const DEFAULT_THRESHOLD = 10;
 /** Look up the evidence threshold for a dimension name. */
 export function getThreshold(dimensionName: string): number {
 	return CONFIDENCE_THRESHOLDS[dimensionName] ?? DEFAULT_THRESHOLD;
+}
+
+// ---------------------------------------------------------------------------
+// Experimental dimensions
+// ---------------------------------------------------------------------------
+
+/**
+ * Dimensions whose theoretical basis is weaker (Jungian / depth psychology).
+ * They are tracked internally but excluded from the system prompt until
+ * their evidence count crosses EXPERIMENTAL_EVIDENCE_FLOOR.
+ */
+export const EXPERIMENTAL_DIMENSIONS: ReadonlySet<string> = new Set<string>([
+	"personality_type",
+	"shadow_patterns",
+	"archetypes",
+	"individuation_markers",
+]);
+
+/**
+ * Evidence count an experimental dimension must reach before it is
+ * included in the rendered prompt. Deliberately higher than the
+ * standard thresholds -- these dimensions should only surface once
+ * their pattern is unmistakable.
+ */
+export const EXPERIMENTAL_EVIDENCE_FLOOR = 50;
+
+/**
+ * Decide whether a dimension is ready to appear in the system prompt.
+ * Non-experimental dimensions always qualify; experimental ones must
+ * meet the floor.
+ */
+export function isDimensionPromptReady(name: string, evidenceCount: number): boolean {
+	if (!EXPERIMENTAL_DIMENSIONS.has(name)) return true;
+	return evidenceCount >= EXPERIMENTAL_EVIDENCE_FLOOR;
 }
 
 // ---------------------------------------------------------------------------

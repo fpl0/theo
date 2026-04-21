@@ -8,12 +8,25 @@
  */
 
 import type { Actor, NodeKind, Sensitivity } from "../../events/types.ts";
+import type { JsonValue } from "../types.ts";
 
 // ---------------------------------------------------------------------------
 // Re-exports from event types (used by consumers of the graph module)
 // ---------------------------------------------------------------------------
 
 export type { NodeKind, Sensitivity } from "../../events/types.ts";
+
+// ---------------------------------------------------------------------------
+// Node metadata
+// ---------------------------------------------------------------------------
+
+/**
+ * Structured attributes attached to a node. The body stays the
+ * embeddable/searchable text -- metadata is advisory structure per kind
+ * (e.g., `person.company`, `event.date`). Defaults to an empty object
+ * in the database; callers can omit it entirely on create/update.
+ */
+export type NodeMetadata = { readonly [key: string]: JsonValue };
 
 // ---------------------------------------------------------------------------
 // Trust tiers
@@ -81,6 +94,10 @@ export interface Node {
 	readonly lastAccessedAt: Date | null;
 	readonly createdAt: Date;
 	readonly updatedAt: Date;
+	/** Structured attributes per kind (advisory; body stays authoritative). */
+	readonly metadata: NodeMetadata;
+	/** ULID of the `memory.node.created` event that produced this node, if any. */
+	readonly sourceEventId: string | null;
 }
 
 /** Input for creating a new node. */
@@ -92,7 +109,10 @@ export interface CreateNodeInput {
 	readonly importance?: number;
 	readonly sensitivity?: Sensitivity;
 	readonly actor: Actor;
+	/** Event metadata attached to the emitted `memory.node.created`. */
 	readonly metadata?: Record<string, unknown>;
+	/** Structured node attributes persisted to `node.metadata`. */
+	readonly nodeMetadata?: NodeMetadata;
 }
 
 /** Input for updating an existing node. Only provided fields are changed. */
@@ -104,7 +124,10 @@ export interface UpdateNodeInput {
 	readonly importance?: number;
 	readonly sensitivity?: Sensitivity;
 	readonly actor: Actor;
+	/** Event metadata attached to the emitted `memory.node.updated`. */
 	readonly metadata?: Record<string, unknown>;
+	/** Replacement structured attributes (partial updates not supported). */
+	readonly nodeMetadata?: NodeMetadata;
 }
 
 // ---------------------------------------------------------------------------

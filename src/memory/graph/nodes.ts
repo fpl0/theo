@@ -15,7 +15,7 @@ import type { EventBus } from "../../events/bus.ts";
 import type { Actor, NodeKind, Sensitivity } from "../../events/types.ts";
 import type { EmbeddingService } from "../embeddings.ts";
 import { fromVectorLiteral, toVectorLiteral } from "../embeddings.ts";
-import type { CreateNodeInput, Node, TrustTier, UpdateNodeInput } from "./types.ts";
+import type { CreateNodeInput, Node, NodeMetadata, TrustTier, UpdateNodeInput } from "./types.ts";
 import { asNodeId, type NodeId } from "./types.ts";
 
 // ---------------------------------------------------------------------------
@@ -25,6 +25,14 @@ import { asNodeId, type NodeId } from "./types.ts";
 /** Map a postgres.js row (snake_case columns) to a typed Node. */
 export function rowToNode(row: Record<string, unknown>): Node {
 	const embeddingRaw = row["embedding"];
+	// postgres.js returns jsonb columns as already-parsed objects. Defend
+	// against rows that predate the column (missing/undefined) and against
+	// the narrow case where a SELECT excludes the column entirely.
+	const metaRaw = row["metadata"];
+	const metadata: NodeMetadata =
+		metaRaw !== null && metaRaw !== undefined && typeof metaRaw === "object"
+			? (metaRaw as NodeMetadata)
+			: {};
 	return {
 		id: asNodeId(row["id"] as number),
 		kind: row["kind"] as NodeKind,
@@ -38,6 +46,8 @@ export function rowToNode(row: Record<string, unknown>): Node {
 		lastAccessedAt: (row["last_accessed_at"] as Date | null) ?? null,
 		createdAt: row["created_at"] as Date,
 		updatedAt: row["updated_at"] as Date,
+		metadata,
+		sourceEventId: (row["source_event_id"] as string | null) ?? null,
 	};
 }
 
@@ -63,11 +73,20 @@ export class NodeRepository {
 			// A bus handler on memory.node.created can retry embedding async.
 		}
 
-		// Atomic: INSERT + event emit in the same transaction.
+		const nodeMetadataJson = this.sql.json({ ...(data.nodeMetadata ?? {}) });
+
+		// Atomic: INSERT + event emit + source_event_id back-fill in one tx.
+		// The chicken-and-egg -- the event needs the nodeId, the row wants the
+		// eventId -- is resolved by doing the INSERT first without
+		// source_event_id, emitting the event (which gets the row's id into
+		// its data payload), then UPDATE-ing the row with the returned
+		// event.id. Everything rolls back together on failure.
 		return this.sql.begin(async (tx) => {
 			const q = asQueryable(tx);
 			const rows = await q`
-				INSERT INTO node (kind, body, embedding, trust, confidence, importance, sensitivity)
+				INSERT INTO node (
+					kind, body, embedding, trust, confidence, importance, sensitivity, metadata
+				)
 				VALUES (
 					${data.kind},
 					${data.body},
@@ -75,7 +94,8 @@ export class NodeRepository {
 					${data.trust ?? "inferred"},
 					${data.confidence ?? 1.0},
 					${data.importance ?? 0.5},
-					${data.sensitivity ?? "none"}
+					${data.sensitivity ?? "none"},
+					${nodeMetadataJson}
 				)
 				RETURNING *
 			`;
@@ -85,7 +105,7 @@ export class NodeRepository {
 			}
 			const node = rowToNode(row as Record<string, unknown>);
 
-			await this.bus.emit(
+			const persisted = await this.bus.emit(
 				{
 					type: "memory.node.created",
 					version: 1,
@@ -102,7 +122,15 @@ export class NodeRepository {
 				{ tx },
 			);
 
-			return node;
+			// Stamp the node with the event ULID for provenance. Kept inside
+			// the same transaction so a rolled-back emit does not leave an
+			// orphan pointer.
+			await q`
+				UPDATE node SET source_event_id = ${persisted.id}
+				WHERE id = ${node.id}
+			`;
+
+			return { ...node, sourceEventId: persisted.id };
 		});
 	}
 
@@ -133,6 +161,8 @@ export class NodeRepository {
 		}
 
 		// Atomic: UPDATE + event emits in the same transaction.
+		const metadataJson =
+			data.nodeMetadata !== undefined ? this.sql.json({ ...data.nodeMetadata }) : null;
 		return this.sql.begin(async (tx) => {
 			const q = asQueryable(tx);
 			const rows = await q`
@@ -146,7 +176,8 @@ export class NodeRepository {
 					trust = COALESCE(${data.trust ?? null}, trust),
 					confidence = COALESCE(${data.confidence ?? null}, confidence),
 					importance = COALESCE(${data.importance ?? null}, importance),
-					sensitivity = COALESCE(${data.sensitivity ?? null}, sensitivity)
+					sensitivity = COALESCE(${data.sensitivity ?? null}, sensitivity),
+					metadata = COALESCE(${metadataJson}, metadata)
 				WHERE id = ${id}
 				RETURNING *
 			`;
@@ -270,6 +301,7 @@ export class NodeRepository {
 		const rows = await this.sql`
 			SELECT id, kind, body, trust, confidence, importance, sensitivity,
 				access_count, last_accessed_at, created_at, updated_at,
+				metadata, source_event_id,
 				1 - (embedding <=> ${queryStr}::vector) AS similarity
 			FROM node
 			WHERE embedding IS NOT NULL

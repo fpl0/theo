@@ -11,7 +11,10 @@ import type { Pool } from "../../src/db/pool.ts";
 import type { EventBus } from "../../src/events/bus.ts";
 import {
 	createUserModelRepository,
+	EXPERIMENTAL_DIMENSIONS,
+	EXPERIMENTAL_EVIDENCE_FLOOR,
 	getThreshold,
+	isDimensionPromptReady,
 	type UserModelRepository,
 } from "../../src/memory/user_model.ts";
 import { cleanEventTables, createTestBus, createTestPool } from "../helpers.ts";
@@ -52,8 +55,11 @@ describe("getThreshold", () => {
 		expect(getThreshold("communication_style")).toBe(5);
 	});
 
-	test("returns known threshold for individuation_markers", () => {
-		expect(getThreshold("individuation_markers")).toBe(30);
+	test("returns raised threshold for experimental Jungian dimension (Phase 13a)", () => {
+		expect(getThreshold("individuation_markers")).toBe(50);
+		expect(getThreshold("personality_type")).toBe(50);
+		expect(getThreshold("shadow_patterns")).toBe(50);
+		expect(getThreshold("archetypes")).toBe(50);
 	});
 
 	test("returns known threshold for boundaries", () => {
@@ -62,6 +68,34 @@ describe("getThreshold", () => {
 
 	test("returns _default threshold for unknown dimension", () => {
 		expect(getThreshold("custom_dim")).toBe(10);
+	});
+
+	test("Big Five dimensions have empirically grounded thresholds (Phase 13a)", () => {
+		expect(getThreshold("openness")).toBe(10);
+		expect(getThreshold("conscientiousness")).toBe(10);
+		expect(getThreshold("extraversion")).toBe(10);
+		expect(getThreshold("agreeableness")).toBe(10);
+		expect(getThreshold("neuroticism")).toBe(10);
+	});
+});
+
+describe("isDimensionPromptReady (Phase 13a)", () => {
+	test("non-experimental dimensions are always prompt-ready", () => {
+		expect(isDimensionPromptReady("communication_style", 1)).toBe(true);
+		expect(isDimensionPromptReady("openness", 0)).toBe(true);
+		expect(isDimensionPromptReady("boundaries", 1)).toBe(true);
+	});
+
+	test("experimental dimensions blocked below the evidence floor", () => {
+		for (const name of EXPERIMENTAL_DIMENSIONS) {
+			expect(isDimensionPromptReady(name, EXPERIMENTAL_EVIDENCE_FLOOR - 1)).toBe(false);
+		}
+	});
+
+	test("experimental dimensions qualify at the evidence floor", () => {
+		for (const name of EXPERIMENTAL_DIMENSIONS) {
+			expect(isDimensionPromptReady(name, EXPERIMENTAL_EVIDENCE_FLOOR)).toBe(true);
+		}
 	});
 });
 
@@ -96,7 +130,7 @@ describe("updateDimension", () => {
 		expect(dim.threshold).toBe(3);
 	});
 
-	test("high-threshold dimension: low initial confidence", async () => {
+	test("experimental (Jungian) dimension: very low initial confidence at floor=50", async () => {
 		const dim = await repo.updateDimension(
 			"individuation_markers",
 			"early growth signals",
@@ -104,8 +138,8 @@ describe("updateDimension", () => {
 			"theo",
 		);
 
-		expect(dim.confidence).toBeCloseTo(1 / 30, 4);
-		expect(dim.threshold).toBe(30);
+		expect(dim.confidence).toBeCloseTo(1 / 50, 4);
+		expect(dim.threshold).toBe(50);
 	});
 
 	test("unknown dimension uses _default threshold", async () => {
