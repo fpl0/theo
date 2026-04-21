@@ -8,7 +8,6 @@ import type { Pool } from "../../src/db/pool.ts";
 import type { EventBus } from "../../src/events/bus.ts";
 import {
 	applyForgettingCurves,
-	BASE_HALF_LIFE_DAYS,
 	computeDecayedImportance,
 	HALF_LIFE_DAYS,
 	IMPORTANCE_FLOOR,
@@ -50,14 +49,14 @@ afterAll(async () => {
 
 describe("computeDecayedImportance", () => {
 	test("basic decay: half life reduces importance by half", () => {
-		const decayed = computeDecayedImportance(0.8, 0, BASE_HALF_LIFE_DAYS);
+		const decayed = computeDecayedImportance(0.8, 0, HALF_LIFE_DAYS.fact);
 		expect(decayed).toBeCloseTo(0.4, 2);
 	});
 
 	test("access count extends half life", () => {
-		const noAccess = computeDecayedImportance(0.8, 0, BASE_HALF_LIFE_DAYS);
-		const tenAccess = computeDecayedImportance(0.8, 10, BASE_HALF_LIFE_DAYS);
-		// tenAccess half-life is 2x, so after BASE_HALF_LIFE_DAYS it is 0.8 * 0.5^(1/2) ≈ 0.566
+		const noAccess = computeDecayedImportance(0.8, 0, HALF_LIFE_DAYS.fact);
+		const tenAccess = computeDecayedImportance(0.8, 10, HALF_LIFE_DAYS.fact);
+		// tenAccess half-life is 2x, so after HALF_LIFE_DAYS.fact it is 0.8 * 0.5^(1/2) ≈ 0.566
 		expect(tenAccess).toBeGreaterThan(noAccess);
 	});
 
@@ -109,10 +108,9 @@ describe("computeDecayedImportance", () => {
 		expect(decayed).toBe(0.95);
 	});
 
-	test("default kind argument is 'fact' (backward-compat)", () => {
-		expect(HALF_LIFE_DAYS.fact).toBe(BASE_HALF_LIFE_DAYS);
-		const defaulted = computeDecayedImportance(0.8, 0, BASE_HALF_LIFE_DAYS);
-		const explicit = computeDecayedImportance(0.8, 0, BASE_HALF_LIFE_DAYS, "fact");
+	test("default kind argument is 'fact'", () => {
+		const defaulted = computeDecayedImportance(0.8, 0, HALF_LIFE_DAYS.fact);
+		const explicit = computeDecayedImportance(0.8, 0, HALF_LIFE_DAYS.fact, "fact");
 		expect(defaulted).toBe(explicit);
 	});
 });

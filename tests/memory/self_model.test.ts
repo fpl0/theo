@@ -11,7 +11,6 @@ import type { Pool } from "../../src/db/pool.ts";
 import type { EventBus } from "../../src/events/bus.ts";
 import {
 	createSelfModelRepository,
-	isWindowDue,
 	type SelfModelRepository,
 	WINDOW_DAYS,
 	WINDOW_MAX_PREDICTIONS,
@@ -121,9 +120,14 @@ describe("recordOutcome", () => {
 	});
 
 	test("throws on missing domain", async () => {
-		await expect(repo.recordOutcome("nonexistent", true, "theo")).rejects.toThrow(
-			"Self model domain 'nonexistent' not found",
-		);
+		let caught: unknown;
+		try {
+			await repo.recordOutcome("nonexistent", true, "theo");
+		} catch (error) {
+			caught = error;
+		}
+		expect(caught).toBeInstanceOf(Error);
+		expect((caught as Error).message).toContain("Self model domain 'nonexistent' not found");
 	});
 
 	test("emits event on incorrect outcome", async () => {
@@ -290,18 +294,5 @@ describe("windowed calibration (Phase 13a)", () => {
 		// Lifetime counters remain intact.
 		expect(after?.predictions).toBe(2);
 		expect(after?.correct).toBe(1);
-	});
-
-	test("isWindowDue: detects prediction-count trigger", () => {
-		expect(isWindowDue(new Date(), WINDOW_MAX_PREDICTIONS)).toBe(true);
-		expect(isWindowDue(new Date(), WINDOW_MAX_PREDICTIONS - 1)).toBe(false);
-	});
-
-	test("isWindowDue: detects staleness trigger", () => {
-		const now = new Date("2026-04-21T00:00:00Z");
-		const stale = new Date(now.getTime() - (WINDOW_DAYS + 1) * 86_400 * 1000);
-		const fresh = new Date(now.getTime() - 10 * 86_400 * 1000);
-		expect(isWindowDue(stale, 1, now)).toBe(true);
-		expect(isWindowDue(fresh, 1, now)).toBe(false);
 	});
 });

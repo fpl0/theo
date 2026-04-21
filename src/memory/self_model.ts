@@ -41,8 +41,6 @@ export const WINDOW_DAYS = 30;
  */
 export const WINDOW_MAX_PREDICTIONS = 50;
 
-const WINDOW_MS = WINDOW_DAYS * 86_400 * 1000;
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -141,36 +139,29 @@ export function createSelfModelRepository(sql: Sql, bus: EventBus): SelfModelRep
 
 	async function recordPrediction(domain: string, actor: Actor): Promise<void> {
 		// RETURNING avoids a second query for calibration (no TOCTOU race).
-		// The CASE expressions encode the window-reset rule: if the stored
-		// window is older than WINDOW_MS or contains >= WINDOW_MAX predictions
-		// BEFORE this increment, the window starts fresh. The counters on
-		// conflict read `self_model_domain.*` columns so the decision is
-		// made against pre-increment values.
+		// The `due` CTE decides once whether the window should roll over;
+		// the three SET columns each branch on that single boolean so the
+		// reset rule lives in one place.
 		await sql.begin(async (tx) => {
 			const q = asQueryable(tx);
 			const rows = await q<Counters[]>`
+				WITH due AS (
+					SELECT name,
+					       (window_reset_at < now() - (${WINDOW_DAYS}::integer * interval '1 day')
+					        OR recent_predictions >= ${WINDOW_MAX_PREDICTIONS}) AS roll
+					FROM self_model_domain
+					WHERE name = ${domain}
+				)
 				INSERT INTO self_model_domain (name, predictions, recent_predictions, window_reset_at)
 				VALUES (${domain}, 1, 1, now())
 				ON CONFLICT (name) DO UPDATE SET
 					predictions = self_model_domain.predictions + 1,
-					recent_predictions = CASE
-						WHEN self_model_domain.window_reset_at < now() - (${WINDOW_DAYS}::bigint * interval '1 day')
-						  OR self_model_domain.recent_predictions >= ${WINDOW_MAX_PREDICTIONS}
-						THEN 1
-						ELSE self_model_domain.recent_predictions + 1
-					END,
-					recent_correct = CASE
-						WHEN self_model_domain.window_reset_at < now() - (${WINDOW_DAYS}::bigint * interval '1 day')
-						  OR self_model_domain.recent_predictions >= ${WINDOW_MAX_PREDICTIONS}
-						THEN 0
-						ELSE self_model_domain.recent_correct
-					END,
-					window_reset_at = CASE
-						WHEN self_model_domain.window_reset_at < now() - (${WINDOW_DAYS}::bigint * interval '1 day')
-						  OR self_model_domain.recent_predictions >= ${WINDOW_MAX_PREDICTIONS}
-						THEN now()
-						ELSE self_model_domain.window_reset_at
-					END
+					recent_predictions = CASE WHEN (SELECT roll FROM due) THEN 1
+						ELSE self_model_domain.recent_predictions + 1 END,
+					recent_correct = CASE WHEN (SELECT roll FROM due) THEN 0
+						ELSE self_model_domain.recent_correct END,
+					window_reset_at = CASE WHEN (SELECT roll FROM due) THEN now()
+						ELSE self_model_domain.window_reset_at END
 				RETURNING predictions, correct,
 				recent_predictions AS "recentPredictions",
 				recent_correct AS "recentCorrect"
@@ -203,7 +194,7 @@ export function createSelfModelRepository(sql: Sql, bus: EventBus): SelfModelRep
 				    recent_correct = self_model_domain.recent_correct + CASE
 				      WHEN ${correct}
 				        AND self_model_domain.window_reset_at
-				          >= now() - (${WINDOW_DAYS}::bigint * interval '1 day')
+				          >= now() - (${WINDOW_DAYS}::integer * interval '1 day')
 				      THEN 1
 				      ELSE 0
 				    END
@@ -236,18 +227,4 @@ export function createSelfModelRepository(sql: Sql, bus: EventBus): SelfModelRep
 		getLifetimeCalibration,
 		getDomain,
 	};
-}
-
-// ---------------------------------------------------------------------------
-// Exported helpers for tests
-// ---------------------------------------------------------------------------
-
-/** Helper used in tests: does the stored timestamp indicate a window reset is due? */
-export function isWindowDue(
-	windowResetAt: Date,
-	recentPredictions: number,
-	now: Date = new Date(),
-): boolean {
-	if (recentPredictions >= WINDOW_MAX_PREDICTIONS) return true;
-	return now.getTime() - windowResetAt.getTime() >= WINDOW_MS;
 }

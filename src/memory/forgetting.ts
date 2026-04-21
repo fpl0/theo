@@ -28,13 +28,6 @@ import type { NodeKind } from "../events/types.ts";
 /** Minimum importance any node can decay to. */
 export const IMPORTANCE_FLOOR = 0.05;
 
-/**
- * Base half-life for a generic node kind with no access history. Kept for
- * backward-compat with callers that treated the old 30-day value as
- * canonical (e.g., unit tests for computeDecayedImportance).
- */
-export const BASE_HALF_LIFE_DAYS = 30;
-
 /** Per-access extension factor. */
 const ACCESS_HALF_LIFE_MULTIPLIER = 0.1;
 
@@ -116,21 +109,20 @@ export async function applyForgettingCurves(deps: ForgettingDeps): Promise<numbe
 
 		// Partition kinds by finite-vs-infinite half-life. Finite kinds feed
 		// the CASE expression; exempt kinds are excluded by the WHERE clause.
-		const finiteKinds = (Object.keys(HALF_LIFE_DAYS) as NodeKind[]).filter((k) =>
-			Number.isFinite(HALF_LIFE_DAYS[k]),
-		);
-		const exemptKinds = (Object.keys(HALF_LIFE_DAYS) as NodeKind[]).filter(
-			(k) => !Number.isFinite(HALF_LIFE_DAYS[k]),
-		);
+		const entries = Object.entries(HALF_LIFE_DAYS) as [NodeKind, number][];
+		const finiteEntries = entries.filter(([, days]) => Number.isFinite(days));
+		const exemptKinds = entries.filter(([, days]) => !Number.isFinite(days)).map(([k]) => k);
 
-		// Build the CASE body as one composable SQL fragment. postgres.js
-		// flattens nested tagged templates by substituting their parameters
-		// in-order, so `sql`${fragment}`` stays correctly parameterized.
+		// Inline WHEN-branches so the query stays one prepared statement. The
+		// ELSE branch is unreachable (HALF_LIFE_DAYS covers every NodeKind and
+		// exempt kinds are filtered out upstream) but required by the CASE
+		// grammar — NULL falls through and the decay expression becomes NULL,
+		// which the UPDATE's `d.new_importance < n.importance` guard filters.
 		let caseExpr = q`CASE kind`;
-		for (const k of finiteKinds) {
-			caseExpr = q`${caseExpr} WHEN ${k} THEN ${HALF_LIFE_DAYS[k]}::real`;
+		for (const [kind, days] of finiteEntries) {
+			caseExpr = q`${caseExpr} WHEN ${kind} THEN ${days}::real`;
 		}
-		caseExpr = q`${caseExpr} ELSE ${BASE_HALF_LIFE_DAYS}::real END`;
+		caseExpr = q`${caseExpr} ELSE NULL END`;
 
 		const rows = await q`
 			WITH decayed AS (

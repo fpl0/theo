@@ -227,9 +227,14 @@ describe("assembleSystemPrompt guards", () => {
 			embeddings: stubEmbeddings(),
 		};
 
-		await expect(assembleSystemPrompt(deps, "hi")).rejects.toThrow(
-			/Core memory slot not found: persona/,
-		);
+		let caught: unknown;
+		try {
+			await assembleSystemPrompt(deps, "hi");
+		} catch (error) {
+			caught = error;
+		}
+		expect(caught).toBeInstanceOf(Error);
+		expect((caught as Error).message).toMatch(/Core memory slot not found: persona/);
 	});
 
 	test("passes the guard with initial persona + goals seeds", async () => {

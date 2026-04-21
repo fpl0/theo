@@ -232,10 +232,12 @@ export async function compressOldEpisodes(
 
 	let compressed = 0;
 	for (const [groupKey, episodes] of groups) {
+		const first = episodes[0];
+		if (first === undefined) continue;
 		const ids = episodes.map((e) => e.id);
 		// Summaries attribute to a single session. Topic groups that span
 		// sessions use the session of the oldest episode as the anchor.
-		const sessionId = episodes[0]?.sessionId ?? groupKey;
+		const sessionId = first.sessionId;
 
 		await deps.bus.emit({
 			type: "episode.summarize_requested",

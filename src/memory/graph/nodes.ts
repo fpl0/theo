@@ -30,7 +30,7 @@ export function rowToNode(row: Record<string, unknown>): Node {
 	// the narrow case where a SELECT excludes the column entirely.
 	const metaRaw = row["metadata"];
 	const metadata: NodeMetadata =
-		metaRaw !== null && metaRaw !== undefined && typeof metaRaw === "object"
+		typeof metaRaw === "object" && metaRaw !== null && !Array.isArray(metaRaw)
 			? (metaRaw as NodeMetadata)
 			: {};
 	return {
