@@ -15,19 +15,20 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 import type { Sql } from "postgres";
 import type { Pool } from "../../src/db/pool.ts";
 import type { EventBus } from "../../src/events/bus.ts";
+import { newEventId } from "../../src/events/ids.ts";
+import type { EventOfType } from "../../src/events/types.ts";
 import {
 	applyContradictionVerdict,
 	type ContradictionClassifier,
-	type ContradictionDeps,
 	MAX_CALLS_PER_MINUTE,
 	RateLimiter,
 	registerContradictionHandlers,
 	requestContradictionChecks,
-	requestContradictionsFor,
 	runContradictionClassification,
 } from "../../src/memory/contradiction.ts";
 import { EdgeRepository } from "../../src/memory/graph/edges.ts";
 import { NodeRepository } from "../../src/memory/graph/nodes.ts";
+import type { NodeId } from "../../src/memory/graph/types.ts";
 import {
 	cleanEventTables,
 	createMockEmbeddings,
@@ -73,27 +74,30 @@ function classifierThatSays(contradicts: boolean): ContradictionClassifier {
 	return async () => ({ contradicts, explanation: contradicts ? "direct contradiction" : "ok" });
 }
 
+function nodeCreatedEvent(
+	nodeId: NodeId,
+	kind: "fact" | "preference" | "observation" | "belief" | "goal",
+	body: string,
+): EventOfType<"memory.node.created"> {
+	return {
+		id: newEventId(),
+		type: "memory.node.created",
+		version: 1,
+		timestamp: new Date(),
+		actor: "user",
+		data: { nodeId, kind, body, sensitivity: "none", hasEmbedding: true },
+		metadata: {},
+	};
+}
+
 describe("requestContradictionChecks", () => {
 	test("no similar nodes → no requests emitted", async () => {
 		const node = await nodes.create({ kind: "fact", body: "Unique alpha", actor: "user" });
-		const deps: ContradictionDeps = { bus, nodes, edges };
-		const event = {
-			id: "01K000000000000000000AAAAA" as never,
-			type: "memory.node.created" as const,
-			version: 1,
-			timestamp: new Date(),
-			actor: "user" as const,
-			data: {
-				nodeId: node.id,
-				kind: "fact" as const,
-				body: node.body,
-				sensitivity: "none" as const,
-				hasEmbedding: true,
-			},
-			metadata: {},
-		};
-
-		await requestContradictionChecks(event, deps);
+		await requestContradictionChecks(nodeCreatedEvent(node.id, "fact", node.body), {
+			bus,
+			nodes,
+			edges,
+		});
 
 		const rows = await sql`SELECT 1 FROM events WHERE type = 'contradiction.requested'`;
 		expect(rows).toHaveLength(0);
@@ -107,7 +111,11 @@ describe("requestContradictionChecks", () => {
 			actor: "user",
 		});
 
-		await requestContradictionsFor(pref.id, { bus, nodes, edges });
+		await requestContradictionChecks(nodeCreatedEvent(pref.id, "preference", pref.body), {
+			bus,
+			nodes,
+			edges,
+		});
 
 		const rows = await sql`SELECT 1 FROM events WHERE type = 'contradiction.requested'`;
 		expect(rows).toHaveLength(0);
@@ -117,7 +125,11 @@ describe("requestContradictionChecks", () => {
 		await nodes.create({ kind: "fact", body: "Cats are mammals", actor: "user" });
 		const second = await nodes.create({ kind: "fact", body: "Cats are mammals", actor: "user" });
 
-		await requestContradictionsFor(second.id, { bus, nodes, edges });
+		await requestContradictionChecks(nodeCreatedEvent(second.id, "fact", second.body), {
+			bus,
+			nodes,
+			edges,
+		});
 
 		const rows = await sql`
 			SELECT data FROM events WHERE type = 'contradiction.requested' ORDER BY id
@@ -134,7 +146,7 @@ describe("runContradictionClassification", () => {
 		const limiter = new RateLimiter(10, 60_000);
 		await runContradictionClassification(
 			{
-				id: "01K000000000000000000BBBBB" as never,
+				id: newEventId(),
 				type: "contradiction.requested",
 				version: 1,
 				timestamp: new Date(),
@@ -171,7 +183,7 @@ describe("runContradictionClassification", () => {
 		for (let i = 0; i < MAX_CALLS_PER_MINUTE + 1; i++) {
 			await runContradictionClassification(
 				{
-					id: `01K000000000000000000${String(i).padStart(5, "A")}` as never,
+					id: newEventId(),
 					type: "contradiction.requested",
 					version: 1,
 					timestamp: new Date(),
@@ -193,7 +205,7 @@ describe("runContradictionClassification", () => {
 		const limiter = new RateLimiter(10, 60_000);
 		await runContradictionClassification(
 			{
-				id: "01K000000000000000000FFFFF" as never,
+				id: newEventId(),
 				type: "contradiction.requested",
 				version: 1,
 				timestamp: new Date(),
@@ -231,7 +243,7 @@ describe("applyContradictionVerdict", () => {
 
 		await applyContradictionVerdict(
 			{
-				id: "01K000000000000000000CCCCC" as never,
+				id: newEventId(),
 				type: "contradiction.classified",
 				version: 1,
 				timestamp: new Date(),
@@ -279,7 +291,7 @@ describe("applyContradictionVerdict", () => {
 
 		await applyContradictionVerdict(
 			{
-				id: "01K000000000000000000DDDDD" as never,
+				id: newEventId(),
 				type: "contradiction.classified",
 				version: 1,
 				timestamp: new Date(),

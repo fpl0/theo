@@ -21,12 +21,14 @@
  * exists, in which case the cluster is skipped.
  */
 
-import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type { Sql } from "postgres";
+import { describeError } from "../errors.ts";
 import type { EventBus } from "../events/bus.ts";
+import type { NodeKind } from "../events/types.ts";
 import type { EdgeRepository } from "./graph/edges.ts";
 import type { NodeRepository } from "./graph/nodes.ts";
 import { asNodeId, type NodeId } from "./graph/types.ts";
+import { cheapQuery } from "./llm.ts";
 
 /** Minimum nodes per cluster. */
 export const MIN_CLUSTER_SIZE = 3;
@@ -53,39 +55,21 @@ export type PatternSynthesizer = (bodies: readonly string[]) => Promise<string>;
  */
 export async function defaultPatternSynthesizer(bodies: readonly string[]): Promise<string> {
 	const bullets = bodies.map((b, i) => `${String(i + 1)}. ${b}`).join("\n");
-	const generator = sdkQuery({
+	const { structured } = await cheapQuery({
 		prompt:
 			"Below are statements that frequently appear together. If they share a " +
 			"clear higher-level pattern, state it in one sentence. If they do not, " +
 			`respond with exactly "${NO_PATTERN_SENTINEL}".\n\n${bullets}`,
-		options: {
-			model: "haiku",
-			settingSources: [],
-			permissionMode: "bypassPermissions",
-			allowDangerouslySkipPermissions: true,
-			maxTurns: 1,
-			persistSession: false,
-			allowedTools: [],
-			outputFormat: {
-				type: "json_schema",
-				schema: {
-					type: "object",
-					properties: { pattern: { type: "string" } },
-					required: ["pattern"],
-				},
-			},
+		schema: {
+			type: "object",
+			properties: { pattern: { type: "string" } },
+			required: ["pattern"],
 		},
 	});
-
-	for await (const message of generator) {
-		if (message.type === "result" && message.subtype === "success") {
-			const out = message.structured_output;
-			if (typeof out === "object" && out !== null && "pattern" in out) {
-				const pattern = (out as { pattern: unknown }).pattern;
-				if (typeof pattern === "string" && pattern.trim().length > 0) {
-					return pattern.trim();
-				}
-			}
+	if (typeof structured === "object" && structured !== null && "pattern" in structured) {
+		const pattern = (structured as { pattern: unknown }).pattern;
+		if (typeof pattern === "string" && pattern.trim().length > 0) {
+			return pattern.trim();
 		}
 	}
 	return NO_PATTERN_SENTINEL;
@@ -111,7 +95,7 @@ interface ClusterCandidate {
 	readonly aId: number;
 	readonly bId: number;
 	readonly cId: number;
-	readonly kind: string;
+	readonly kind: NodeKind;
 }
 
 /**
@@ -155,7 +139,7 @@ async function findClusters(sql: Sql): Promise<ClusterCandidate[]> {
 		aId: row["a_id"] as number,
 		bId: row["b_id"] as number,
 		cId: row["c_id"] as number,
-		kind: row["kind"] as string,
+		kind: row["kind"] as NodeKind,
 	}));
 }
 
@@ -183,14 +167,13 @@ export async function synthesizeAbstractions(deps: AbstractionDeps): Promise<num
 		];
 		const nodes = await Promise.all(sourceIds.map((id) => deps.nodes.getById(id)));
 		if (nodes.some((n) => n === null)) continue;
-		const bodies = nodes.map((n) => (n === null ? "" : n.body));
+		const bodies = (nodes as { body: string }[]).map((n) => n.body);
 
 		let patternText: string;
 		try {
 			patternText = await synthesizer(bodies);
 		} catch (error: unknown) {
-			const message = error instanceof Error ? error.message : String(error);
-			console.warn(`Pattern synthesizer failed: ${message}`);
+			console.warn(`Pattern synthesizer failed: ${describeError(error)}`);
 			continue;
 		}
 		if (patternText === NO_PATTERN_SENTINEL || patternText.length === 0) continue;
@@ -274,8 +257,7 @@ async function synthesizePrinciplesFrom(
 	try {
 		principle = await synthesizer([a.body, b.body]);
 	} catch (error: unknown) {
-		const message = error instanceof Error ? error.message : String(error);
-		console.warn(`Principle synthesizer failed: ${message}`);
+		console.warn(`Principle synthesizer failed: ${describeError(error)}`);
 		return 0;
 	}
 	if (principle === NO_PATTERN_SENTINEL || principle.length === 0) return 0;
@@ -309,10 +291,4 @@ async function synthesizePrinciplesFrom(
 		metadata: {},
 	});
 	return 1;
-}
-
-/** Small helper the test suite uses to avoid touching the private ClusterCandidateRow. */
-export async function findClusterCount(sql: Sql): Promise<number> {
-	const c = await findClusters(sql);
-	return c.length;
 }

@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 import type { Sql } from "postgres";
 import type { Pool } from "../../src/db/pool.ts";
 import type { EventBus } from "../../src/events/bus.ts";
+import { newEventId } from "../../src/events/ids.ts";
 import { EdgeRepository } from "../../src/memory/graph/edges.ts";
 import { NodeRepository } from "../../src/memory/graph/nodes.ts";
 import {
@@ -53,7 +54,7 @@ afterAll(async () => {
 
 function makeAccessedEvent(nodeIds: readonly number[]): Parameters<typeof propagateImportance>[0] {
 	return {
-		id: "01K000000000000000000FFFFF" as never,
+		id: newEventId(),
 		type: "memory.node.accessed",
 		version: 1,
 		timestamp: new Date(),

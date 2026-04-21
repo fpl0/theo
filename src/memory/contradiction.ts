@@ -21,12 +21,13 @@
  * the graph exactly without re-calling the LLM.
  */
 
-import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
+import { describeError } from "../errors.ts";
 import type { EventBus } from "../events/bus.ts";
 import type { ContradictionClassifiedData, EventOfType } from "../events/types.ts";
 import type { EdgeRepository } from "./graph/edges.ts";
 import type { NodeRepository } from "./graph/nodes.ts";
 import { asNodeId, type NodeId } from "./graph/types.ts";
+import { cheapQuery } from "./llm.ts";
 
 // ---------------------------------------------------------------------------
 // Tunables
@@ -73,37 +74,18 @@ export async function defaultContradictionClassifier(
 	aBody: string,
 	bBody: string,
 ): Promise<ContradictionVerdict> {
-	const generator = sdkQuery({
+	const { structured } = await cheapQuery({
 		prompt: `Do these two statements contradict each other?\n\nA: "${aBody}"\nB: "${bBody}"`,
-		options: {
-			model: "haiku",
-			settingSources: [],
-			permissionMode: "bypassPermissions",
-			allowDangerouslySkipPermissions: true,
-			maxTurns: 1,
-			persistSession: false,
-			allowedTools: [],
-			outputFormat: {
-				type: "json_schema",
-				schema: {
-					type: "object",
-					properties: {
-						contradicts: { type: "boolean" },
-						explanation: { type: "string" },
-					},
-					required: ["contradicts", "explanation"],
-				},
+		schema: {
+			type: "object",
+			properties: {
+				contradicts: { type: "boolean" },
+				explanation: { type: "string" },
 			},
+			required: ["contradicts", "explanation"],
 		},
 	});
-
-	for await (const message of generator) {
-		if (message.type === "result" && message.subtype === "success") {
-			const out = message.structured_output;
-			if (isVerdict(out)) return out;
-		}
-	}
-
+	if (isVerdict(structured)) return structured;
 	return { contradicts: false, explanation: "classification failed" };
 }
 
@@ -285,7 +267,7 @@ export async function runContradictionClassification(
 		// Classifier failures are treated as non-contradiction so the decision
 		// handler can close the loop deterministically. The failure reason is
 		// logged for debugging.
-		const message = error instanceof Error ? error.message : String(error);
+		const message = describeError(error);
 		console.warn(`Contradiction classifier failed: ${message}`);
 		verdict = { contradicts: false, explanation: `classifier error: ${message}` };
 	}
@@ -344,33 +326,4 @@ export async function applyContradictionVerdict(
 		},
 		metadata: { causeId: event.id },
 	});
-}
-
-// ---------------------------------------------------------------------------
-// Inline requester (convenience for direct invocation in tests)
-// ---------------------------------------------------------------------------
-
-/** Kick off the request pipeline for a single nodeId, useful in tests and CLI. */
-export async function requestContradictionsFor(
-	nodeId: NodeId,
-	deps: ContradictionDeps,
-): Promise<void> {
-	const node = await deps.nodes.getById(nodeId);
-	if (node === null || node.embedding === null) return;
-
-	const similar = await deps.nodes.findSimilar(
-		node.embedding,
-		SIMILARITY_THRESHOLD,
-		MAX_CANDIDATES + 1,
-	);
-	const candidates = similar.filter((n) => n.id !== nodeId && n.kind === node.kind);
-	for (const candidate of candidates.slice(0, MAX_CANDIDATES)) {
-		await deps.bus.emit({
-			type: "contradiction.requested",
-			version: 1,
-			actor: "system",
-			data: { nodeId, candidateId: candidate.id },
-			metadata: {},
-		});
-	}
 }

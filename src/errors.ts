@@ -55,3 +55,8 @@ export function isErr<T, E>(
 ): result is { readonly ok: false; readonly error: E } {
 	return !result.ok;
 }
+
+/** Extract a human-readable message from an unknown thrown value. */
+export function describeError(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}

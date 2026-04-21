@@ -23,9 +23,9 @@
  * not abort the others — each stage catches its own failures and logs them.
  */
 
-import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type { Sql } from "postgres";
 import { asQueryable } from "../db/pool.ts";
+import { describeError } from "../errors.ts";
 import type { EventBus } from "../events/bus.ts";
 import type { EventOfType } from "../events/types.ts";
 import type { AbstractionDeps } from "./abstraction.ts";
@@ -34,6 +34,7 @@ import type { EpisodicRepository } from "./episodic.ts";
 import { applyForgettingCurves, type ForgettingDeps } from "./forgetting.ts";
 import type { NodeId } from "./graph/types.ts";
 import { asNodeId } from "./graph/types.ts";
+import { cheapQuery } from "./llm.ts";
 import { normalizeImportance, type PropagationDeps } from "./propagation.ts";
 
 // ---------------------------------------------------------------------------
@@ -61,27 +62,12 @@ export type Summarizer = (transcript: string) => Promise<string>;
  * form prose).
  */
 export async function defaultSummarizer(transcript: string): Promise<string> {
-	const generator = sdkQuery({
+	const { text } = await cheapQuery({
 		prompt:
 			"Summarize this conversation into a concise paragraph that preserves " +
 			`key facts, decisions, and action items:\n\n${transcript}`,
-		options: {
-			model: "haiku",
-			settingSources: [],
-			permissionMode: "bypassPermissions",
-			allowDangerouslySkipPermissions: true,
-			maxTurns: 1,
-			persistSession: false,
-			allowedTools: [],
-		},
 	});
-
-	for await (const message of generator) {
-		if (message.type === "result" && message.subtype === "success") {
-			return message.result.trim();
-		}
-	}
-	return "Summary generation failed.";
+	return text ?? "Summary generation failed.";
 }
 
 // ---------------------------------------------------------------------------
@@ -105,7 +91,6 @@ export interface ConsolidationResult {
 	readonly nodesDecayed: number;
 	readonly importanceRescaled: boolean;
 	readonly abstractionsSynthesized: number;
-	readonly snapshotsCaptured: number;
 	readonly errors: readonly string[];
 }
 
@@ -157,23 +142,14 @@ export async function consolidate(deps: ConsolidationDeps): Promise<Consolidatio
 		errors.push(`synthesizeAbstractions: ${describeError(error)}`);
 	}
 
-	// Projection snapshots are a hook for Phase 15 operationalization; for now
-	// we record a placeholder count so the result shape is stable.
-	const snapshotsCaptured = 0;
-
 	return {
 		episodesCompressed,
 		nodesMerged,
 		nodesDecayed,
 		importanceRescaled,
 		abstractionsSynthesized,
-		snapshotsCaptured,
 		errors,
 	};
-}
-
-function describeError(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
 }
 
 // ---------------------------------------------------------------------------
@@ -354,11 +330,8 @@ async function deduplicateNodes(deps: ConsolidationDeps): Promise<number> {
 	let merged = 0;
 	for (const dup of duplicates) {
 		if (retired.has(dup.idA) || retired.has(dup.idB)) continue;
-		const { keptId, retiredId } = await mergeNodes(asNodeId(dup.idA), asNodeId(dup.idB), deps);
+		const { retiredId } = await mergeNodes(asNodeId(dup.idA), asNodeId(dup.idB), deps);
 		retired.add(retiredId);
-		// Defensive — if mergeNodes picked A as the loser, retire A; otherwise B.
-		if (keptId !== dup.idA) retired.add(dup.idA);
-		if (keptId !== dup.idB) retired.add(dup.idB);
 		merged++;
 	}
 	return merged;
@@ -403,8 +376,7 @@ export async function mergeNodes(
 		const bConf = b["confidence"] as number;
 		const aImp = a["importance"] as number;
 		const bImp = b["importance"] as number;
-		const keepA =
-			aConf > bConf || (aConf === bConf && aImp >= bImp) || (aConf === bConf && aImp === bImp);
+		const keepA = aConf > bConf || (aConf === bConf && aImp >= bImp);
 		const keptId = keepA ? idA : idB;
 		const retiredId = keepA ? idB : idA;
 

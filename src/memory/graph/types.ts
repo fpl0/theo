@@ -48,6 +48,23 @@ export function asEdgeId(n: number): EdgeId {
 }
 
 // ---------------------------------------------------------------------------
+// Edge labels
+// ---------------------------------------------------------------------------
+
+/**
+ * Known edge labels. Open-typed via intersection with `string` so callers can
+ * still introduce domain-specific labels, but the well-known set is centralized
+ * here to catch typos at compile time.
+ */
+export type EdgeType =
+	| "co_occurs"
+	| "contradicts"
+	| "abstracted_from"
+	| "merged_into"
+	| "related_to"
+	| (string & { readonly __label?: "edge" });
+
+// ---------------------------------------------------------------------------
 // Node
 // ---------------------------------------------------------------------------
 

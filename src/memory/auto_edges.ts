@@ -12,11 +12,10 @@
  */
 
 import type { Sql } from "postgres";
-import { asQueryable } from "../db/pool.ts";
 import type { EventBus } from "../events/bus.ts";
 import type { EventOfType } from "../events/types.ts";
 import type { EdgeRepository } from "./graph/edges.ts";
-import { asEdgeId, asNodeId } from "./graph/types.ts";
+import { asNodeId } from "./graph/types.ts";
 
 /** Weight added per co-occurrence within a single tick. */
 const WEIGHT_PER_CO_OCCURRENCE = 0.5;
@@ -41,15 +40,16 @@ export function registerAutoEdgeHandler(deps: AutoEdgeDeps): void {
 	);
 }
 
-interface CoOccurrencePair {
+interface NewPair {
 	readonly sourceId: number;
 	readonly targetId: number;
-	readonly coCount: number;
+	readonly delta: number;
 }
 
 /**
- * Scan one session's episodes for co-occurring node pairs and update or
- * create the corresponding `co_occurs` edges.
+ * Scan one session's episodes for co-occurring node pairs, strengthen
+ * existing `co_occurs` edges in one batched UPDATE, then create edges for
+ * any pairs that didn't previously exist.
  */
 export async function discoverAutoEdges(
 	event: EventOfType<"turn.completed">,
@@ -58,63 +58,58 @@ export async function discoverAutoEdges(
 	const sessionId = event.data.sessionId;
 	if (sessionId.length === 0) return;
 
-	// Self-join on episode_node restricted to one session. The `a.node_id < b.node_id`
-	// predicate both de-duplicates pairs and excludes self-edges. Counts distinct
-	// episodes, not distinct rows — so each episode contributes at most one +0.5.
-	const rawPairs = await deps.sql`
-		SELECT a.node_id AS source_id,
-		       b.node_id AS target_id,
-		       COUNT(DISTINCT a.episode_id) AS co_count
+	// Strengthen existing active co_occurs edges in one pass. The CTE computes
+	// the per-pair delta from episode_node co-occurrence; the UPDATE saturates
+	// at MAX_CO_OCCURS_WEIGHT and skips no-op rows (weight already at cap).
+	const strengthened = await deps.sql<{ readonly s: number; readonly t: number }[]>`
+		WITH pairs AS (
+			SELECT a.node_id AS source_id,
+			       b.node_id AS target_id,
+			       COUNT(DISTINCT a.episode_id)::real * ${WEIGHT_PER_CO_OCCURRENCE}::real AS delta
+			FROM episode_node a
+			JOIN episode_node b ON a.episode_id = b.episode_id AND a.node_id < b.node_id
+			JOIN episode e ON e.id = a.episode_id
+			WHERE e.session_id = ${sessionId}
+			GROUP BY a.node_id, b.node_id
+		)
+		UPDATE edge SET weight = LEAST(${MAX_CO_OCCURS_WEIGHT}::real, edge.weight + pairs.delta)
+		FROM pairs
+		WHERE edge.source_id = pairs.source_id
+		  AND edge.target_id = pairs.target_id
+		  AND edge.label = 'co_occurs'
+		  AND edge.valid_to IS NULL
+		  AND edge.weight < ${MAX_CO_OCCURS_WEIGHT}::real
+		RETURNING edge.source_id AS s, edge.target_id AS t
+	`;
+	const seen = new Set<string>(strengthened.map((r) => `${r.s}:${r.t}`));
+
+	// New pairs — create via EdgeRepository so events fire correctly.
+	const newPairs = await deps.sql<NewPair[]>`
+		SELECT a.node_id AS "sourceId",
+		       b.node_id AS "targetId",
+		       (COUNT(DISTINCT a.episode_id)::real * ${WEIGHT_PER_CO_OCCURRENCE}::real) AS delta
 		FROM episode_node a
 		JOIN episode_node b ON a.episode_id = b.episode_id AND a.node_id < b.node_id
 		JOIN episode e ON e.id = a.episode_id
 		WHERE e.session_id = ${sessionId}
+		  AND NOT EXISTS (
+		    SELECT 1 FROM edge x
+		    WHERE x.source_id = a.node_id
+		      AND x.target_id = b.node_id
+		      AND x.label = 'co_occurs'
+		      AND x.valid_to IS NULL
+		  )
 		GROUP BY a.node_id, b.node_id
 	`;
 
-	const pairs: CoOccurrencePair[] = rawPairs.map((row) => ({
-		sourceId: row["source_id"] as number,
-		targetId: row["target_id"] as number,
-		coCount: Number(row["co_count"]),
-	}));
-
-	for (const pair of pairs) {
-		await upsertCoOccursEdge(pair, deps);
-	}
-}
-
-async function upsertCoOccursEdge(pair: CoOccurrencePair, deps: AutoEdgeDeps): Promise<void> {
-	const existingRows = await deps.sql`
-		SELECT id, weight FROM edge
-		WHERE source_id = ${pair.sourceId}
-		  AND target_id = ${pair.targetId}
-		  AND label = 'co_occurs'
-		  AND valid_to IS NULL
-	`;
-	const existing = existingRows[0];
-	const delta = pair.coCount * WEIGHT_PER_CO_OCCURRENCE;
-
-	if (existing !== undefined) {
-		const currentWeight = existing["weight"] as number;
-		const newWeight = Math.min(MAX_CO_OCCURS_WEIGHT, currentWeight + delta);
-		if (newWeight <= currentWeight) return;
-		// Update in place without temporal versioning — auto-edge strengthening
-		// is a running aggregate, not a semantic change. Keeping the same edge
-		// row avoids churn in the edge table for the most common write.
-		const edgeId = asEdgeId(existing["id"] as number);
-		await deps.sql.begin(async (tx) => {
-			const q = asQueryable(tx);
-			await q`UPDATE edge SET weight = ${newWeight} WHERE id = ${edgeId}`;
+	for (const pair of newPairs) {
+		if (seen.has(`${pair.sourceId}:${pair.targetId}`)) continue;
+		await deps.edges.create({
+			sourceId: asNodeId(pair.sourceId),
+			targetId: asNodeId(pair.targetId),
+			label: "co_occurs",
+			weight: Math.min(MAX_CO_OCCURS_WEIGHT, pair.delta),
+			actor: "system",
 		});
-		return;
 	}
-
-	const weight = Math.min(MAX_CO_OCCURS_WEIGHT, delta);
-	await deps.edges.create({
-		sourceId: asNodeId(pair.sourceId),
-		targetId: asNodeId(pair.targetId),
-		label: "co_occurs",
-		weight,
-		actor: "system",
-	});
 }

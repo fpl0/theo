@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 import type { Sql } from "postgres";
 import type { Pool } from "../../src/db/pool.ts";
 import type { EventBus } from "../../src/events/bus.ts";
+import { newEventId } from "../../src/events/ids.ts";
 import { discoverAutoEdges, MAX_CO_OCCURS_WEIGHT } from "../../src/memory/auto_edges.ts";
 import { EpisodicRepository } from "../../src/memory/episodic.ts";
 import { EdgeRepository } from "../../src/memory/graph/edges.ts";
@@ -75,7 +76,7 @@ async function seedCoOccurrence(
 /** Synthesize a turn.completed event we can feed to the handler. */
 function makeTurnCompleted(sessionId: string): Parameters<typeof discoverAutoEdges>[0] {
 	return {
-		id: "01K0000000000000000000AAAA" as never,
+		id: newEventId(),
 		type: "turn.completed",
 		version: 1,
 		timestamp: new Date(),

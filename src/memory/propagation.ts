@@ -71,6 +71,17 @@ export async function propagateImportance(
 	const seedIds = event.data.nodeIds.map(Number);
 	if (seedIds.length === 0) return;
 
+	// Skip the recursive CTE entirely if none of the seeds have any active
+	// edges. Retrieval-driven propagation fires on every successful search,
+	// so this early-exit protects the hot path for standalone nodes.
+	const edgeRows = await deps.sql`
+		SELECT 1 FROM edge
+		WHERE valid_to IS NULL
+		  AND (source_id = ANY(${seedIds}::int[]) OR target_id = ANY(${seedIds}::int[]))
+		LIMIT 1
+	`;
+	if (edgeRows.length === 0) return;
+
 	// Single SQL pass: compute boost per distinct neighbor using a recursive
 	// CTE capped at depth 2. MAX(boost) deduplicates when a neighbor is
 	// reachable through multiple paths at different depths.
