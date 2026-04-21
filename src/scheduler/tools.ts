@@ -55,7 +55,7 @@ export function scheduleJobTool(deps: SchedulerToolDependencies) {
 			prompt: z.string().min(1).max(4000),
 			maxDurationMs: z.number().int().positive().default(300_000),
 			maxBudgetUsd: z.number().positive().max(5).default(0.1),
-			runAt: z.string().datetime().optional(),
+			runAt: z.iso.datetime().optional(),
 		},
 		async (args) => {
 			try {
