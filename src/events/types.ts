@@ -390,7 +390,24 @@ export type EphemeralEvent =
 			readonly type: "stream.chunk";
 			readonly data: { readonly text: string; readonly sessionId: string };
 	  }
-	| { readonly type: "stream.done"; readonly data: { readonly sessionId: string } };
+	| { readonly type: "stream.done"; readonly data: { readonly sessionId: string } }
+	| {
+			readonly type: "tool.start";
+			readonly data: {
+				readonly name: string;
+				readonly input: string;
+				readonly callId: string;
+				readonly sessionId: string;
+			};
+	  }
+	| {
+			readonly type: "tool.done";
+			readonly data: {
+				readonly callId: string;
+				readonly durationMs: number;
+				readonly sessionId: string;
+			};
+	  };
 
 // ---------------------------------------------------------------------------
 // Exhaustive Switch Helper

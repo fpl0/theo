@@ -9,6 +9,7 @@ import {
 	type McpSdkServerConfigWithInstance,
 	type Options,
 	type Query,
+	type SDKMessage,
 	type SDKResultError,
 	query as sdkQuery,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -50,6 +51,12 @@ export class ChatEngine {
 	private readonly context: ContextDependencies;
 	private readonly config: AgentConfig;
 	private readonly queryFn: QueryFn;
+	/**
+	 * Abort controller for the in-flight turn, or null when idle. Gates call
+	 * `abortCurrentTurn()` to cancel; the SDK's `Options.abortController`
+	 * forwards the signal through the subprocess bridge.
+	 */
+	private currentAbort: AbortController | null = null;
 
 	constructor(deps: ChatEngineDependencies) {
 		this.bus = deps.bus;
@@ -60,6 +67,14 @@ export class ChatEngine {
 		this.context = deps.context;
 		this.config = deps.config ?? {};
 		this.queryFn = deps.queryFn ?? sdkQuery;
+	}
+
+	/**
+	 * Abort the in-flight turn. No-op when the engine is idle. The turn loop
+	 * catches the resulting abort error and emits `turn.failed`.
+	 */
+	abortCurrentTurn(): void {
+		this.currentAbort?.abort();
 	}
 
 	/** Always returns a TurnResult — errors are values, never thrown. */
@@ -118,6 +133,8 @@ export class ChatEngine {
 			sessionId,
 			trustTier: "owner" satisfies TrustTier,
 		});
+		const abortController = new AbortController();
+		this.currentAbort = abortController;
 		const baseOptions: Options = {
 			model: this.config.model ?? DEFAULT_MODEL,
 			systemPrompt,
@@ -131,6 +148,7 @@ export class ChatEngine {
 			includePartialMessages: true,
 			persistSession: true,
 			hooks,
+			abortController,
 		};
 		// `resume` must be omitted (not set to undefined) under
 		// exactOptionalPropertyTypes.
@@ -146,6 +164,10 @@ export class ChatEngine {
 		let outputTokens = 0;
 		let costUsd = 0;
 		let failure: SDKResultError | null = null;
+		// callId -> wall-clock ms when tool.start was emitted. Used to compute
+		// durationMs when the matching tool_result arrives in a later user
+		// message. `Date.now()` reads are cheap; no need to thread a clock.
+		const toolStartTimes = new Map<string, number>();
 
 		try {
 			for await (const message of generator) {
@@ -158,6 +180,11 @@ export class ChatEngine {
 						// May be overwritten by a later `result` message, whose
 						// `result` field is authoritative.
 						responseBody = extractAssistantText(message.message.content);
+						this.emitToolStarts(message, sessionId, toolStartTimes);
+						break;
+
+					case "user":
+						this.emitToolDones(message, sessionId, toolStartTimes);
 						break;
 
 					case "result":
@@ -185,6 +212,7 @@ export class ChatEngine {
 			}
 			const message = error instanceof Error ? error.message : String(error);
 			const durationMs = Date.now() - startTime;
+			this.bus.emitEphemeral({ type: "stream.done", data: { sessionId } });
 			await this.bus.emit({
 				type: "turn.failed",
 				version: 1,
@@ -197,8 +225,11 @@ export class ChatEngine {
 				},
 				metadata: { sessionId, gate },
 			});
+			this.currentAbort = null;
 			return { ok: false, error: message };
 		}
+
+		this.bus.emitEphemeral({ type: "stream.done", data: { sessionId } });
 
 		const durationMs = Date.now() - startTime;
 
@@ -215,6 +246,7 @@ export class ChatEngine {
 				},
 				metadata: { sessionId, gate },
 			});
+			this.currentAbort = null;
 			return { ok: false, error: failure.subtype };
 		}
 
@@ -240,6 +272,7 @@ export class ChatEngine {
 		// topic-continuity check.
 		await this.sessions.recordTurn(body);
 
+		this.currentAbort = null;
 		return { ok: true, response: responseBody };
 	}
 
@@ -303,6 +336,58 @@ export class ChatEngine {
 			type: "stream.chunk",
 			data: { text: event.delta.text, sessionId },
 		});
+	}
+
+	/**
+	 * Scan an assistant message for `tool_use` content blocks and emit a
+	 * `tool.start` ephemeral for each. The call ID is cached with the current
+	 * wall clock so `tool.done` can compute duration when the matching
+	 * `tool_result` arrives in a subsequent user message.
+	 */
+	private emitToolStarts(
+		message: Extract<SDKMessage, { type: "assistant" }>,
+		sessionId: string,
+		toolStartTimes: Map<string, number>,
+	): void {
+		for (const block of message.message.content) {
+			if (block.type !== "tool_use") continue;
+			toolStartTimes.set(block.id, Date.now());
+			// Tool input is modelled as `unknown`. Stringify defensively — the
+			// ephemeral carries a short label for the TUI to display, not a
+			// round-trippable value.
+			const input = typeof block.input === "string" ? block.input : JSON.stringify(block.input);
+			this.bus.emitEphemeral({
+				type: "tool.start",
+				data: { name: block.name, input, callId: block.id, sessionId },
+			});
+		}
+	}
+
+	/**
+	 * Scan a user (turn-continuation) message for `tool_result` content blocks
+	 * and emit `tool.done` for each, computing duration against the cached
+	 * start time. Orphan results (no matching start) are skipped silently —
+	 * they should never happen during a turn Theo initiated, but skipping is
+	 * safer than asserting.
+	 */
+	private emitToolDones(
+		message: Extract<SDKMessage, { type: "user" }>,
+		sessionId: string,
+		toolStartTimes: Map<string, number>,
+	): void {
+		const content = message.message.content;
+		if (!Array.isArray(content)) return;
+		const now = Date.now();
+		for (const block of content) {
+			if (block.type !== "tool_result") continue;
+			const startedAt = toolStartTimes.get(block.tool_use_id);
+			if (startedAt === undefined) continue;
+			toolStartTimes.delete(block.tool_use_id);
+			this.bus.emitEphemeral({
+				type: "tool.done",
+				data: { callId: block.tool_use_id, durationMs: now - startedAt, sessionId },
+			});
+		}
 	}
 }
 

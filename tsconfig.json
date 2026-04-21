@@ -13,6 +13,7 @@
 		"isolatedModules": true,
 		"noEmit": true,
 		"types": ["bun"],
+		"jsx": "react-jsx",
 
 		// Strict — all flags on, no exceptions
 		"strict": true,

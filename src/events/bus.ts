@@ -71,11 +71,11 @@ export interface EventBus {
 	/** Emit an ephemeral event: dispatch without database persistence. */
 	emitEphemeral(event: EphemeralEvent): void;
 
-	/** Register a handler for ephemeral events. */
+	/** Register a handler for ephemeral events. Returns an unsubscribe function. */
 	onEphemeral<T extends EphemeralEvent["type"]>(
 		type: T,
 		handler: (event: Extract<EphemeralEvent, { type: T }>) => void,
-	): void;
+	): () => void;
 
 	/** Start the bus: create partitions, replay durable handlers from checkpoints. */
 	start(): Promise<void>;
@@ -149,8 +149,16 @@ export function createEventBus(log: EventLog, sql: Sql): EventBus {
 	function onEphemeral<T extends EphemeralEvent["type"]>(
 		type: T,
 		handler: (event: Extract<EphemeralEvent, { type: T }>) => void,
-	): void {
-		ephemeralHandlers.push({ type, handler: handler as (event: EphemeralEvent) => void });
+	): () => void {
+		const registration: EphemeralEventRegistration = {
+			type,
+			handler: handler as (event: EphemeralEvent) => void,
+		};
+		ephemeralHandlers.push(registration);
+		return () => {
+			const idx = ephemeralHandlers.indexOf(registration);
+			if (idx >= 0) ephemeralHandlers.splice(idx, 1);
+		};
 	}
 
 	async function emit(

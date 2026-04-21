@@ -59,7 +59,9 @@ function createStubBus(): StubBus {
 	const ephemeral: EmittedEphemeral[] = [];
 	const bus = {
 		on(): void {},
-		onEphemeral(): void {},
+		onEphemeral(): () => void {
+			return () => {};
+		},
 		async emit(event: Omit<Event, "id" | "timestamp">): Promise<Event> {
 			events.push({
 				type: event.type,
@@ -314,6 +316,54 @@ function assistantText(text: string): SDKMessage {
 	} as unknown as SDKMessage;
 }
 
+function assistantToolUse(options: {
+	readonly callId: string;
+	readonly name: string;
+	readonly input: Record<string, unknown>;
+}): SDKMessage {
+	return {
+		type: "assistant",
+		parent_tool_use_id: null,
+		session_id: "",
+		uuid: "00000000-0000-0000-0000-000000000000",
+		message: {
+			type: "message",
+			id: "msg_2",
+			role: "assistant",
+			model: "claude-sonnet-4-6",
+			content: [
+				{
+					type: "tool_use",
+					id: options.callId,
+					name: options.name,
+					input: options.input,
+				},
+			],
+			stop_reason: "tool_use",
+			stop_sequence: null,
+			usage: {
+				input_tokens: 0,
+				output_tokens: 0,
+				cache_creation_input_tokens: 0,
+				cache_read_input_tokens: 0,
+			},
+		},
+	} as unknown as SDKMessage;
+}
+
+function userToolResult(callId: string, content = "ok"): SDKMessage {
+	return {
+		type: "user",
+		parent_tool_use_id: null,
+		session_id: "",
+		uuid: "00000000-0000-0000-0000-000000000000",
+		message: {
+			role: "user",
+			content: [{ type: "tool_result", tool_use_id: callId, content }],
+		},
+	} as unknown as SDKMessage;
+}
+
 function streamTextDelta(text: string): SDKMessage {
 	return {
 		type: "stream_event",
@@ -520,6 +570,126 @@ describe("ChatEngine.handleMessage — streaming", () => {
 		await engine.handleMessage("hi", "cli");
 
 		expect(bus.ephemeral.filter((e) => e.type === "stream.chunk")).toHaveLength(0);
+	});
+
+	test("emits stream.done after a successful turn", async () => {
+		const { engine, bus } = buildEngine({
+			queryFn: mockQueryFn([
+				successResult({ result: "ok", inputTokens: 1, outputTokens: 1, costUsd: 0 }),
+			]),
+		});
+
+		await engine.handleMessage("hi", "cli");
+
+		const done = bus.ephemeral.filter((e) => e.type === "stream.done");
+		expect(done).toHaveLength(1);
+	});
+
+	test("emits stream.done even when the generator throws mid-stream", async () => {
+		const { engine, bus } = buildEngine({
+			queryFn: throwingQueryFn("boom"),
+		});
+
+		await engine.handleMessage("hi", "cli");
+
+		const done = bus.ephemeral.filter((e) => e.type === "stream.done");
+		expect(done).toHaveLength(1);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Tool lifecycle ephemerals: tool.start / tool.done
+// ---------------------------------------------------------------------------
+
+describe("ChatEngine.handleMessage — tool lifecycle", () => {
+	test("emits tool.start for each tool_use block in an assistant message", async () => {
+		const { engine, bus } = buildEngine({
+			queryFn: mockQueryFn([
+				assistantToolUse({
+					callId: "call_1",
+					name: "mcp__memory__store_memory",
+					input: { body: "note" },
+				}),
+				userToolResult("call_1"),
+				successResult({ result: "done", inputTokens: 1, outputTokens: 1, costUsd: 0 }),
+			]),
+		});
+
+		await engine.handleMessage("hi", "cli");
+
+		const starts = bus.ephemeral.filter((e) => e.type === "tool.start");
+		expect(starts).toHaveLength(1);
+		expect(starts[0]?.data).toMatchObject({
+			callId: "call_1",
+			name: "mcp__memory__store_memory",
+		});
+	});
+
+	test("emits tool.done with a non-negative duration after tool_result", async () => {
+		const { engine, bus } = buildEngine({
+			queryFn: mockQueryFn([
+				assistantToolUse({
+					callId: "call_2",
+					name: "mcp__memory__retrieve",
+					input: { query: "x" },
+				}),
+				userToolResult("call_2"),
+				successResult({ result: "done", inputTokens: 1, outputTokens: 1, costUsd: 0 }),
+			]),
+		});
+
+		await engine.handleMessage("hi", "cli");
+
+		const dones = bus.ephemeral.filter((e) => e.type === "tool.done");
+		expect(dones).toHaveLength(1);
+		const data = dones[0]?.data as { callId: string; durationMs: number };
+		expect(data.callId).toBe("call_2");
+		expect(data.durationMs).toBeGreaterThanOrEqual(0);
+	});
+
+	test("orphan tool_result (no matching tool.start) is silently dropped", async () => {
+		const { engine, bus } = buildEngine({
+			queryFn: mockQueryFn([
+				userToolResult("unknown_call"),
+				successResult({ result: "done", inputTokens: 1, outputTokens: 1, costUsd: 0 }),
+			]),
+		});
+
+		await engine.handleMessage("hi", "cli");
+
+		expect(bus.ephemeral.filter((e) => e.type === "tool.done")).toHaveLength(0);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Abort: gate-triggered cancellation
+// ---------------------------------------------------------------------------
+
+describe("ChatEngine.abortCurrentTurn", () => {
+	test("is a no-op when idle (no throw)", () => {
+		const { engine } = buildEngine({
+			queryFn: mockQueryFn([]),
+		});
+		expect(() => {
+			engine.abortCurrentTurn();
+		}).not.toThrow();
+	});
+
+	test("passes a live AbortController to the SDK during a turn", async () => {
+		const captured: { lastOptions?: Options | undefined; lastPrompt?: string } = {};
+		const { engine } = buildEngine({
+			queryFn: mockQueryFn(
+				[successResult({ result: "ok", inputTokens: 1, outputTokens: 1, costUsd: 0 })],
+				captured,
+			),
+		});
+
+		await engine.handleMessage("hi", "cli");
+
+		const ac = captured.lastOptions?.abortController;
+		expect(ac).toBeInstanceOf(AbortController);
+		// Not aborted — the turn completed cleanly.
+		expect(ac?.signal.aborted).toBe(false);
 	});
 });
 
