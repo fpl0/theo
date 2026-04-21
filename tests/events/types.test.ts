@@ -58,6 +58,14 @@ describe("Event type system", () => {
 					return "memory.core.updated";
 				case "memory.contradiction.detected":
 					return "memory.contradiction.detected";
+				case "contradiction.requested":
+					return "contradiction.requested";
+				case "contradiction.classified":
+					return "contradiction.classified";
+				case "episode.summarize_requested":
+					return "episode.summarize_requested";
+				case "episode.summarized":
+					return "episode.summarized";
 				case "memory.user_model.updated":
 					return "memory.user_model.updated";
 				case "memory.self_model.updated":

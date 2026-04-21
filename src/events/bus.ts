@@ -13,7 +13,7 @@
  */
 
 import type { Sql, TransactionSql } from "postgres";
-import type { Handler, HandlerOptions } from "./handlers.ts";
+import type { Handler, HandlerMode, HandlerOptions } from "./handlers.ts";
 import { getCursor } from "./handlers.ts";
 import type { EventLog } from "./log.ts";
 import { HandlerQueue } from "./queue.ts";
@@ -25,6 +25,9 @@ import type { EphemeralEvent, Event } from "./types.ts";
 
 const SHUTDOWN_TIMEOUT_MS = 30_000;
 
+/** Maximum passes `flush` will loop before reporting a non-converging cascade. */
+const MAX_FLUSH_PASSES = 200;
+
 // ---------------------------------------------------------------------------
 // Internal registration types
 // ---------------------------------------------------------------------------
@@ -33,6 +36,8 @@ interface DurableRegistration {
 	readonly type: Event["type"];
 	readonly handler: Handler;
 	readonly id: string;
+	/** Replay policy — `"effect"` handlers are skipped during replay. */
+	readonly mode: HandlerMode;
 	queue: HandlerQueue | null;
 }
 
@@ -98,6 +103,12 @@ export function createEventBus(log: EventLog, sql: Sql): EventBus {
 	const handlers: Registration[] = [];
 	const ephemeralHandlers: EphemeralEventRegistration[] = [];
 	let started = false;
+	/**
+	 * Monotonic counter bumped whenever a durable event is enqueued to a
+	 * handler queue. `flush()` uses it to detect cascaded enqueues that
+	 * happened after the initial `drained()` snapshot.
+	 */
+	let enqueueGeneration = 0;
 
 	function on<T extends Event["type"]>(
 		type: T,
@@ -113,6 +124,7 @@ export function createEventBus(log: EventLog, sql: Sql): EventBus {
 						type,
 						handler: handler as Handler,
 						id: options.id,
+						mode: options.mode ?? "decision",
 						queue: null,
 					}
 				: { type, handler: handler as Handler, id: undefined };
@@ -189,6 +201,7 @@ export function createEventBus(log: EventLog, sql: Sql): EventBus {
 			}
 			if (registration.queue !== null) {
 				registration.queue.enqueueLive(event);
+				enqueueGeneration++;
 			}
 		}
 	}
@@ -201,6 +214,18 @@ export function createEventBus(log: EventLog, sql: Sql): EventBus {
 
 	async function replayHandler(registration: DurableRegistration): Promise<void> {
 		if (registration.queue === null) return;
+
+		// Effect handlers do NOT re-run on historical events. The outside world
+		// has moved on — replaying an LLM classification or a network call
+		// against a year-old event is wasteful and non-deterministic. Fast-
+		// forward the cursor to the tail of the log so live events start from
+		// the current point, then skip replay entirely.
+		if (registration.mode === "effect") {
+			await fastForwardCursor(registration.id, registration.type);
+			registration.queue?.replayComplete();
+			return;
+		}
+
 		let cursor = await getCursor(registration.id, sql);
 
 		while (true) {
@@ -220,6 +245,30 @@ export function createEventBus(log: EventLog, sql: Sql): EventBus {
 		}
 
 		registration.queue?.replayComplete();
+	}
+
+	/**
+	 * For `effect` handlers: advance the cursor to the newest persisted event
+	 * of the handler's type so future live events are processed from "now"
+	 * forward. Historical events are not dispatched.
+	 */
+	async function fastForwardCursor(handlerId: string, type: Event["type"]): Promise<void> {
+		const rows = await sql`
+			SELECT id FROM events
+			WHERE type = ${type}
+			ORDER BY id DESC
+			LIMIT 1
+		`;
+		const row = rows[0];
+		if (row === undefined) return;
+		const latestId = row["id"] as string;
+		await sql`
+			INSERT INTO handler_cursors (handler_id, cursor, updated_at)
+			VALUES (${handlerId}, ${latestId}, now())
+			ON CONFLICT (handler_id)
+			DO UPDATE SET cursor = ${latestId}, updated_at = now()
+			WHERE handler_cursors.cursor < ${latestId}
+		`;
 	}
 
 	async function start(): Promise<void> {
@@ -279,7 +328,31 @@ export function createEventBus(log: EventLog, sql: Sql): EventBus {
 	}
 
 	async function flush(): Promise<void> {
-		await Promise.all(activeQueues().map((q) => q.drained()));
+		// Cascading handlers (e.g., decision/effect chains) can enqueue new
+		// events into a sibling queue AFTER that queue's `drained()` call
+		// already resolved — the queue was empty when drained() fired, but
+		// an upstream handler was still running and about to enqueue. We
+		// cope by looping until the enqueue generation is stable across two
+		// consecutive passes; a single pass can coincide with the moment
+		// before an in-flight upstream enqueue lands.
+		let lastGen = enqueueGeneration;
+		let stableReadings = 0;
+		for (let pass = 0; pass < MAX_FLUSH_PASSES; pass++) {
+			await Promise.all(activeQueues().map((q) => q.drained()));
+			// Yield the event loop so any pending microtasks / I/O complete.
+			await new Promise<void>((resolve) => {
+				setImmediate(resolve);
+			});
+			const gen = enqueueGeneration;
+			if (gen === lastGen) {
+				stableReadings++;
+				if (stableReadings >= 2) return;
+			} else {
+				stableReadings = 0;
+				lastGen = gen;
+			}
+		}
+		throw new Error("flush: cascade did not converge after MAX_FLUSH_PASSES");
 	}
 
 	return {

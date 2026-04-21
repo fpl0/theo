@@ -25,9 +25,26 @@ export const RETRY_DELAYS: readonly [number, number, number] = [100, 500, 2000];
  */
 export type Handler<E extends Event = Event> = (event: E, tx?: TransactionSql) => Promise<void>;
 
+/**
+ * Handler mode — controls replay behavior.
+ *
+ * - `"decision"` (default): pure over event data. Runs on both live dispatch and
+ *   replay. Use for projections, graph mutations, and anything that must rebuild
+ *   from the event log.
+ * - `"effect"`: calls the outside world (LLMs, git, network). Runs only on live
+ *   dispatch; skipped during replay. The external result must be captured as a
+ *   separate event so downstream decision handlers can observe it (the
+ *   `*_requested` / `*_classified` pair pattern).
+ *
+ * See `foundation.md §7.4` for the rationale.
+ */
+export type HandlerMode = "decision" | "effect";
+
 /** Options for registering a handler. Handlers with `id` are durable (checkpointed, replayed). */
 export interface HandlerOptions {
 	readonly id: string;
+	/** Replay policy. Defaults to `"decision"`. */
+	readonly mode?: HandlerMode;
 }
 
 /**

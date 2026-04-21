@@ -199,6 +199,43 @@ export interface ContradictionDetectedData {
 	readonly explanation: string;
 }
 
+/**
+ * Decision event: classification was requested. Stores the candidate pair and
+ * acts as the deterministic anchor for the effect handler. On replay, a
+ * decision handler sees this event but the actual LLM call is skipped.
+ */
+export interface ContradictionRequestedData {
+	readonly nodeId: number;
+	readonly candidateId: number;
+}
+
+/**
+ * Effect event: the LLM classifier answered. Written by the effect handler
+ * after the classification call succeeds (or fails — `contradicts: false` is
+ * emitted for failure paths). Downstream decision handlers read this event to
+ * adjust confidence and create the contradicts edge.
+ */
+export interface ContradictionClassifiedData {
+	readonly nodeId: number;
+	readonly candidateId: number;
+	readonly contradicts: boolean;
+	readonly explanation: string;
+}
+
+/** Decision event: summarization of one session's episodes was requested. */
+export interface EpisodeSummarizeRequestedData {
+	readonly sessionId: string;
+	readonly episodeIds: readonly number[];
+}
+
+/** Effect event: the summarizer answered. The consolidation decision handler
+ *  persists the summary episode and updates `superseded_by`. */
+export interface EpisodeSummarizedData {
+	readonly sessionId: string;
+	readonly episodeIds: readonly number[];
+	readonly summary: string;
+}
+
 export interface UserModelUpdatedData {
 	readonly dimension: string;
 	readonly confidence: number;
@@ -261,6 +298,10 @@ export type MemoryEvent =
 	| TheoEvent<"memory.episode.created", EpisodeCreatedData>
 	| TheoEvent<"memory.core.updated", CoreUpdatedData>
 	| TheoEvent<"memory.contradiction.detected", ContradictionDetectedData>
+	| TheoEvent<"contradiction.requested", ContradictionRequestedData>
+	| TheoEvent<"contradiction.classified", ContradictionClassifiedData>
+	| TheoEvent<"episode.summarize_requested", EpisodeSummarizeRequestedData>
+	| TheoEvent<"episode.summarized", EpisodeSummarizedData>
 	| TheoEvent<"memory.user_model.updated", UserModelUpdatedData>
 	| TheoEvent<"memory.self_model.updated", SelfModelUpdatedData>
 	| TheoEvent<"memory.skill.created", SkillCreatedData>
