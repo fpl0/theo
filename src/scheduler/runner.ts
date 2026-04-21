@@ -19,6 +19,7 @@ import {
 	type Query,
 	query as sdkQuery,
 } from "@anthropic-ai/claude-agent-sdk";
+import { advisorSettings } from "../chat/subagents.ts";
 import type { EventBus } from "../events/bus.ts";
 import type { TurnErrorType } from "../events/types.ts";
 import { nextRun } from "./cron.ts";
@@ -356,12 +357,8 @@ export class Scheduler {
 				.filter((line) => line.length > 0)
 				.join("\n");
 
-			// Per Phase 14 §13 advisor decision: subagents carrying an
-			// `advisorModel` run with the server-side advisor tool enabled via
-			// `options.settings.advisorModel`. Reflex-speed subagents leave it
-			// unset and the settings object is omitted entirely.
-			const settings =
-				subagent.advisorModel !== undefined ? { advisorModel: subagent.advisorModel } : undefined;
+			// Advisor tool per systemic decision §13 — see `advisorSettings`.
+			const settings = advisorSettings(subagent.advisorModel);
 
 			const options: Options = {
 				model: subagent.model,

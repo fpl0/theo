@@ -9,11 +9,12 @@ import { describe, expect, test } from "bun:test";
 import {
 	buildSchedulerSubagents,
 	buildSdkAgentsMap,
-	SUBAGENT_NAMES,
 	SUBAGENTS,
 	type SubagentName,
 	toSdkAgentDefinition,
 } from "../../src/chat/subagents.ts";
+
+const SUBAGENT_NAMES = Object.keys(SUBAGENTS) as SubagentName[];
 
 const MODEL_ALIASES = new Set(["opus", "sonnet", "haiku"]);
 const ADVISOR_ELIGIBLE: ReadonlySet<SubagentName> = new Set<SubagentName>([
@@ -56,14 +57,6 @@ describe("SUBAGENTS catalog", () => {
 		] as const;
 		for (const name of phase14) {
 			expect(SUBAGENTS).toHaveProperty(name);
-		}
-	});
-
-	test("SUBAGENT_NAMES lists every catalog key", () => {
-		const catalogKeys = new Set(Object.keys(SUBAGENTS));
-		expect(SUBAGENT_NAMES.length).toBe(catalogKeys.size);
-		for (const name of SUBAGENT_NAMES) {
-			expect(catalogKeys.has(name)).toBe(true);
 		}
 	});
 

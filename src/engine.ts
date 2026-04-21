@@ -23,6 +23,7 @@ import type { ChatEngine } from "./chat/engine.ts";
 import type { TurnResult } from "./chat/types.ts";
 import { migrate } from "./db/migrate.ts";
 import type { Pool } from "./db/pool.ts";
+import { describeError } from "./errors.ts";
 import type { EventBus } from "./events/bus.ts";
 import type { Gate } from "./gates/types.ts";
 import type { Scheduler } from "./scheduler/runner.ts";
@@ -75,12 +76,6 @@ export class Engine {
 	private readonly deps: EngineDependencies;
 	private readonly version: string;
 	private stateValue: EngineState = "stopped";
-	/**
-	 * Reentrancy guard set when `stop()` begins. Prevents double-stop when
-	 * both SIGTERM and SIGINT arrive, or when `stop()` is invoked during an
-	 * already-in-progress shutdown.
-	 */
-	private stopping = false;
 	private readonly messageQueue: QueuedMessage[] = [];
 
 	constructor(deps: EngineDependencies) {
@@ -109,7 +104,6 @@ export class Engine {
 			throw new Error(`Engine.start(): invalid state ${this.stateValue}`);
 		}
 		this.stateValue = "starting";
-		this.stopping = false;
 
 		try {
 			const migrateResult = await migrate(this.deps.pool.sql);
@@ -150,39 +144,29 @@ export class Engine {
 	 * written. Idempotent via `stopping`.
 	 */
 	async stop(reason: string): Promise<void> {
-		// Guard against re-entry from signal races AND post-shutdown re-calls.
-		// Once state is `stopped`, a subsequent stop() must be a no-op so pool
-		// end and bus emits don't fire twice.
-		if (this.stopping || this.stateValue === "stopped") return;
-		this.stopping = true;
-
+		// Reentrancy / double-stop guard: the `stopping` state absorbs signal
+		// races (SIGTERM + SIGINT) and `stopped` absorbs post-shutdown calls.
+		if (this.stateValue === "stopping" || this.stateValue === "stopped") return;
 		this.stateValue = "stopping";
 
-		try {
-			// Reject any messages still parked in the pause queue before
-			// shutting down — the caller awaits their promises and needs to
-			// unblock.
-			this.drainQueueWithError(new Error("engine stopped"));
+		// Reject any messages still parked in the pause queue before shutting
+		// down — the caller awaits their promises and needs to unblock.
+		this.drainQueueWithError(new Error("engine stopped"));
 
-			await this.safeStopGate();
-			await this.safeStopScheduler();
+		await safeShutdown("gate.stop", () => this.deps.gate.stop());
+		await safeShutdown("scheduler.stop", () => this.deps.scheduler.stop());
 
-			await this.deps.bus.emit({
-				type: "system.stopped",
-				version: 1,
-				actor: "system",
-				data: { reason },
-				metadata: {},
-			});
+		await this.deps.bus.emit({
+			type: "system.stopped",
+			version: 1,
+			actor: "system",
+			data: { reason },
+			metadata: {},
+		});
 
-			await this.safeStopBus();
-			await this.safeEndPool();
-			this.stateValue = "stopped";
-		} finally {
-			// Leave `stopping` true only while the async teardown is in flight;
-			// once resolved, future start() calls reset it.
-			this.stopping = false;
-		}
+		await safeShutdown("bus.stop", () => this.deps.bus.stop());
+		await safeShutdown("pool.end", () => this.deps.pool.end());
+		this.stateValue = "stopped";
 	}
 
 	/** Transition to `paused`. Incoming messages are queued until resume. */
@@ -237,8 +221,7 @@ export class Engine {
 		try {
 			await this.deps.gate.start();
 		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			console.error(`Gate exited with error: ${message}`);
+			console.error(`Gate exited with error: ${describeError(error)}`);
 		}
 	}
 
@@ -263,41 +246,13 @@ export class Engine {
 			msg.reject(error);
 		}
 	}
+}
 
-	private async safeStopGate(): Promise<void> {
-		try {
-			await this.deps.gate.stop();
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			console.error(`Gate stop failed: ${message}`);
-		}
-	}
-
-	private async safeStopScheduler(): Promise<void> {
-		try {
-			await this.deps.scheduler.stop();
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			console.error(`Scheduler stop failed: ${message}`);
-		}
-	}
-
-	private async safeStopBus(): Promise<void> {
-		try {
-			await this.deps.bus.stop();
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			console.error(`Bus stop failed: ${message}`);
-		}
-	}
-
-	private async safeEndPool(): Promise<void> {
-		try {
-			await this.deps.pool.end();
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			console.error(`Pool shutdown failed: ${message}`);
-		}
+async function safeShutdown(label: string, fn: () => Promise<void>): Promise<void> {
+	try {
+		await fn();
+	} catch (error) {
+		console.error(`${label} failed: ${describeError(error)}`);
 	}
 }
 
@@ -308,7 +263,7 @@ export class Engine {
 /**
  * Install SIGINT/SIGTERM handlers that call `engine.stop(reason)` once.
  * Returns an uninstaller for tests. Safe to call multiple times — the
- * engine's `stopping` flag keeps concurrent signals idempotent.
+ * engine's `"stopping"` state absorbs concurrent signals.
  */
 export function installSignalHandlers(engine: Engine): () => void {
 	const onSigterm = (): void => {

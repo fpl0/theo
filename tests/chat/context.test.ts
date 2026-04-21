@@ -20,6 +20,7 @@ import type { Skill, SkillRepository } from "../../src/memory/skills.ts";
 import type { CoreMemorySlot, JsonValue } from "../../src/memory/types.ts";
 import { SlotNotFoundError } from "../../src/memory/types.ts";
 import type { UserModelDimension, UserModelRepository } from "../../src/memory/user_model.ts";
+import { expectReject } from "../helpers.ts";
 
 // ---------------------------------------------------------------------------
 // Stubs
@@ -250,14 +251,10 @@ describe("assembleSystemPrompt guards", () => {
 			embeddings: stubEmbeddings(),
 		};
 
-		let caught: unknown;
-		try {
-			await assembleSystemPrompt(deps, "hi");
-		} catch (error) {
-			caught = error;
-		}
-		expect(caught).toBeInstanceOf(Error);
-		expect((caught as Error).message).toMatch(/Core memory slot not found: persona/);
+		await expectReject(
+			() => assembleSystemPrompt(deps, "hi"),
+			/Core memory slot not found: persona/,
+		);
 	});
 
 	test("passes the guard with initial persona + goals seeds", async () => {

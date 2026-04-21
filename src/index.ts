@@ -17,6 +17,7 @@ import { buildSchedulerSubagents, buildSdkAgentsMap, SUBAGENTS } from "./chat/su
 import { loadConfig } from "./config.ts";
 import { createPool } from "./db/pool.ts";
 import { Engine, installSignalHandlers } from "./engine.ts";
+import { describeError } from "./errors.ts";
 import { createEventBus } from "./events/bus.ts";
 import { createEventLog } from "./events/log.ts";
 import { createUpcasterRegistry } from "./events/upcasters.ts";
@@ -152,8 +153,7 @@ try {
 	await engine.start();
 	console.info("Theo is running.");
 } catch (error) {
-	const message = error instanceof Error ? error.message : String(error);
-	console.error(`Engine failed to start: ${message}`);
+	console.error(`Engine failed to start: ${describeError(error)}`);
 	await engine.stop("startup_failed").catch(() => {
 		// stop() already logs individual subsystem errors.
 	});

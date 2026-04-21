@@ -215,18 +215,14 @@ export const SUBAGENTS: Readonly<Record<SubagentName, TheoAgentDefinition>> = {
 	},
 };
 
-/** All subagent names, in the order they appear in the catalog. */
-export const SUBAGENT_NAMES: readonly SubagentName[] = [
-	"main",
-	"coder",
-	"researcher",
-	"writer",
-	"planner",
-	"psychologist",
-	"consolidator",
-	"reflector",
-	"scanner",
-];
+/**
+ * Build the `settings` object forwarded to the SDK. Returns undefined when
+ * no advisor is configured so callers can spread it under
+ * `exactOptionalPropertyTypes` without an explicit-undefined leak.
+ */
+export function advisorSettings(model: string | undefined): { advisorModel: string } | undefined {
+	return model === undefined ? undefined : { advisorModel: model };
+}
 
 /**
  * Strip the Theo-specific `advisorModel` field so the result is safe to pass

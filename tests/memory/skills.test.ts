@@ -18,6 +18,7 @@ import {
 	createMockEmbeddings,
 	createTestBus,
 	createTestPool,
+	expectReject,
 } from "../helpers.ts";
 
 let pool: Pool;
@@ -97,14 +98,16 @@ describe("SkillRepository.create", () => {
 	});
 
 	test("refinement against a missing parent throws", async () => {
-		await expect(
-			repo.create({
-				name: "orphan",
-				trigger: "trigger",
-				strategy: "strategy",
-				parentId: 999_999,
-			}),
-		).rejects.toThrow(/parent skill #999999 not found/);
+		await expectReject(
+			() =>
+				repo.create({
+					name: "orphan",
+					trigger: "trigger",
+					strategy: "strategy",
+					parentId: 999_999,
+				}),
+			/parent skill #999999 not found/,
+		);
 	});
 });
 
@@ -221,7 +224,7 @@ describe("SkillRepository.recordOutcome", () => {
 	});
 
 	test("throws when the skill does not exist", async () => {
-		await expect(repo.recordOutcome(999_999, true)).rejects.toThrow(/not found/);
+		await expectReject(() => repo.recordOutcome(999_999, true), /not found/);
 	});
 });
 
@@ -254,7 +257,7 @@ describe("SkillRepository.promote", () => {
 	});
 
 	test("throws when the skill does not exist", async () => {
-		await expect(repo.promote(999_999)).rejects.toThrow(/not found/);
+		await expectReject(() => repo.promote(999_999), /not found/);
 	});
 });
 

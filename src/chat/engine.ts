@@ -21,6 +21,7 @@ import type { TrustTier } from "../memory/graph/types.ts";
 import { assembleSystemPrompt, type ContextDependencies } from "./context.ts";
 import { buildHooks } from "./hooks.ts";
 import type { SessionManager } from "./session.ts";
+import { advisorSettings } from "./subagents.ts";
 import type { AgentConfig, TurnResult } from "./types.ts";
 
 const DEFAULT_MODEL = "claude-sonnet-4-6";
@@ -154,12 +155,8 @@ export class ChatEngine {
 		});
 		const abortController = new AbortController();
 		this.currentAbort = abortController;
-		// Advisor tool: per systemic decision §13, the main thread uses an
-		// Opus advisor when `advisorModel` is set. The SDK reads it from
-		// `options.settings.advisorModel`; the beta header
-		// `advisor-tool-2026-03-01` is applied by the CLI settings layer.
-		const settings =
-			this.advisorModel !== undefined ? { advisorModel: this.advisorModel } : undefined;
+		// Advisor tool per systemic decision §13 — see `advisorSettings`.
+		const settings = advisorSettings(this.advisorModel);
 
 		const baseOptions: Options = {
 			model: this.config.model ?? DEFAULT_MODEL,

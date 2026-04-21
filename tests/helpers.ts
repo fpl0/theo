@@ -59,6 +59,31 @@ export async function collectEvents(
 	return events;
 }
 
+/**
+ * Assert that an async operation rejects with a message matching `pattern`.
+ * Workaround for bun-types declaring `rejects.toThrow` as `void` — its
+ * runtime returns a Promise, so awaiting the helper here keeps behavior
+ * correct without tripping the `await-has-no-effect` diagnostic.
+ */
+export async function expectReject(
+	fn: () => Promise<unknown>,
+	pattern: string | RegExp,
+): Promise<void> {
+	let caught: unknown;
+	try {
+		await fn();
+	} catch (error) {
+		caught = error;
+	}
+	expect(caught).toBeInstanceOf(Error);
+	const message = (caught as Error).message;
+	if (typeof pattern === "string") {
+		expect(message).toContain(pattern);
+	} else {
+		expect(message).toMatch(pattern);
+	}
+}
+
 /** Assert that a string array is in strictly ascending (ULID) order. */
 export function expectMonotonicIds(ids: readonly string[]): void {
 	for (let i = 1; i < ids.length; i++) {

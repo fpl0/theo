@@ -15,7 +15,7 @@ import {
 	WINDOW_DAYS,
 	WINDOW_MAX_PREDICTIONS,
 } from "../../src/memory/self_model.ts";
-import { cleanEventTables, createTestBus, createTestPool } from "../helpers.ts";
+import { cleanEventTables, createTestBus, createTestPool, expectReject } from "../helpers.ts";
 
 // ---------------------------------------------------------------------------
 // Setup
@@ -120,14 +120,10 @@ describe("recordOutcome", () => {
 	});
 
 	test("throws on missing domain", async () => {
-		let caught: unknown;
-		try {
-			await repo.recordOutcome("nonexistent", true, "theo");
-		} catch (error) {
-			caught = error;
-		}
-		expect(caught).toBeInstanceOf(Error);
-		expect((caught as Error).message).toContain("Self model domain 'nonexistent' not found");
+		await expectReject(
+			() => repo.recordOutcome("nonexistent", true, "theo"),
+			"Self model domain 'nonexistent' not found",
+		);
 	});
 
 	test("emits event on incorrect outcome", async () => {
