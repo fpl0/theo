@@ -21,7 +21,11 @@ import type { Pool } from "../../src/db/pool.ts";
 import type { EventBus } from "../../src/events/bus.ts";
 import { Scheduler } from "../../src/scheduler/runner.ts";
 import { createJobStore, type JobStore } from "../../src/scheduler/store.ts";
-import type { BuiltinJobSeed, SubagentDefinition } from "../../src/scheduler/types.ts";
+import {
+	type BuiltinJobSeed,
+	newJobId,
+	type SubagentDefinition,
+} from "../../src/scheduler/types.ts";
 import { cleanEventTables, createTestBus, createTestPool } from "../helpers.ts";
 
 let pool: Pool;
@@ -210,6 +214,12 @@ async function eventDataFor(type: string): Promise<ReadonlyArray<Record<string, 
 	return rows.map((r) => r.data);
 }
 
+async function waitIdle(scheduler: Scheduler): Promise<void> {
+	while (scheduler.activeCount() > 0) {
+		await new Promise((r) => setTimeout(r, 10));
+	}
+}
+
 function makeScheduler(
 	overrides: {
 		builtins?: readonly BuiltinJobSeed[];
@@ -335,7 +345,7 @@ describe("Scheduler.tick — execution", () => {
 		});
 
 		const input = {
-			id: (await import("../../src/scheduler/types.ts")).newJobId(),
+			id: newJobId(),
 			name: "test-job",
 			cron: "0 */6 * * *",
 			agent: "main",
@@ -348,10 +358,7 @@ describe("Scheduler.tick — execution", () => {
 		await store.create(input);
 
 		await scheduler.tick();
-		// activeCount might briefly be >0 while executeJob awaits — wait.
-		while (scheduler.activeCount() > 0) {
-			await new Promise((r) => setTimeout(r, 10));
-		}
+		await waitIdle(scheduler);
 		await bus.flush();
 
 		expect(await countEvents("job.triggered")).toBe(1);
@@ -373,7 +380,6 @@ describe("Scheduler.tick — execution", () => {
 			queryFn: stubQueryFn({ kind: "hang" }),
 			now: () => new Date(Date.UTC(2026, 0, 15, 13, 0, 0)),
 		});
-		const { newJobId } = await import("../../src/scheduler/types.ts");
 		const input = {
 			id: newJobId(),
 			name: "slow-job",
@@ -396,9 +402,7 @@ describe("Scheduler.tick — execution", () => {
 		expect(scheduler.activeCount()).toBe(1);
 
 		// Wait for the hang to abort + resolve.
-		while (scheduler.activeCount() > 0) {
-			await new Promise((r) => setTimeout(r, 20));
-		}
+		await waitIdle(scheduler);
 		await bus.flush();
 
 		expect(await countEvents("job.triggered")).toBe(1);
@@ -406,7 +410,6 @@ describe("Scheduler.tick — execution", () => {
 	});
 
 	test("tick skips disabled jobs", async () => {
-		const { newJobId } = await import("../../src/scheduler/types.ts");
 		const input = {
 			id: newJobId(),
 			name: "inert",
@@ -435,7 +438,6 @@ describe("Scheduler.tick — execution", () => {
 			maxConcurrent: 1,
 			now: () => new Date(Date.UTC(2026, 0, 15, 13, 0, 0)),
 		});
-		const { newJobId } = await import("../../src/scheduler/types.ts");
 		for (const name of ["a", "b"]) {
 			await store.create({
 				id: newJobId(),
@@ -452,9 +454,7 @@ describe("Scheduler.tick — execution", () => {
 
 		await scheduler.tick();
 		expect(scheduler.activeCount()).toBe(1);
-		while (scheduler.activeCount() > 0) {
-			await new Promise((r) => setTimeout(r, 20));
-		}
+		await waitIdle(scheduler);
 	});
 });
 
@@ -472,7 +472,6 @@ describe("Scheduler.start — overdue handling", () => {
 			},
 			now: () => new Date(Date.UTC(2026, 0, 15, 13, 0, 0)),
 		});
-		const { newJobId } = await import("../../src/scheduler/types.ts");
 		await store.create({
 			id: newJobId(),
 			name: "overdue-job",
@@ -486,9 +485,7 @@ describe("Scheduler.start — overdue handling", () => {
 		});
 
 		await scheduler.start();
-		while (scheduler.activeCount() > 0) {
-			await new Promise((r) => setTimeout(r, 10));
-		}
+		await waitIdle(scheduler);
 		await scheduler.stop();
 		await bus.flush();
 
@@ -507,7 +504,6 @@ describe("Scheduler one-off cleanup", () => {
 			queryFn: stubQueryFn({ kind: "success", text: "done" }),
 			now: () => new Date(Date.UTC(2026, 0, 15, 13, 0, 0)),
 		});
-		const { newJobId } = await import("../../src/scheduler/types.ts");
 		const input = {
 			id: newJobId(),
 			name: "one-off",
@@ -522,9 +518,7 @@ describe("Scheduler one-off cleanup", () => {
 		await store.create(input);
 
 		await scheduler.tick();
-		while (scheduler.activeCount() > 0) {
-			await new Promise((r) => setTimeout(r, 10));
-		}
+		await waitIdle(scheduler);
 		await bus.flush();
 
 		const fetched = await store.getById(input.id);
@@ -542,7 +536,6 @@ describe("Scheduler failure handling", () => {
 			queryFn: stubQueryFn({ kind: "throw", message: "sdk exploded" }),
 			now: () => new Date(Date.UTC(2026, 0, 15, 13, 0, 0)),
 		});
-		const { newJobId } = await import("../../src/scheduler/types.ts");
 		const input = {
 			id: newJobId(),
 			name: "explodes",
@@ -557,9 +550,7 @@ describe("Scheduler failure handling", () => {
 		await store.create(input);
 
 		await scheduler.tick();
-		while (scheduler.activeCount() > 0) {
-			await new Promise((r) => setTimeout(r, 10));
-		}
+		await waitIdle(scheduler);
 		await bus.flush();
 
 		expect(await countEvents("job.failed")).toBe(1);
@@ -580,7 +571,6 @@ describe("Scheduler failure handling", () => {
 			}),
 			now: () => new Date(Date.UTC(2026, 0, 15, 13, 0, 0)),
 		});
-		const { newJobId } = await import("../../src/scheduler/types.ts");
 		const input = {
 			id: newJobId(),
 			name: "ran-out",
@@ -595,9 +585,7 @@ describe("Scheduler failure handling", () => {
 		await store.create(input);
 
 		await scheduler.tick();
-		while (scheduler.activeCount() > 0) {
-			await new Promise((r) => setTimeout(r, 10));
-		}
+		await waitIdle(scheduler);
 		await bus.flush();
 		expect(await countEvents("job.failed")).toBe(1);
 	});
@@ -607,7 +595,6 @@ describe("Scheduler failure handling", () => {
 			subagents: {}, // no agents registered
 			now: () => new Date(Date.UTC(2026, 0, 15, 13, 0, 0)),
 		});
-		const { newJobId } = await import("../../src/scheduler/types.ts");
 		const input = {
 			id: newJobId(),
 			name: "orphan",
@@ -622,9 +609,7 @@ describe("Scheduler failure handling", () => {
 		await store.create(input);
 
 		await scheduler.tick();
-		while (scheduler.activeCount() > 0) {
-			await new Promise((r) => setTimeout(r, 10));
-		}
+		await waitIdle(scheduler);
 		await bus.flush();
 		expect(await countEvents("job.failed")).toBe(1);
 		const data = (await eventDataFor("job.failed"))[0];
@@ -636,7 +621,6 @@ describe("Scheduler failure handling", () => {
 			queryFn: stubQueryFn({ kind: "hang" }),
 			now: () => new Date(Date.UTC(2026, 0, 15, 13, 0, 0)),
 		});
-		const { newJobId } = await import("../../src/scheduler/types.ts");
 		const input = {
 			id: newJobId(),
 			name: "timeout",
@@ -651,9 +635,7 @@ describe("Scheduler failure handling", () => {
 		await store.create(input);
 
 		await scheduler.tick();
-		while (scheduler.activeCount() > 0) {
-			await new Promise((r) => setTimeout(r, 20));
-		}
+		await waitIdle(scheduler);
 		await bus.flush();
 
 		expect(await countEvents("job.failed")).toBe(1);
@@ -670,7 +652,6 @@ describe("Scheduler schedule advancement", () => {
 			queryFn: stubQueryFn({ kind: "success", text: "done" }),
 			now: () => new Date(Date.UTC(2026, 0, 15, 13, 0, 0)),
 		});
-		const { newJobId } = await import("../../src/scheduler/types.ts");
 		const input = {
 			id: newJobId(),
 			name: "cron-advance",
@@ -685,9 +666,7 @@ describe("Scheduler schedule advancement", () => {
 		await store.create(input);
 
 		await scheduler.tick();
-		while (scheduler.activeCount() > 0) {
-			await new Promise((r) => setTimeout(r, 10));
-		}
+		await waitIdle(scheduler);
 
 		const fetched = await store.getById(input.id);
 		// Next 0/6 after 13:00 is 18:00 UTC.
@@ -710,7 +689,6 @@ describe("Scheduler subagent selection", () => {
 			},
 			now: () => new Date(Date.UTC(2026, 0, 15, 13, 0, 0)),
 		});
-		const { newJobId } = await import("../../src/scheduler/types.ts");
 		const input = {
 			id: newJobId(),
 			name: "uses-consolidator",
@@ -725,9 +703,7 @@ describe("Scheduler subagent selection", () => {
 		await store.create(input);
 
 		await scheduler.tick();
-		while (scheduler.activeCount() > 0) {
-			await new Promise((r) => setTimeout(r, 10));
-		}
+		await waitIdle(scheduler);
 
 		expect(capturedOptions?.model).toBe("claude-haiku-4-6");
 		expect(capturedOptions?.maxTurns).toBe(3);

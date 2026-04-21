@@ -15,12 +15,12 @@ import {
 	type McpSdkServerConfigWithInstance,
 	tool,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { EventBus } from "../events/bus.ts";
+import { errorResult } from "../mcp/tool-helpers.ts";
 import { isValidCron, nextRun } from "./cron.ts";
 import type { JobStore } from "./store.ts";
-import { type JobId, newJobId } from "./types.ts";
+import { newJobId } from "./types.ts";
 
 export interface SchedulerToolDependencies {
 	readonly store: JobStore;
@@ -32,14 +32,6 @@ export interface SchedulerToolDependencies {
 	 * about store state can omit it.
 	 */
 	readonly bus?: EventBus;
-}
-
-function errorResult(error: unknown): CallToolResult {
-	const message = error instanceof Error ? error.message : String(error);
-	return {
-		content: [{ type: "text", text: `Error: ${message}` }],
-		isError: true,
-	};
 }
 
 export function scheduleJobTool(deps: SchedulerToolDependencies) {
@@ -156,7 +148,7 @@ export function cancelJobTool(deps: SchedulerToolDependencies) {
 				if (job === null) {
 					return errorResult(new Error(`No job named "${name}"`));
 				}
-				await deps.store.disable(job.id as JobId);
+				await deps.store.disable(job.id);
 				if (deps.bus !== undefined) {
 					await deps.bus.emit({
 						type: "job.cancelled",

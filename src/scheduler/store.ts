@@ -44,7 +44,7 @@ function mapJob(row: Row): ScheduledJob {
 		maxDurationMs: row["max_duration_ms"] as number,
 		// numeric comes back as a string from postgres.js; parse defensively.
 		maxBudgetUsd: Number(row["max_budget_usd"]),
-		lastRunAt: (row["last_run_at"] as Date | null) ?? null,
+		lastRunAt: row["last_run_at"] as Date | null,
 		nextRunAt: row["next_run_at"] as Date,
 		createdAt: row["created_at"] as Date,
 		updatedAt: row["updated_at"] as Date,
@@ -52,18 +52,18 @@ function mapJob(row: Row): ScheduledJob {
 }
 
 function mapExecution(row: Row): JobExecution {
-	const costRaw = row["cost_usd"];
+	const costRaw = row["cost_usd"] as string | null;
 	return {
 		id: row["id"] as ExecutionId,
 		jobId: row["job_id"] as JobId,
 		status: row["status"] as "running" | "completed" | "failed",
 		startedAt: row["started_at"] as Date,
-		completedAt: (row["completed_at"] as Date | null) ?? null,
-		durationMs: (row["duration_ms"] as number | null) ?? null,
-		tokensUsed: (row["tokens_used"] as number | null) ?? null,
-		costUsd: costRaw === null || costRaw === undefined ? null : Number(costRaw),
-		errorMessage: (row["error_message"] as string | null) ?? null,
-		resultSummary: (row["result_summary"] as string | null) ?? null,
+		completedAt: row["completed_at"] as Date | null,
+		durationMs: row["duration_ms"] as number | null,
+		tokensUsed: row["tokens_used"] as number | null,
+		costUsd: costRaw === null ? null : Number(costRaw),
+		errorMessage: row["error_message"] as string | null,
+		resultSummary: row["result_summary"] as string | null,
 	};
 }
 
@@ -85,17 +85,15 @@ export interface JobStore {
 	list(): Promise<readonly ScheduledJob[]>;
 
 	/**
-	 * Return jobs that are enabled and whose next_run_at is at or before `now`.
-	 * Used by the tick loop to find what to fire this tick. Excludes "overdue
-	 * for longer than one tick" — that's what `getOverdueJobs` is for, but both
-	 * return the same rows; the runner disambiguates by context.
+	 * Return enabled jobs with `next_run_at <= now`. Used by the tick loop to
+	 * find what to fire this tick, including boundary (exactly-now) matches.
 	 */
 	getDueJobs(now: Date): Promise<readonly ScheduledJob[]>;
 
 	/**
-	 * Return enabled jobs whose next_run_at is strictly in the past — typically
-	 * called once at startup so jobs that missed their window while Theo was
-	 * offline fire exactly once (not once per missed tick).
+	 * Return enabled jobs with `next_run_at < now` — strictly past. Used once
+	 * at startup so jobs that missed their window while Theo was offline fire
+	 * exactly once (not once per missed tick).
 	 */
 	getOverdueJobs(now: Date): Promise<readonly ScheduledJob[]>;
 

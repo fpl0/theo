@@ -3,8 +3,8 @@ import {
 	type McpSdkServerConfigWithInstance,
 	tool,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import { errorResult } from "../mcp/tool-helpers.ts";
 import type { CoreMemoryRepository } from "./core.ts";
 import type { EdgeRepository } from "./graph/edges.ts";
 import type { NodeRepository } from "./graph/nodes.ts";
@@ -23,14 +23,6 @@ export interface MemoryDependencies {
 	readonly userModel: UserModelRepository;
 	readonly selfModel: SelfModelRepository;
 	readonly skills: SkillRepository;
-}
-
-function errorResult(error: unknown): CallToolResult {
-	const message = error instanceof Error ? error.message : String(error);
-	return {
-		content: [{ type: "text", text: `Error: ${message}` }],
-		isError: true,
-	};
 }
 
 const NODE_KINDS = [

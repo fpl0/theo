@@ -20,6 +20,7 @@ import {
 	query as sdkQuery,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { EventBus } from "../events/bus.ts";
+import type { TurnErrorType } from "../events/types.ts";
 import { nextRun } from "./cron.ts";
 import type { JobStore } from "./store.ts";
 import {
@@ -45,11 +46,28 @@ const DEFAULT_MAX_CONCURRENT = 1;
 /** Short result summary persisted on completed executions. */
 const SUMMARY_MAX_CHARS = 500;
 
-/** Minimum notification body length — anything shorter skips notification. */
-const NOTIFICATION_MIN_CHARS = 1;
-
 /** Poll interval while `stop()` waits for in-flight jobs to drain. */
 const STOP_POLL_INTERVAL_MS = 50;
+
+/**
+ * Call `.unref()` on a timer handle if the runtime supports it (Bun and Node
+ * both do, but the return type differs). Without this, tests hang on pending
+ * interval/timeout handles.
+ */
+function unrefTimer(handle: unknown): void {
+	if (typeof handle !== "object" || handle === null) return;
+	const unref = (handle as { unref?: () => void }).unref;
+	if (typeof unref === "function") unref.call(handle);
+}
+
+class JobTurnError extends Error {
+	constructor(
+		message: string,
+		readonly errorType: TurnErrorType,
+	) {
+		super(message);
+	}
+}
 
 // ---------------------------------------------------------------------------
 // Dependencies
@@ -86,7 +104,6 @@ export class Scheduler {
 	private readonly now: () => Date;
 
 	private intervalId: ReturnType<typeof setInterval> | null = null;
-	private running = false;
 	/**
 	 * In-flight job IDs. Guards against a single job being fired twice when
 	 * a tick overlaps with the previous tick's execution (e.g., a long-running
@@ -113,7 +130,7 @@ export class Scheduler {
 	 * Idempotent at the seeding layer — `getByName` gates insertion.
 	 */
 	async start(): Promise<void> {
-		if (this.running) return;
+		if (this.intervalId !== null) return;
 
 		for (const seed of this.builtins) {
 			const existing = await this.store.getByName(seed.name);
@@ -154,11 +171,7 @@ export class Scheduler {
 		// Don't keep the process alive just for the tick loop — the gate's
 		// read loop or the scheduler's own work is the keep-alive, not the
 		// timer. Without unref, `bun test` would hang on the interval.
-		if (typeof this.intervalId === "object" && this.intervalId !== null) {
-			const timer = this.intervalId as unknown as { unref?: () => void };
-			if (typeof timer.unref === "function") timer.unref();
-		}
-		this.running = true;
+		unrefTimer(this.intervalId);
 	}
 
 	/**
@@ -171,7 +184,6 @@ export class Scheduler {
 			clearInterval(this.intervalId);
 			this.intervalId = null;
 		}
-		this.running = false;
 		while (this.activeJobs.size > 0) {
 			await new Promise<void>((resolve) => setTimeout(resolve, STOP_POLL_INTERVAL_MS));
 		}
@@ -179,7 +191,7 @@ export class Scheduler {
 
 	/** True while the tick loop is active. */
 	isRunning(): boolean {
-		return this.running;
+		return this.intervalId !== null;
 	}
 
 	/** Current in-flight execution count — mostly for tests. */
@@ -261,10 +273,7 @@ export class Scheduler {
 					metadata: {},
 				});
 
-				if (
-					result.notification !== null &&
-					result.notification.trim().length >= NOTIFICATION_MIN_CHARS
-				) {
+				if (result.notification !== null) {
 					await this.bus.emit({
 						type: "notification.created",
 						version: 1,
@@ -275,6 +284,8 @@ export class Scheduler {
 				}
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
+				const errorType: TurnErrorType =
+					error instanceof JobTurnError ? error.errorType : "error_during_execution";
 				const durationMs = Date.now() - startedAt;
 
 				await this.store.completeExecution(executionId, {
@@ -292,7 +303,7 @@ export class Scheduler {
 						jobName: job.name,
 						executionId,
 						durationMs,
-						errorType: "error_during_execution",
+						errorType,
 						message,
 					},
 					metadata: {},
@@ -333,9 +344,7 @@ export class Scheduler {
 		const timeoutId = setTimeout(() => {
 			controller.abort();
 		}, job.maxDurationMs);
-		// Don't keep the event loop alive just for the timeout.
-		const timer = timeoutId as unknown as { unref?: () => void };
-		if (typeof timer.unref === "function") timer.unref();
+		unrefTimer(timeoutId);
 
 		try {
 			const systemPrompt = [
@@ -370,7 +379,7 @@ export class Scheduler {
 			let responseText = "";
 			let tokensUsed: number | null = null;
 			let costUsd: number | null = null;
-			let failure: { subtype: string; errors: readonly string[] } | null = null;
+			let failure: { subtype: TurnErrorType; errors: readonly string[] } | null = null;
 
 			for await (const message of generator) {
 				if (message.type !== "result") continue;
@@ -385,7 +394,7 @@ export class Scheduler {
 
 			if (failure !== null) {
 				const reason = failure.errors.length > 0 ? failure.errors.join("; ") : failure.subtype;
-				throw new Error(`${failure.subtype}: ${reason}`);
+				throw new JobTurnError(`${failure.subtype}: ${reason}`, failure.subtype);
 			}
 
 			const trimmed = responseText.trim();

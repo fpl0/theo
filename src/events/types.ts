@@ -303,7 +303,7 @@ export interface JobFailedData {
 	readonly jobName: string;
 	readonly executionId: string;
 	readonly durationMs: number;
-	readonly errorType: string;
+	readonly errorType: TurnErrorType;
 	readonly message: string;
 }
 
