@@ -284,24 +284,32 @@ export interface JobCreatedData {
 
 export interface JobTriggeredData {
 	readonly jobId: string;
+	readonly jobName: string;
 	readonly executionId: string;
 }
 
 export interface JobCompletedData {
 	readonly jobId: string;
+	readonly jobName: string;
 	readonly executionId: string;
 	readonly durationMs: number;
+	readonly summary: string;
+	readonly tokensUsed: number | null;
+	readonly costUsd: number | null;
 }
 
 export interface JobFailedData {
 	readonly jobId: string;
+	readonly jobName: string;
 	readonly executionId: string;
+	readonly durationMs: number;
 	readonly errorType: string;
 	readonly message: string;
 }
 
 export interface JobCancelledData {
 	readonly jobId: string;
+	readonly jobName: string;
 }
 
 export interface NotificationCreatedData {
