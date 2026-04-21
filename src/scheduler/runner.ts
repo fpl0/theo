@@ -356,6 +356,13 @@ export class Scheduler {
 				.filter((line) => line.length > 0)
 				.join("\n");
 
+			// Per Phase 14 §13 advisor decision: subagents carrying an
+			// `advisorModel` run with the server-side advisor tool enabled via
+			// `options.settings.advisorModel`. Reflex-speed subagents leave it
+			// unset and the settings object is omitted entirely.
+			const settings =
+				subagent.advisorModel !== undefined ? { advisorModel: subagent.advisorModel } : undefined;
+
 			const options: Options = {
 				model: subagent.model,
 				systemPrompt,
@@ -372,6 +379,7 @@ export class Scheduler {
 				permissionMode: "bypassPermissions",
 				allowDangerouslySkipPermissions: true,
 				abortController: controller,
+				...(settings !== undefined ? { settings } : {}),
 			};
 
 			const generator = this.queryFn({ prompt: job.prompt, options });

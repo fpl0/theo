@@ -98,8 +98,20 @@ function stubRetrieval(results: readonly SearchResult[]): RetrievalService {
 
 function stubSkills(skills: readonly Skill[]): SkillRepository {
 	return {
+		async create() {
+			throw new Error("stubSkills.create should not be called");
+		},
 		async findByTrigger() {
 			return skills;
+		},
+		async recordOutcome() {
+			throw new Error("stubSkills.recordOutcome should not be called");
+		},
+		async promote() {
+			throw new Error("stubSkills.promote should not be called");
+		},
+		async getById() {
+			return null;
 		},
 	};
 }
@@ -168,7 +180,18 @@ function makeSearchResult(
 }
 
 function makeSkill(trigger: string, strategy: string, rate: number): Skill {
-	return { id: 1, name: "s", trigger, strategy, successRate: rate, version: 1 };
+	return {
+		id: 1,
+		name: "s",
+		trigger,
+		strategy,
+		successRate: rate,
+		successCount: 0,
+		attemptCount: 0,
+		version: 1,
+		parentId: null,
+		promotedAt: null,
+	};
 }
 
 function populatedDeps(overrides?: Partial<ContextDependencies>): ContextDependencies {
@@ -373,9 +396,21 @@ describe("assembleSystemPrompt option budgets", () => {
 	test("skillLimit is forwarded to skills.findByTrigger", async () => {
 		let capturedLimit: number | undefined;
 		const skills: SkillRepository = {
+			async create() {
+				throw new Error("skills.create should not be called");
+			},
 			async findByTrigger(_q: string, limit: number) {
 				capturedLimit = limit;
 				return [];
+			},
+			async recordOutcome() {
+				throw new Error("skills.recordOutcome should not be called");
+			},
+			async promote() {
+				throw new Error("skills.promote should not be called");
+			},
+			async getById() {
+				return null;
 			},
 		};
 
@@ -397,9 +432,21 @@ describe("assembleSystemPrompt option budgets", () => {
 		} as unknown as RetrievalService;
 
 		const skillsRepo: SkillRepository = {
+			async create() {
+				throw new Error("skills.create should not be called");
+			},
 			async findByTrigger(_q: string, limit: number) {
 				skillLimit = limit;
 				return [];
+			},
+			async recordOutcome() {
+				throw new Error("skills.recordOutcome should not be called");
+			},
+			async promote() {
+				throw new Error("skills.promote should not be called");
+			},
+			async getById() {
+				return null;
 			},
 		};
 

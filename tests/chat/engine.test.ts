@@ -169,8 +169,20 @@ function stubRetrieval(): RetrievalService {
 
 function stubSkills(): SkillRepository {
 	return {
+		async create() {
+			throw new Error("stubSkills.create should not be called");
+		},
 		async findByTrigger() {
 			return [];
+		},
+		async recordOutcome() {
+			throw new Error("stubSkills.recordOutcome should not be called");
+		},
+		async promote() {
+			throw new Error("stubSkills.promote should not be called");
+		},
+		async getById() {
+			return null;
 		},
 	};
 }
@@ -424,6 +436,8 @@ function buildEngine(overrides?: {
 	readonly core?: CoreMemoryRepository;
 	readonly queryFn?: (params: { prompt: string; options?: Options }) => Query;
 	readonly maxBudgetPerTurn?: number;
+	readonly agents?: Record<string, import("@anthropic-ai/claude-agent-sdk").AgentDefinition>;
+	readonly advisorModel?: string;
 }): {
 	readonly engine: ChatEngine;
 	readonly bus: StubBus;
@@ -463,6 +477,8 @@ function buildEngine(overrides?: {
 		...(overrides?.maxBudgetPerTurn !== undefined
 			? { config: { maxBudgetPerTurn: overrides.maxBudgetPerTurn } }
 			: {}),
+		...(overrides?.agents !== undefined ? { agents: overrides.agents } : {}),
+		...(overrides?.advisorModel !== undefined ? { advisorModel: overrides.advisorModel } : {}),
 	});
 	return { engine, bus, sessions };
 }
@@ -949,5 +965,64 @@ describe("ChatEngine response extraction", () => {
 		const result = await engine.handleMessage("hi", "cli");
 
 		expect(result).toEqual({ ok: true, response: "final text" });
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Subagent delegation + advisor settings
+// ---------------------------------------------------------------------------
+
+describe("ChatEngine subagent delegation", () => {
+	test("agents option is forwarded to the SDK as options.agents", async () => {
+		const captured: { lastOptions?: Options | undefined; lastPrompt?: string } = {};
+		const agents = {
+			writer: { description: "writer", prompt: "write", model: "sonnet", maxTurns: 10 },
+		};
+		const { engine } = buildEngine({
+			agents,
+			queryFn: mockQueryFn(
+				[successResult({ result: "ok", inputTokens: 1, outputTokens: 1, costUsd: 0 })],
+				captured,
+			),
+		});
+
+		await engine.handleMessage("draft something", "cli");
+
+		expect(captured.lastOptions?.agents).toBeDefined();
+		expect(captured.lastOptions?.agents?.["writer"]).toBeDefined();
+	});
+
+	test("advisorModel is forwarded via options.settings.advisorModel", async () => {
+		const captured: { lastOptions?: Options | undefined; lastPrompt?: string } = {};
+		const { engine } = buildEngine({
+			advisorModel: "claude-opus-4-6",
+			queryFn: mockQueryFn(
+				[successResult({ result: "ok", inputTokens: 1, outputTokens: 1, costUsd: 0 })],
+				captured,
+			),
+		});
+
+		await engine.handleMessage("hi", "cli");
+
+		const settings = captured.lastOptions?.settings;
+		expect(settings).toBeDefined();
+		if (settings !== undefined && typeof settings === "object") {
+			expect((settings as { advisorModel?: string }).advisorModel).toBe("claude-opus-4-6");
+		}
+	});
+
+	test("omitting agents and advisorModel leaves both fields undefined", async () => {
+		const captured: { lastOptions?: Options | undefined; lastPrompt?: string } = {};
+		const { engine } = buildEngine({
+			queryFn: mockQueryFn(
+				[successResult({ result: "ok", inputTokens: 1, outputTokens: 1, costUsd: 0 })],
+				captured,
+			),
+		});
+
+		await engine.handleMessage("hi", "cli");
+
+		expect(captured.lastOptions?.agents).toBeUndefined();
+		expect(captured.lastOptions?.settings).toBeUndefined();
 	});
 });

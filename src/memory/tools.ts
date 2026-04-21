@@ -246,6 +246,46 @@ export function updateUserModelTool(deps: MemoryDependencies) {
 	);
 }
 
+export function storeSkillTool(deps: MemoryDependencies) {
+	return tool(
+		"store_skill",
+		"Save a learned strategy as a reusable procedural skill. " +
+			"Use when you recognise a recurring situation that has a repeatable " +
+			"solution. The `trigger` is a short phrase describing the situation; " +
+			"the `strategy` is the repeatable approach. Pass `parentId` when refining " +
+			"an existing skill — the new version supersedes it without deleting the lineage.",
+		{
+			name: z.string().min(1).max(120),
+			trigger: z.string().min(1).max(500),
+			strategy: z.string().min(1).max(4000),
+			parentId: z.number().int().positive().optional(),
+		},
+		async ({ name, trigger, strategy, parentId }) => {
+			try {
+				const input =
+					parentId !== undefined
+						? { name, trigger, strategy, parentId }
+						: { name, trigger, strategy };
+				const skill = await deps.skills.create(input);
+				const lineage =
+					skill.parentId !== null
+						? ` (v${String(skill.version)}, refines #${String(skill.parentId)})`
+						: ` (v${String(skill.version)})`;
+				return {
+					content: [
+						{
+							type: "text",
+							text: `Stored skill #${String(skill.id)} "${skill.name}"${lineage}`,
+						},
+					],
+				};
+			} catch (error) {
+				return errorResult(error);
+			}
+		},
+	);
+}
+
 export function searchSkillsTool(deps: MemoryDependencies) {
 	return tool(
 		"search_skills",
@@ -282,6 +322,7 @@ export function memoryToolList(deps: MemoryDependencies) {
 	return [
 		storeMemoryTool(deps),
 		searchMemoryTool(deps),
+		storeSkillTool(deps),
 		searchSkillsTool(deps),
 		readCoreTool(deps),
 		updateCoreTool(deps),

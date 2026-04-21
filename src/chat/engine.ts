@@ -6,6 +6,7 @@
  */
 
 import {
+	type AgentDefinition,
 	type McpSdkServerConfigWithInstance,
 	type Options,
 	type Query,
@@ -38,6 +39,20 @@ export interface ChatEngineDependencies {
 	readonly episodic: EpisodicRepository;
 	readonly context: ContextDependencies;
 	readonly config?: AgentConfig;
+	/**
+	 * Subagent catalog passed to the SDK as `options.agents`. When present,
+	 * the main agent can delegate to any named subagent via the Agent tool.
+	 * Omit for tests that don't exercise delegation.
+	 */
+	readonly agents?: Readonly<Record<string, AgentDefinition>>;
+	/**
+	 * Server-side advisor model (beta header `advisor-tool-2026-03-01`) —
+	 * when set, the SDK uses this model as the main thread's advisor.
+	 * Subagents carry their own `advisorModel` through the catalog; this
+	 * value is the main thread's default. Leave unset to disable the
+	 * advisor tool on main-thread turns.
+	 */
+	readonly advisorModel?: string;
 	/** Test seam. When undefined, the real SDK `query()` is used. */
 	readonly queryFn?: QueryFn;
 }
@@ -50,6 +65,8 @@ export class ChatEngine {
 	private readonly episodic: EpisodicRepository;
 	private readonly context: ContextDependencies;
 	private readonly config: AgentConfig;
+	private readonly agents: Readonly<Record<string, AgentDefinition>> | undefined;
+	private readonly advisorModel: string | undefined;
 	private readonly queryFn: QueryFn;
 	/**
 	 * Abort controller for the in-flight turn, or null when idle. Gates call
@@ -66,6 +83,8 @@ export class ChatEngine {
 		this.episodic = deps.episodic;
 		this.context = deps.context;
 		this.config = deps.config ?? {};
+		this.agents = deps.agents;
+		this.advisorModel = deps.advisorModel;
 		this.queryFn = deps.queryFn ?? sdkQuery;
 	}
 
@@ -135,6 +154,13 @@ export class ChatEngine {
 		});
 		const abortController = new AbortController();
 		this.currentAbort = abortController;
+		// Advisor tool: per systemic decision §13, the main thread uses an
+		// Opus advisor when `advisorModel` is set. The SDK reads it from
+		// `options.settings.advisorModel`; the beta header
+		// `advisor-tool-2026-03-01` is applied by the CLI settings layer.
+		const settings =
+			this.advisorModel !== undefined ? { advisorModel: this.advisorModel } : undefined;
+
 		const baseOptions: Options = {
 			model: this.config.model ?? DEFAULT_MODEL,
 			systemPrompt,
@@ -149,6 +175,8 @@ export class ChatEngine {
 			persistSession: true,
 			hooks,
 			abortController,
+			...(this.agents !== undefined ? { agents: this.agents } : {}),
+			...(settings !== undefined ? { settings } : {}),
 		};
 		// `resume` must be omitted (not set to undefined) under
 		// exactOptionalPropertyTypes.

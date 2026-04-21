@@ -56,7 +56,7 @@ beforeAll(async () => {
 	const retrieval = new RetrievalService(sql, embeddings, nodes);
 	const userModel = createUserModelRepository(sql, bus);
 	const selfModel = createSelfModelRepository(sql, bus);
-	const skills = createSkillRepository(sql, embeddings);
+	const skills = createSkillRepository(sql, embeddings, bus);
 
 	deps = { nodes, edges, coreMemory, retrieval, userModel, selfModel, skills };
 });
@@ -354,7 +354,7 @@ describe("error as value", () => {
 });
 
 describe("memoryToolList", () => {
-	test("returns the 7 expected tool names", () => {
+	test("returns the 8 expected tool names", () => {
 		const names = memoryToolList(deps)
 			.map((t) => t.name)
 			.sort();
@@ -364,6 +364,7 @@ describe("memoryToolList", () => {
 			"search_memory",
 			"search_skills",
 			"store_memory",
+			"store_skill",
 			"update_core",
 			"update_user_model",
 		]);

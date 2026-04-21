@@ -710,4 +710,73 @@ describe("Scheduler subagent selection", () => {
 		expect(capturedOptions?.maxBudgetUsd).toBeCloseTo(0.05);
 		expect(capturedOptions?.allowedTools).toContain("mcp__memory__*");
 	});
+
+	test("advisorModel on a subagent is forwarded via options.settings.advisorModel", async () => {
+		let capturedOptions: Options | undefined;
+		const subagents: Record<string, SubagentDefinition> = {
+			reflector: {
+				model: "claude-sonnet-4-6",
+				maxTurns: 3,
+				systemPromptPrefix: "You reflect.",
+				advisorModel: "claude-opus-4-6",
+			},
+		};
+		const scheduler = makeScheduler({
+			subagents,
+			queryFn: (params) => {
+				capturedOptions = params.options;
+				return stubQueryFn({ kind: "success", text: "ok" })(params);
+			},
+			now: () => new Date(Date.UTC(2026, 0, 15, 13, 0, 0)),
+		});
+		const input = {
+			id: newJobId(),
+			name: "uses-reflector",
+			cron: "0 3 * * 0",
+			agent: "reflector",
+			prompt: "reflect",
+			enabled: true,
+			maxDurationMs: 60_000,
+			maxBudgetUsd: 0.05,
+			nextRunAt: new Date(Date.UTC(2026, 0, 15, 12, 0, 0)),
+		};
+		await store.create(input);
+
+		await scheduler.tick();
+		await waitIdle(scheduler);
+
+		const settings = capturedOptions?.settings;
+		expect(settings).toBeDefined();
+		if (settings !== undefined && typeof settings === "object") {
+			expect((settings as { advisorModel?: string }).advisorModel).toBe("claude-opus-4-6");
+		}
+	});
+
+	test("subagent without advisorModel omits settings entirely", async () => {
+		let capturedOptions: Options | undefined;
+		const scheduler = makeScheduler({
+			queryFn: (params) => {
+				capturedOptions = params.options;
+				return stubQueryFn({ kind: "success", text: "ok" })(params);
+			},
+			now: () => new Date(Date.UTC(2026, 0, 15, 13, 0, 0)),
+		});
+		const input = {
+			id: newJobId(),
+			name: "reflex-scanner",
+			cron: "0 9 * * *",
+			agent: "scanner",
+			prompt: "scan",
+			enabled: true,
+			maxDurationMs: 60_000,
+			maxBudgetUsd: 0.05,
+			nextRunAt: new Date(Date.UTC(2026, 0, 15, 12, 0, 0)),
+		};
+		await store.create(input);
+
+		await scheduler.tick();
+		await waitIdle(scheduler);
+
+		expect(capturedOptions?.settings).toBeUndefined();
+	});
 });

@@ -126,13 +126,18 @@ export type ExecutionUpdate =
 // ---------------------------------------------------------------------------
 
 /**
- * Subagent definition surfaced to the scheduler. Phase 14 will replace this
- * with a richer catalog; for now the scheduler owns the mapping.
+ * Subagent definition surfaced to the scheduler. Phase 14 provides the
+ * canonical catalog in `src/chat/subagents.ts`; this shape is the
+ * scheduler's projection of it. `advisorModel` is optional — when set,
+ * the runner passes it through as `options.settings.advisorModel` so the
+ * SDK enables the server-side advisor tool. Reflex-speed subagents
+ * (scanner, consolidator) leave it unset.
  */
 export interface SubagentDefinition {
 	readonly model: string;
 	readonly maxTurns: number;
 	readonly systemPromptPrefix: string;
+	readonly advisorModel?: string;
 }
 
 export interface SchedulerConfig {
