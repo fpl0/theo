@@ -37,9 +37,11 @@ test: test-db
 test-file FILE:
     bun test {{FILE}}
 
-# Start infra + agent
+# Start infra + agent. `exec` replaces the sh subshell with the bun process so
+# stdin/stdout stay directly on the terminal — Ink needs a raw-mode TTY to
+# read keystrokes, which `just`'s default subshell piping would swallow.
 dev: up
-    bun run src/index.ts
+    exec bun run src/index.ts
 
 # Start PostgreSQL
 up:
