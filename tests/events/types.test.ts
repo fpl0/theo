@@ -155,6 +155,64 @@ describe("Event type system", () => {
 					return "goal.redacted";
 				case "goal.expired":
 					return "goal.expired";
+				// Webhooks (Phase 13b)
+				case "webhook.received":
+					return "webhook.received";
+				case "webhook.verified":
+					return "webhook.verified";
+				case "webhook.rejected":
+					return "webhook.rejected";
+				case "webhook.rate_limited":
+					return "webhook.rate_limited";
+				case "webhook.secret_rotated":
+					return "webhook.secret_rotated";
+				case "webhook.secret_grace_expired":
+					return "webhook.secret_grace_expired";
+				// Reflexes (Phase 13b)
+				case "reflex.triggered":
+					return "reflex.triggered";
+				case "reflex.thought":
+					return "reflex.thought";
+				case "reflex.suppressed":
+					return "reflex.suppressed";
+				// Ideation (Phase 13b)
+				case "ideation.scheduled":
+					return "ideation.scheduled";
+				case "ideation.proposed":
+					return "ideation.proposed";
+				case "ideation.duplicate_suppressed":
+					return "ideation.duplicate_suppressed";
+				case "ideation.budget_exceeded":
+					return "ideation.budget_exceeded";
+				case "ideation.backoff_extended":
+					return "ideation.backoff_extended";
+				// Proposals (Phase 13b)
+				case "proposal.requested":
+					return "proposal.requested";
+				case "proposal.drafted":
+					return "proposal.drafted";
+				case "proposal.approved":
+					return "proposal.approved";
+				case "proposal.rejected":
+					return "proposal.rejected";
+				case "proposal.executed":
+					return "proposal.executed";
+				case "proposal.expired":
+					return "proposal.expired";
+				case "proposal.redacted":
+					return "proposal.redacted";
+				// Egress (Phase 13b)
+				case "policy.autonomous_cloud_egress.enabled":
+					return "policy.autonomous_cloud_egress.enabled";
+				case "policy.autonomous_cloud_egress.disabled":
+					return "policy.autonomous_cloud_egress.disabled";
+				case "policy.egress_sensitivity.updated":
+					return "policy.egress_sensitivity.updated";
+				case "cloud_egress.turn":
+					return "cloud_egress.turn";
+				// Degradation (Phase 13b)
+				case "degradation.level_changed":
+					return "degradation.level_changed";
 				default:
 					return assertNever(event);
 			}

@@ -11,6 +11,14 @@
 
 import type { GoalEvent } from "./goals.ts";
 import type { EventId } from "./ids.ts";
+import type {
+	DegradationEvent,
+	EgressEvent,
+	IdeationEvent,
+	ProposalEvent,
+	ReflexEvent,
+	WebhookEvent,
+} from "./reflexes.ts";
 
 // ---------------------------------------------------------------------------
 // Core Event Interface
@@ -416,9 +424,28 @@ export type SystemEvent =
 // ---------------------------------------------------------------------------
 
 /** Every handler must handle every variant in its group. */
-export type Event = ChatEvent | MemoryEvent | SchedulerEvent | SystemEvent | GoalEvent;
+export type Event =
+	| ChatEvent
+	| MemoryEvent
+	| SchedulerEvent
+	| SystemEvent
+	| GoalEvent
+	| WebhookEvent
+	| ReflexEvent
+	| IdeationEvent
+	| ProposalEvent
+	| EgressEvent
+	| DegradationEvent;
 
 export type { GoalEvent } from "./goals.ts";
+export type {
+	DegradationEvent,
+	EgressEvent,
+	IdeationEvent,
+	ProposalEvent,
+	ReflexEvent,
+	WebhookEvent,
+} from "./reflexes.ts";
 
 // ---------------------------------------------------------------------------
 // Helper Extraction Types

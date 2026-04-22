@@ -11,6 +11,8 @@
 import type postgres from "postgres";
 import type { Sql, TransactionSql } from "postgres";
 import { asQueryable } from "../db/pool.ts";
+import type { TrustTier } from "../memory/graph/types.ts";
+import { computeEffectiveTrust } from "../memory/trust.ts";
 import type { EventId } from "./ids.ts";
 import { newEventId } from "./ids.ts";
 import type { Event, EventMetadata } from "./types.ts";
@@ -25,6 +27,23 @@ export interface ReadOptions {
 	readonly types?: ReadonlyArray<Event["type"]>;
 	readonly limit?: number;
 	readonly tx?: TransactionSql;
+}
+
+/** Options for writing an event. */
+export interface AppendOptions {
+	readonly tx?: TransactionSql;
+	/**
+	 * Override effective trust for this event. Used by owner commands that
+	 * promote a proposal-origin event (e.g., `/approve` elevating an
+	 * ideation proposal to `owner` for the resulting `goal.confirmed`).
+	 */
+	readonly effectiveTrustOverride?: TrustTier;
+	/**
+	 * Seed tier — overrides `actorTrust(event.actor)` as the starting point
+	 * of the min-walk. Used by the webhook gate to emit at `external`
+	 * regardless of the actor field.
+	 */
+	readonly seedTier?: TrustTier;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,8 +73,14 @@ export function partitionBounds(timestamp: Date): { from: Date; to: Date } {
 
 /** The EventLog: append events, read with upcasting, manage partitions. */
 export interface EventLog {
-	/** Append a partial event. Assigns ULID id + timestamp. Returns the complete event. */
-	append(event: Omit<Event, "id" | "timestamp">, tx?: TransactionSql): Promise<Event>;
+	/**
+	 * Append a partial event. Assigns ULID id + timestamp + effective trust
+	 * (computed from the causation chain). Returns the complete event.
+	 */
+	append(
+		event: Omit<Event, "id" | "timestamp">,
+		options?: AppendOptions | TransactionSql,
+	): Promise<Event>;
 
 	/** Read all events in ULID order, applying upcasters lazily. */
 	read(options?: ReadOptions): AsyncGenerator<Event>;
@@ -68,6 +93,14 @@ export interface EventLog {
 
 	/** Ensure a partition exists for the given timestamp. Idempotent. */
 	ensurePartition(timestamp: Date): Promise<void>;
+}
+
+/**
+ * Distinguish a bare `TransactionSql` handle from an `AppendOptions` record.
+ * Tagged templates expose tagged-template invocation; plain objects do not.
+ */
+function isTransactionSql(value: AppendOptions | TransactionSql): value is TransactionSql {
+	return typeof value === "function";
 }
 
 // ---------------------------------------------------------------------------
@@ -113,16 +146,30 @@ export function createEventLog(sql: Sql, upcasters: UpcasterRegistry): EventLog 
 
 	async function append(
 		event: Omit<Event, "id" | "timestamp">,
-		tx?: TransactionSql,
+		options?: AppendOptions | TransactionSql,
 	): Promise<Event> {
 		const id = newEventId();
 		const timestamp = new Date();
 
 		await ensurePartition(timestamp);
 
+		// Backwards-compatible: tests call `log.append(event, tx)`. Detect a
+		// transaction by checking for the tagged-template `sql` method the
+		// caller will use; opts-object callers use the structured form.
+		const opts: AppendOptions =
+			options === undefined ? {} : isTransactionSql(options) ? { tx: options } : options;
+		const tx = opts.tx;
+
+		const effectiveTrust = await computeEffectiveTrust(tx ?? sql, event.actor, event.metadata, {
+			...(opts.effectiveTrustOverride !== undefined
+				? { override: opts.effectiveTrustOverride }
+				: {}),
+			...(opts.seedTier !== undefined ? { seedTier: opts.seedTier } : {}),
+		});
+
 		const query = asQueryable(tx ?? sql);
 		await query`
-			INSERT INTO events (id, type, version, timestamp, actor, data, metadata)
+			INSERT INTO events (id, type, version, timestamp, actor, data, metadata, effective_trust_tier)
 			VALUES (
 				${id},
 				${event.type},
@@ -130,7 +177,8 @@ export function createEventLog(sql: Sql, upcasters: UpcasterRegistry): EventLog 
 				${timestamp},
 				${event.actor},
 				${sql.json(event.data as unknown as postgres.JSONValue)},
-				${sql.json(event.metadata as unknown as postgres.JSONValue)}
+				${sql.json(event.metadata as unknown as postgres.JSONValue)},
+				${effectiveTrust}
 			)
 		`;
 

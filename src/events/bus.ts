@@ -13,6 +13,7 @@
  */
 
 import type { Sql, TransactionSql } from "postgres";
+import type { TrustTier } from "../memory/graph/types.ts";
 import type { Handler, HandlerMode, HandlerOptions } from "./handlers.ts";
 import { getCursor } from "./handlers.ts";
 import type { EventLog } from "./log.ts";
@@ -54,6 +55,21 @@ interface EphemeralEventRegistration {
 	readonly handler: (event: EphemeralEvent) => void;
 }
 
+/**
+ * Options threaded through `bus.emit()` into `EventLog.append()`.
+ *
+ * `effectiveTrustOverride` is used by owner commands that elevate the
+ * effective trust of a derived event (e.g., promoting an ideation proposal
+ * to an `owner`-trust `goal.confirmed`). `seedTier` overrides the actor's
+ * default starting tier for the causation walk — the webhook gate uses
+ * this to force `external` regardless of actor.
+ */
+export interface EmitOptions {
+	readonly tx?: TransactionSql;
+	readonly effectiveTrustOverride?: TrustTier;
+	readonly seedTier?: TrustTier;
+}
+
 // ---------------------------------------------------------------------------
 // EventBus interface
 // ---------------------------------------------------------------------------
@@ -68,10 +84,7 @@ export interface EventBus {
 	): void;
 
 	/** Emit a durable event: write to log, then dispatch to handlers. */
-	emit(
-		event: Omit<Event, "id" | "timestamp">,
-		options?: { readonly tx?: TransactionSql },
-	): Promise<Event>;
+	emit(event: Omit<Event, "id" | "timestamp">, options?: EmitOptions): Promise<Event>;
 
 	/** Emit an ephemeral event: dispatch without database persistence. */
 	emitEphemeral(event: EphemeralEvent): void;
@@ -175,9 +188,21 @@ export function createEventBus(log: EventLog, sql: Sql): EventBus {
 
 	async function emit(
 		event: Omit<Event, "id" | "timestamp">,
-		options?: { readonly tx?: TransactionSql },
+		options?: EmitOptions,
 	): Promise<Event> {
-		const persisted = await log.append(event, options?.tx);
+		// Build the log's AppendOptions only with fields that are actually
+		// set — exactOptionalPropertyTypes forbids explicit-undefined spreads.
+		const appendOptions: {
+			tx?: TransactionSql;
+			effectiveTrustOverride?: TrustTier;
+			seedTier?: TrustTier;
+		} = {};
+		if (options?.tx !== undefined) appendOptions.tx = options.tx;
+		if (options?.effectiveTrustOverride !== undefined) {
+			appendOptions.effectiveTrustOverride = options.effectiveTrustOverride;
+		}
+		if (options?.seedTier !== undefined) appendOptions.seedTier = options.seedTier;
+		const persisted = await log.append(event, appendOptions);
 		enqueueToMatchingHandlers(persisted);
 		return persisted;
 	}

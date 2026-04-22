@@ -209,18 +209,23 @@ const TRUST_SENSITIVITY_MAP: Record<TrustTier, Sensitivity> = {
  * Gate function: should this content be allowed into the event log?
  * Pure function — no database, no state, no side effects.
  *
- * Compares detected sensitivity against the maximum allowed for the trust tier.
+ * Compares detected sensitivity against the maximum allowed for the
+ * **effective** trust tier — the min of the actor's tier and every
+ * ancestor event's effective tier (see `foundation.md §7.3` and
+ * `src/memory/trust.ts`). Callers inside Phase 13b threading path pass the
+ * effective tier from event metadata; legacy callers can pass the actor's
+ * tier and will get a (weakly) correct decision.
  */
-export function checkPrivacy(content: string, trustTier: TrustTier): PrivacyDecision {
+export function checkPrivacy(content: string, effectiveTrust: TrustTier): PrivacyDecision {
 	const detected = detectSensitivity(content);
-	const maxAllowed = TRUST_SENSITIVITY_MAP[trustTier];
+	const maxAllowed = TRUST_SENSITIVITY_MAP[effectiveTrust];
 
 	if (SENSITIVITY_LEVEL[detected.tier] > SENSITIVITY_LEVEL[maxAllowed]) {
 		return {
 			allowed: false,
 			reason:
 				`Content contains ${detected.label} (${detected.tier}), ` +
-				`which exceeds the ${trustTier} trust tier limit (max: ${maxAllowed})`,
+				`which exceeds the ${effectiveTrust} trust tier limit (max: ${maxAllowed})`,
 			tier: detected.tier,
 		};
 	}
