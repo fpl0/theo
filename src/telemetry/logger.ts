@@ -13,7 +13,6 @@
 
 import * as os from "node:os";
 import * as path from "node:path";
-import { redactAttributes } from "./redact.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -109,7 +108,7 @@ export class TheoLogger {
 			level,
 			message,
 			component,
-			attributes: redactAttributes(attributes),
+			attributes,
 			...(ctx !== null ? { traceId: ctx.traceId, spanId: ctx.spanId } : {}),
 		};
 		const line = JSON.stringify(entry);

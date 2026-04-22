@@ -14,14 +14,13 @@
  *     construction time; business code is unchanged.
  *
  * Spans are run inside an `AsyncLocalStorage<SpanState>`, so every
- * `await`-boundary keeps the right active context. Attributes are recorded
- * through the redaction filter before handoff to an exporter.
+ * `await`-boundary keeps the right active context. Attributes are passed
+ * through unchanged.
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { registerActiveContextGetter } from "./context.ts";
 import type { InitializedMetrics } from "./metrics.ts";
-import { isAllowed, REDACTED, redactAttributes } from "./redact.ts";
 import type { ResourceAttributes } from "./resource.ts";
 
 /** Exemplar attached to a histogram sample — carries the active traceId so
@@ -99,10 +98,10 @@ export interface TracerConfig {
 	readonly resource: ResourceAttributes;
 	readonly metrics: InitializedMetrics;
 	/**
-	 * Optional exporter sink — receives finished spans after redaction.
-	 * Tests rely on the in-memory list; a future OTLP batcher registers
-	 * itself here. Must not throw; exporter failures are swallowed and
-	 * counted via `exporter_dropped_total`.
+	 * Optional exporter sink — receives every finished span. Tests rely on
+	 * the in-memory list; a future OTLP batcher registers itself here.
+	 * Must not throw; exporter failures are swallowed and counted via
+	 * `exporter_dropped_total`.
 	 */
 	readonly exporter?: (span: FinishedSpan) => void;
 }
@@ -144,16 +143,13 @@ export function initTracer(config: TracerConfig): TracerBundle {
 		const parent = als.getStore() ?? null;
 		const traceId = parent?.traceId ?? newTraceId();
 		const spanId = newSpanId();
-		const filteredAttrs = redactAttributes(attributes, (key) => {
-			config.metrics.registry.redactions.add(1, { key: coarsen(key) });
-		});
 		const state: SpanState = {
 			traceId,
 			spanId,
 			...(parent !== null ? { parentSpanId: parent.spanId } : {}),
 			name,
 			startMs: performance.now(),
-			attributes: filteredAttrs,
+			attributes,
 		};
 		const start = state.startMs;
 		try {
@@ -210,13 +206,6 @@ function newSpanId(): string {
 	return Buffer.from(bytes).toString("hex");
 }
 
-function coarsen(key: string): string {
-	// Mirror redact.ts; we keep a local copy so we don't widen that module's
-	// exports for a single caller. Coarsens `a.b.c` to `a`.
-	const dot = key.indexOf(".");
-	return dot === -1 ? key : key.slice(0, dot);
-}
-
 function safeExport(exporter: (s: FinishedSpan) => void, span: FinishedSpan): void {
 	try {
 		exporter(span);
@@ -225,14 +214,3 @@ function safeExport(exporter: (s: FinishedSpan) => void, span: FinishedSpan): vo
 		// the agent (see plan §"Observability never degrades the agent").
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Public helpers used elsewhere in the telemetry module
-// ---------------------------------------------------------------------------
-
-/** True iff `key` passes the redaction allowlist. Re-exported here so span
- *  wrappers can check without importing `redact.ts` directly. */
-export const isAllowedAttribute = isAllowed;
-
-/** Placeholder value used when an attribute is redacted. */
-export const REDACTED_VALUE = REDACTED;

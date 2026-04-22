@@ -39,13 +39,14 @@ describe("TheoLogger", () => {
 		expect(lines).toHaveLength(1);
 	});
 
-	test("redacts disallowed attribute keys", () => {
+	test("passes attributes through unchanged (redaction disabled)", () => {
 		const lines: string[] = [];
 		const logger = new TheoLogger({ stdoutSink: (l) => lines.push(l) });
-		logger.info("event", { "user.secret": "top-secret" });
+		logger.info("event", { "user.secret": "top-secret", "theo.gate": "cli.owner" });
 		const parsed = takeLine(lines);
 		const attrs = parsed["attributes"] as Record<string, unknown>;
-		expect(attrs["user.secret"]).toBe("[redacted]");
+		expect(attrs["user.secret"]).toBe("top-secret");
+		expect(attrs["theo.gate"]).toBe("cli.owner");
 	});
 
 	test("attaches active trace context when provided", () => {

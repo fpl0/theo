@@ -119,7 +119,7 @@ describe("TelemetryProjector", () => {
 		expect(logs.some((l) => JSON.parse(l).message === "degradation level changed")).toBe(true);
 	});
 
-	test("system.rollback emits a warn log — attributes redacted through allowlist", async () => {
+	test("system.rollback emits a warn log with full attributes", async () => {
 		const { projector, logs } = setup();
 		await projector.handleEvent(
 			mk({
@@ -136,13 +136,9 @@ describe("TelemetryProjector", () => {
 		const rollback = entries.find((e) => e.message === "self-update rollback");
 		expect(rollback).toBeDefined();
 		expect(rollback.level).toBe("warn");
-		// `from`/`to`/`reason` are not on the semconv allowlist; the redaction
-		// filter replaces them with `[redacted]`. This is by design: event body
-		// payloads (including commit shas) stay out of exported observability
-		// attributes. The rollback fact itself is captured by the log entry.
-		expect(rollback.attributes.from).toBe("[redacted]");
-		expect(rollback.attributes.to).toBe("[redacted]");
-		expect(rollback.attributes.reason).toBe("[redacted]");
+		expect(rollback.attributes.from).toBe("aaa");
+		expect(rollback.attributes.to).toBe("bbb");
+		expect(rollback.attributes.reason).toBe("healthcheck_failed");
 	});
 
 	test("events_appended counter bumps on every event", async () => {

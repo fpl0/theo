@@ -13,9 +13,31 @@
  * counted via `cardinality_rejections`.
  */
 
+import type {
+	ObservableResult,
+	Counter as OtelCounter,
+	Histogram as OtelHistogram,
+	Meter as OtelMeter,
+	ObservableGauge as OtelObservableGauge,
+} from "@opentelemetry/api";
 import { registerCardinalityRejectSink } from "./labels.ts";
 import type { Environment } from "./resource.ts";
 import { getActiveExemplar } from "./tracer.ts";
+
+/**
+ * OTel attribute names disallow `.` in some exporters' strict mode and the
+ * Prometheus remote-write path replaces dots with underscores anyway. We do
+ * not depend on that normalization — labels flow through as-is and the
+ * remote-write exporter handles the rewrite.
+ */
+function toAttributes(labels: Labels): Record<string, string | number> {
+	// Labels are already `Readonly<Record<string, string | number>>`; the OTel
+	// Attributes type is structurally compatible. Copy to a plain object so
+	// the exporter doesn't freeze a shared reference.
+	const out: Record<string, string | number> = {};
+	for (const [k, v] of Object.entries(labels)) out[k] = v;
+	return out;
+}
 
 // ---------------------------------------------------------------------------
 // Instrument types
@@ -114,7 +136,6 @@ export interface MetricsRegistry {
 	// Telemetry self-observability (Phase 15)
 	readonly exporterDropped: Counter;
 	readonly exporterQueueSaturation: ObservableGauge;
-	readonly redactions: Counter;
 	readonly cardinalityRejections: Counter;
 
 	// Synthetic (Phase 15)
@@ -151,14 +172,115 @@ function pushCapped(buf: Sample[], sample: Sample): void {
 	if (buf.length > SAMPLE_CAP) buf.shift();
 }
 
+// ---------------------------------------------------------------------------
+// Instrument implementations
+//
+// Each instrument keeps an append-only sample buffer (capped at SAMPLE_CAP)
+// so tests can assert behavior without touching the SDK. When `bindOtlp` is
+// called, each instrument receives an SDK counterpart and writes land in both
+// places: the sample buffer (local/tests) and the OTel SDK (exported to the
+// OTLP collector → Prometheus).
+// ---------------------------------------------------------------------------
+
+class LocalCounter implements Counter {
+	private sdk: OtelCounter | null = null;
+	constructor(
+		readonly name: string,
+		private readonly buf: Sample[],
+	) {}
+	add(delta: number, labels: Labels = {}): void {
+		pushCapped(this.buf, { value: delta, labels, at: Date.now() });
+		this.sdk?.add(delta, toAttributes(labels));
+	}
+	attachSdk(counter: OtelCounter): void {
+		this.sdk = counter;
+	}
+}
+
+class LocalHistogram implements Histogram {
+	private sdk: OtelHistogram | null = null;
+	constructor(
+		readonly name: string,
+		private readonly buf: Sample[],
+	) {}
+	record(value: number, labels: Labels = {}): void {
+		const exemplar = getActiveExemplar();
+		const sample: Sample =
+			exemplar !== null
+				? {
+						value,
+						labels,
+						at: Date.now(),
+						exemplar: { traceId: exemplar.traceId, spanId: exemplar.spanId },
+					}
+				: { value, labels, at: Date.now() };
+		pushCapped(this.buf, sample);
+		this.sdk?.record(value, toAttributes(labels));
+	}
+	attachSdk(histogram: OtelHistogram): void {
+		this.sdk = histogram;
+	}
+}
+
+class LocalObservableGauge implements ObservableGauge {
+	/**
+	 * The OTel SDK invokes its callback once per collection cycle and expects
+	 * the user callback to call `result.observe(v, attrs)`. Our users call
+	 * `gauge.observe()` directly — so during an SDK-driven collection we stash
+	 * the active `ObservableResult` here, and `observe()` fans out to both the
+	 * local sample buffer and the SDK result.
+	 */
+	private activeSdkResult: ObservableResult | null = null;
+	private readonly callbacks: Array<() => Promise<void> | void> = [];
+
+	constructor(
+		readonly name: string,
+		private readonly buf: Sample[],
+	) {}
+
+	addCallback(cb: () => Promise<void> | void): void {
+		this.callbacks.push(cb);
+	}
+
+	observe(value: number, labels: Labels = {}): void {
+		pushCapped(this.buf, { value, labels, at: Date.now() });
+		this.activeSdkResult?.observe(value, toAttributes(labels));
+	}
+
+	attachSdk(gauge: OtelObservableGauge): void {
+		gauge.addCallback(async (result: ObservableResult) => {
+			// Stash the SDK result for the duration of the user callbacks so
+			// `observe()` can dual-write. Cleared in `finally` so callbacks that
+			// fire outside collection cycles never write to a stale result.
+			this.activeSdkResult = result;
+			try {
+				for (const cb of this.callbacks) await cb();
+			} finally {
+				this.activeSdkResult = null;
+			}
+		});
+	}
+
+	/** Invoke every registered callback once — used by tests and `meter.collect()`. */
+	async collect(): Promise<void> {
+		for (const cb of this.callbacks) await cb();
+	}
+}
+
 /**
  * The default meter keeps counters and histograms as append-only sample
  * lists, capped per instrument to `SAMPLE_CAP` so long-running processes
- * don't leak memory. An OTLP adapter would instead forward to an SDK meter.
+ * don't leak memory. When `bindOtlp(meter)` is called post-construction,
+ * every existing instrument gets an SDK counterpart and subsequent writes
+ * flow through both paths. Instruments created *after* bind also attach on
+ * creation, so wiring order is flexible.
  */
 export class InMemoryMeter {
 	private readonly samples = new Map<string, Sample[]>();
-	private readonly callbacks = new Map<string, Array<() => Promise<void> | void>>();
+	private readonly counters = new Map<string, LocalCounter>();
+	private readonly histograms = new Map<string, LocalHistogram>();
+	private readonly gauges = new Map<string, LocalObservableGauge>();
+	private sdkMeter: OtelMeter | null = null;
 
 	private bucket(name: string): Sample[] {
 		let buf = this.samples.get(name);
@@ -170,54 +292,51 @@ export class InMemoryMeter {
 	}
 
 	counter(name: string): Counter {
-		const buf = this.bucket(name);
-		return {
-			name,
-			add: (delta, labels = {}): void => {
-				pushCapped(buf, { value: delta, labels, at: Date.now() });
-			},
-		};
+		let c = this.counters.get(name);
+		if (c === undefined) {
+			c = new LocalCounter(name, this.bucket(name));
+			if (this.sdkMeter !== null) c.attachSdk(this.sdkMeter.createCounter(name));
+			this.counters.set(name, c);
+		}
+		return c;
 	}
 
 	histogram(name: string): Histogram {
-		const buf = this.bucket(name);
-		return {
-			name,
-			record: (value, labels = {}): void => {
-				const exemplar = getActiveExemplar();
-				const sample: Sample =
-					exemplar !== null
-						? {
-								value,
-								labels,
-								at: Date.now(),
-								exemplar: { traceId: exemplar.traceId, spanId: exemplar.spanId },
-							}
-						: { value, labels, at: Date.now() };
-				pushCapped(buf, sample);
-			},
-		};
+		let h = this.histograms.get(name);
+		if (h === undefined) {
+			h = new LocalHistogram(name, this.bucket(name));
+			if (this.sdkMeter !== null) h.attachSdk(this.sdkMeter.createHistogram(name));
+			this.histograms.set(name, h);
+		}
+		return h;
 	}
 
 	observableGauge(name: string): ObservableGauge {
-		const buf = this.bucket(name);
-		this.callbacks.set(name, this.callbacks.get(name) ?? []);
-		return {
-			name,
-			addCallback: (cb): void => {
-				(this.callbacks.get(name) ?? []).push(cb);
-			},
-			observe: (value, labels = {}): void => {
-				pushCapped(buf, { value, labels, at: Date.now() });
-			},
-		};
+		let g = this.gauges.get(name);
+		if (g === undefined) {
+			g = new LocalObservableGauge(name, this.bucket(name));
+			if (this.sdkMeter !== null) g.attachSdk(this.sdkMeter.createObservableGauge(name));
+			this.gauges.set(name, g);
+		}
+		return g;
+	}
+
+	/**
+	 * Attach an OTel SDK meter so every instrument forwards writes to the SDK
+	 * in addition to the local sample buffer. Idempotent-ish: calling twice
+	 * with different meters would double-report — initTelemetry calls this
+	 * exactly once after `initOtlpExporters` succeeds.
+	 */
+	bindOtlp(sdkMeter: OtelMeter): void {
+		this.sdkMeter = sdkMeter;
+		for (const [name, c] of this.counters) c.attachSdk(sdkMeter.createCounter(name));
+		for (const [name, h] of this.histograms) h.attachSdk(sdkMeter.createHistogram(name));
+		for (const [name, g] of this.gauges) g.attachSdk(sdkMeter.createObservableGauge(name));
 	}
 
 	/** For tests: run every registered gauge callback once. */
 	async collect(): Promise<void> {
-		for (const cbs of this.callbacks.values()) {
-			for (const cb of cbs) await cb();
-		}
+		for (const g of this.gauges.values()) await g.collect();
 	}
 
 	samplesFor(name: string): readonly Sample[] {
@@ -304,7 +423,6 @@ export function initMetrics(_config?: MetricsConfig): InitializedMetrics {
 		exporterQueueSaturation: meter.observableGauge(
 			"theo.telemetry.exporter_queue_saturation_gauge",
 		),
-		redactions: meter.counter("theo.telemetry.redactions_total"),
 		cardinalityRejections: meter.counter("theo.telemetry.cardinality_rejections_total"),
 
 		probeDuration: meter.histogram("theo.synthetic.probe_duration_ms"),
@@ -369,7 +487,6 @@ export const ALL_METRIC_NAMES: readonly string[] = [
 	"theo.advisor.cost_usd_total",
 	"theo.telemetry.exporter_dropped_total",
 	"theo.telemetry.exporter_queue_saturation_gauge",
-	"theo.telemetry.redactions_total",
 	"theo.telemetry.cardinality_rejections_total",
 	"theo.synthetic.probe_duration_ms",
 	"theo.synthetic.probe_failures_total",

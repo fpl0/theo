@@ -7,7 +7,7 @@
  *
  *   - `db.system` = "postgresql"
  *   - `db.operation` = derived from statement (SELECT/INSERT/...)
- *   - `db.statement` = coarsened via `redact.coarsenDbStatement`
+ *   - `db.table`    = extracted from statement, low-cardinality metric label
  *
  * The wrapper is transparent: all other behaviors of `sql` (transactions,
  * array helpers, unsafe queries, etc.) pass through. We intercept ONLY the
@@ -19,7 +19,6 @@
 
 import type { Sql } from "postgres";
 import type { InitializedMetrics } from "../metrics.ts";
-import { coarsenDbStatement } from "../redact.ts";
 
 /**
  * Wrap a postgres.js `sql` object so every tagged-template query is timed.
@@ -105,9 +104,8 @@ function extractOperation(statement: string): string {
 }
 
 function extractTable(statement: string): string {
-	// Same heuristic as `coarsenDbStatement` — keeps the reported table short
-	// and avoids carrying user content into the metric label.
-	const coarse = coarsenDbStatement(statement);
-	const match = /FROM\s+([a-zA-Z_][\w.]*)/u.exec(coarse);
+	// Match any of the keywords that precede a table reference — keeps the
+	// metric label low-cardinality without carrying user content.
+	const match = /\b(?:FROM|INTO|UPDATE|JOIN)\s+([a-zA-Z_][\w.]*)/u.exec(statement);
 	return match?.[1] ?? "unknown";
 }
