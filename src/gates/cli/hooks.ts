@@ -137,11 +137,18 @@ export function useToolCalls(bus: EventBus, sessionId: string | null): UseToolCa
 // useEngine: the main orchestration hook
 // ---------------------------------------------------------------------------
 
+export interface SessionStats {
+	readonly costUsd: number;
+	readonly inputTokens: number;
+	readonly outputTokens: number;
+}
+
 export interface UseEngineResult {
 	readonly state: TuiState;
 	readonly messages: readonly DisplayMessage[];
 	readonly sessionId: string | null;
 	readonly inputHistory: readonly string[];
+	readonly stats: SessionStats;
 	readonly send: (text: string) => void;
 	readonly abort: () => void;
 	readonly resetSession: () => void;
@@ -153,6 +160,11 @@ export function useEngine(engine: ChatEngine, bus: EventBus): UseEngineResult {
 	const [state, setState] = useState<TuiState>({ phase: "idle" });
 	const [messages, setMessages] = useState<readonly DisplayMessage[]>([]);
 	const [sessionId, setSessionId] = useState<string | null>(null);
+	const [stats, setStats] = useState<SessionStats>({
+		costUsd: 0,
+		inputTokens: 0,
+		outputTokens: 0,
+	});
 	const history = useInputHistory();
 	// Pass `sessionId` (state) — not a ref — so the inner hooks re-subscribe
 	// when the session rotates. Ephemeral events for stale sessions are
@@ -164,9 +176,21 @@ export function useEngine(engine: ChatEngine, bus: EventBus): UseEngineResult {
 	useEffect(() => {
 		bus.on("session.created", async (event) => {
 			setSessionId(event.data.sessionId);
+			// New session → zero the running totals so the status bar always
+			// reflects what THIS session has spent.
+			setStats({ costUsd: 0, inputTokens: 0, outputTokens: 0 });
 		});
 		bus.on("session.released", async () => {
 			setSessionId(null);
+		});
+		// Accumulate cost and tokens from every completed turn — the event
+		// log is authoritative (projected from SDK result messages).
+		bus.on("turn.completed", async (event) => {
+			setStats((prev) => ({
+				costUsd: prev.costUsd + (event.data.costUsd ?? 0),
+				inputTokens: prev.inputTokens + (event.data.inputTokens ?? 0),
+				outputTokens: prev.outputTokens + (event.data.outputTokens ?? 0),
+			}));
 		});
 	}, [bus]);
 
@@ -338,6 +362,7 @@ export function useEngine(engine: ChatEngine, bus: EventBus): UseEngineResult {
 		messages,
 		sessionId,
 		inputHistory: history.history,
+		stats,
 		send,
 		abort,
 		resetSession,

@@ -287,7 +287,8 @@ describe("App initial render", () => {
 		await flush();
 		const frame = lastFrame() ?? "";
 		expect(frame).toContain("idle");
-		expect(frame).toContain("you>");
+		// The input prompt is a glyph, not "you>" — check for its presence.
+		expect(frame).toMatch(/[▸›]/);
 	});
 
 	test("shows the input prompt with a hint when idle and empty", async () => {

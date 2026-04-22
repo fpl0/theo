@@ -59,13 +59,19 @@ if (!configResult.ok) {
 }
 const config = configResult.value;
 
-const pool = createPool(config);
+// `onnotice` silences the postgres NOTICE messages that otherwise land on
+// stdout (e.g. "text-search query contains only stop words, ignored" from
+// tsquery_cleanup on empty RRF queries). The Ink TUI renders on stdout, so
+// any unscoped stdout write bleeds through the UI as garbled text.
+const pool = createPool(config, { onnotice: () => {} });
 const connectResult = await pool.connect();
 if (!connectResult.ok) {
 	console.error("Database connection failed:", connectResult.error.message);
 	await pool.end();
 	process.exit(1);
 }
+// `console.info` during boot is fine — Ink hasn't mounted yet. Once the gate
+// starts, the engine swaps the logger's stdoutSink to a no-op below.
 console.info("Connected to PostgreSQL.");
 
 // ---------------------------------------------------------------------------
@@ -80,6 +86,12 @@ const bus = createEventBus(eventLog, pool.sql);
 // Telemetry — wires the projector to the bus BEFORE handlers run
 // ---------------------------------------------------------------------------
 
+// When the CLI TUI mounts, Ink owns stdout — any log write through the
+// default `console.log` sink flashes through the UI as garbled text. Route
+// all structured logs to the file sink (picked up by Promtail → Loki) and
+// drop stdout. Non-TTY runs (launchd, pipelines) keep default stdout sink.
+const silenceStdout = process.stdin.isTTY === true && process.stdout.isTTY === true;
+
 const telemetry = await initTelemetry(
 	{
 		environment: (process.env["THEO_ENV"] as "prod" | "dev" | "test") ?? "dev",
@@ -88,6 +100,7 @@ const telemetry = await initTelemetry(
 				? { logDir: `${process.env["THEO_WORKSPACE"]}/logs` }
 				: {}),
 			level: (process.env["THEO_LOG_LEVEL"] as "debug" | "info" | "warn" | "error") ?? "info",
+			...(silenceStdout ? { stdoutSink: (): void => {} } : {}),
 		},
 	},
 	bus,

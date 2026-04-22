@@ -19,7 +19,7 @@ import type React from "react";
 import { useCallback, useMemo, useState } from "react";
 import { matchSlashCommands, type SlashCommand } from "../commands.ts";
 import type { TuiState } from "../state.ts";
-import { theme, USER_PROMPT } from "../theme.ts";
+import { symbols, theme } from "../theme.ts";
 
 export interface InputAreaProps {
 	readonly state: TuiState;
@@ -240,18 +240,38 @@ export function InputArea({
 		}
 	});
 
+	const isEmpty = lastLine.length === 0 && lines.length === 1;
 	return (
 		<Box flexDirection="column">
 			{autocompleteMatches.length > 0 ? <AutocompletePopup matches={autocompleteMatches} /> : null}
-			<Box flexDirection="row" gap={1}>
-				<Text color={theme.user.label}>{USER_PROMPT}</Text>
-				<Box flexDirection="column">
-					{lines.map((line, i) => (
-						<Text key={`L${String(i)}:${line}`}>{renderLine(line, i === row ? col : -1)}</Text>
-					))}
-					{lastLine.length === 0 && lines.length === 1 ? (
-						<Text dimColor>{describeHint(state)}</Text>
-					) : null}
+			<Box
+				flexDirection="column"
+				borderStyle="single"
+				borderColor={theme.autocomplete.border}
+				borderLeft={false}
+				borderRight={false}
+				borderBottom={false}
+				paddingX={1}
+				paddingTop={0}
+			>
+				<Box flexDirection="row">
+					<Box marginRight={1}>
+						<Text color={theme.input.prompt} bold>
+							{symbols.inputPrompt}
+						</Text>
+					</Box>
+					<Box flexDirection="column" flexGrow={1}>
+						{lines.map((line, i) => (
+							<RenderedLine
+								key={`L${String(i)}:${line}`}
+								line={line}
+								cursorCol={i === row ? col : -1}
+							/>
+						))}
+					</Box>
+				</Box>
+				<Box paddingLeft={2}>
+					<Text color={theme.input.hint}>{describeHint(state, isEmpty)}</Text>
 				</Box>
 			</Box>
 		</Box>
@@ -282,23 +302,44 @@ function AutocompletePopup({ matches }: AutocompletePopupProps): React.JSX.Eleme
 	);
 }
 
-/** Render one line with a cursor marker. The marker is a visible caret char. */
-function renderLine(line: string, cursorCol: number): string {
-	if (cursorCol < 0) return line.length === 0 ? " " : line;
+/**
+ * Render one line with a slim cursor. Drawing the caret as a separate
+ * `<Text>` with an accent color (instead of a bare unicode block in the
+ * raw string) lets the cursor tint itself differently from the
+ * surrounding text — a small touch but enough to feel polished.
+ */
+function RenderedLine({
+	line,
+	cursorCol,
+}: {
+	readonly line: string;
+	readonly cursorCol: number;
+}): React.JSX.Element {
+	if (cursorCol < 0) {
+		return <Text color={theme.input.text}>{line.length === 0 ? " " : line}</Text>;
+	}
 	const before = line.slice(0, cursorCol);
 	const after = line.slice(cursorCol);
-	// `\u2588` (FULL BLOCK) renders as a solid caret in most terminals.
-	return `${before}\u2588${after}`;
+	return (
+		<Text color={theme.input.text}>
+			{before}
+			<Text color={theme.input.cursor}>{symbols.cursor}</Text>
+			{after}
+		</Text>
+	);
 }
 
-function describeHint(state: TuiState): string {
+function describeHint(state: TuiState, isEmpty: boolean): string {
 	switch (state.phase) {
 		case "idle":
-			return "type a message - Enter sends, Shift+Enter for newline, / for commands";
+			return isEmpty
+				? "Enter sends · Shift+Enter newline · / for commands · Ctrl+C to quit"
+				: "Enter sends · Shift+Enter newline · Esc to clear";
 		case "error":
-			return `error: ${state.message} - type to retry`;
+			return `error: ${state.message} — type to retry`;
 		case "processing":
+			return "thinking…  · Ctrl+C to interrupt";
 		case "streaming":
-			return "working...";
+			return "streaming…  · Ctrl+C to interrupt";
 	}
 }

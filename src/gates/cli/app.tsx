@@ -16,6 +16,7 @@ import { useCallback } from "react";
 import type { ChatEngine } from "../../chat/engine.ts";
 import type { EventBus } from "../../events/bus.ts";
 import { resolveSlashCommand, SLASH_COMMANDS } from "./commands.ts";
+import { Header } from "./components/header.tsx";
 import { InputArea } from "./components/input-area.tsx";
 import { MessageList } from "./components/message-list.tsx";
 import { StatusBar } from "./components/status-bar.tsx";
@@ -45,6 +46,7 @@ export function App({ engine, bus, onExit, operator }: AppProps): React.JSX.Elem
 		messages,
 		sessionId,
 		inputHistory,
+		stats,
 		send,
 		abort,
 		resetSession,
@@ -144,12 +146,19 @@ export function App({ engine, bus, onExit, operator }: AppProps): React.JSX.Elem
 	// scroll — Ink intentionally does not provide a scrollable viewport
 	// primitive, and re-implementing one would collide with the terminal's
 	// own scroll handling.
+	const workspace = process.env["THEO_WORKSPACE"];
+	const environment = process.env["THEO_ENV"];
+
 	return (
 		<Box flexDirection="column" height="100%">
-			<Box flexDirection="column" flexGrow={1}>
+			<Header
+				{...(workspace !== undefined ? { workspace } : {})}
+				{...(environment !== undefined ? { environment } : {})}
+			/>
+			<Box flexDirection="column" flexGrow={1} paddingX={1} paddingTop={1}>
 				<MessageList messages={messages} />
 			</Box>
-			<StatusBar state={state} sessionId={sessionId} />
+			<StatusBar state={state} sessionId={sessionId} stats={stats} />
 			<InputArea
 				state={state}
 				history={inputHistory}

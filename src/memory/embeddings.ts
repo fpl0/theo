@@ -236,15 +236,12 @@ export class HuggingFaceEmbeddingService implements EmbeddingService {
 
 	private async initPipeline(): Promise<FeatureExtractionPipeline> {
 		const { pipeline } = await import("@huggingface/transformers");
-		const start = performance.now();
-		const pipe = await pipeline("feature-extraction", MODEL_ID, {
+		// Intentionally no log here: the pipeline loads lazily on the first
+		// embed call, which typically happens AFTER Ink has mounted. Writing
+		// to stdout from this path bleeds through the TUI.
+		return await pipeline("feature-extraction", MODEL_ID, {
 			device: this.device,
 			dtype: this.dtype,
 		});
-		const elapsed = Math.round(performance.now() - start);
-		console.log(
-			`[embeddings] Pipeline ready: model=${MODEL_ID} device=${this.device} dtype=${this.dtype} init=${String(elapsed)}ms`,
-		);
-		return pipe;
 	}
 }
