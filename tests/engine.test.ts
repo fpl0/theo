@@ -99,6 +99,7 @@ function createStubBus(
 			recorder.calls.push("bus.stop");
 		},
 		async flush() {},
+		setDurableHandlerWrapper(): void {},
 	};
 	return bus;
 }

@@ -1,0 +1,62 @@
+{
+	"title": "Theo — Goals",
+	"uid": "theo-goals",
+	"schemaVersion": 39,
+	"version": 1,
+	"refresh": "30s",
+	"panels": [
+		{
+			"id": 1,
+			"type": "stat",
+			"title": "Active goals",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "theo_goals_active_gauge" }
+			]
+		},
+		{
+			"id": 2,
+			"type": "stat",
+			"title": "Quarantined",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "theo_goals_quarantined_gauge" }
+			]
+		},
+		{
+			"id": 3,
+			"type": "stat",
+			"title": "Task turns / 5m",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(rate(theo_goals_task_turns_total[5m]))" }
+			]
+		},
+		{
+			"id": 4,
+			"type": "stat",
+			"title": "Lease contention / 5m",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(rate(theo_goals_lease_contention_total[5m]))" }
+			]
+		},
+		{
+			"id": 5,
+			"type": "timeseries",
+			"title": "Task outcomes (completed / failed / yielded / abandoned)",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "sum by (status) (rate(theo_goals_task_turns_total[5m]))"
+				}
+			]
+		}
+	]
+}

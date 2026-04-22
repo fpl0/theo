@@ -30,6 +30,7 @@ import type { Scheduler } from "./scheduler/runner.ts";
 import { runHealthCheck } from "./selfupdate/healthcheck.ts";
 import { rollbackToHealthy } from "./selfupdate/rollback.ts";
 import type { TelemetryBundle } from "./telemetry/index.ts";
+import type { SyntheticProbeScheduler } from "./telemetry/synthetic.ts";
 
 // ---------------------------------------------------------------------------
 // State
@@ -81,6 +82,11 @@ export interface EngineDependencies {
 	 * throws — `launchd` restarts the process into the rolled-back commit.
 	 */
 	readonly selfUpdateWorkspace?: string;
+	/**
+	 * Optional synthetic probe scheduler. When provided, `start()` kicks off
+	 * the periodic canary; `stop()` stops it before the bus drains.
+	 */
+	readonly syntheticProbe?: SyntheticProbeScheduler;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,6 +162,9 @@ export class Engine {
 				metadata: {},
 			});
 
+			// Synthetic probe — kicks off the canary cadence. Safe on re-start.
+			this.deps.syntheticProbe?.start();
+
 			// Start the gate last — messages can only arrive once we are ready
 			// to service them. The gate's `start()` may block until the user
 			// quits (e.g., the CLI TUI); callers typically don't `await` it
@@ -188,6 +197,12 @@ export class Engine {
 		this.drainQueueWithError(new Error("engine stopped"));
 
 		await safeShutdown("gate.stop", () => this.deps.gate.stop());
+		if (this.deps.syntheticProbe !== undefined) {
+			await safeShutdown(
+				"syntheticProbe.stop",
+				() => this.deps.syntheticProbe?.stop() ?? Promise.resolve(),
+			);
+		}
 		await safeShutdown("scheduler.stop", () => this.deps.scheduler.stop());
 
 		await this.deps.bus.emit({

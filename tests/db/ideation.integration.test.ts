@@ -208,6 +208,31 @@ describe("runIdeationJob", () => {
 		}
 	});
 
+	test("with consent: emits cloud_egress.turn audit record after the run", async () => {
+		const bus = createTestBus(pool.sql);
+		await bus.start();
+		try {
+			await grantAutonomousCloudEgress({ sql: pool.sql, bus }, "user");
+			await seedNode("another fact", "owner");
+			await runIdeationJob({
+				sql: pool.sql,
+				bus,
+				runner: fakeRunner("think about the telescope"),
+			});
+			await bus.flush();
+			const rows = await pool.sql<{ data: Record<string, unknown> }[]>`
+				SELECT data FROM events WHERE type = 'cloud_egress.turn'
+			`;
+			expect(rows.length).toBe(1);
+			const data = rows[0]?.data ?? {};
+			expect(data["turnClass"]).toBe("ideation");
+			expect(data["subagent"]).toBe("ideation");
+			expect(Number(data["costUsd"] ?? 0)).toBeGreaterThan(0);
+		} finally {
+			await bus.stop();
+		}
+	});
+
 	test("budget exceedance: emits ideation.budget_exceeded and skips", async () => {
 		const bus = createTestBus(pool.sql);
 		await bus.start();

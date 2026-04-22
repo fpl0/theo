@@ -40,3 +40,25 @@ groups:
       - record: theo:slo:error_budget_remaining_ratio
         expr: |
           (theo:slo:turns_available_ratio_30d - 0.99) / (1 - 0.99)
+
+      # Burn-rate recording rules consumed by `src/selfupdate/slo_gate.ts`.
+      # 1h window for the fast-burn SLO gate (Google SRE workbook, §"Alerting
+      # on SLOs").
+      - record: theo:slo:turns_available:burn_rate_1h
+        expr: |
+          sum(rate(theo_turns_total{status="failed"}[1h]))
+            / clamp_min(sum(rate(theo_turns_total[1h])), 1) / (1 - 0.99)
+
+      # Latency SLI: fraction of turns faster than 30s. Uses the histogram
+      # bucket at le="30000" to count fast turns.
+      - record: theo:slo:turns_latency:burn_rate_1h
+        expr: |
+          (1 - (sum(rate(theo_turns_duration_ms_bucket{le="30000"}[1h]))
+                / clamp_min(sum(rate(theo_turns_duration_ms_count[1h])), 1)))
+          / (1 - 0.95)
+
+      - record: theo:slo:turns_latency:error_budget_remaining_ratio
+        expr: |
+          ((sum(increase(theo_turns_duration_ms_bucket{le="30000"}[30d]))
+            / clamp_min(sum(increase(theo_turns_duration_ms_count[30d])), 1)) - 0.95)
+          / (1 - 0.95)

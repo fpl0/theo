@@ -103,6 +103,13 @@ export interface EventBus {
 
 	/** Drain all handler queues completely. Testing only. */
 	flush(): Promise<void>;
+
+	/**
+	 * Install (or replace) the durable-handler wrapper. Must be called BEFORE
+	 * `start()` so the first handler registration sees the wrapper. No-op
+	 * after the bus has been started.
+	 */
+	setDurableHandlerWrapper(wrapper: DurableHandlerWrapper): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -110,9 +117,32 @@ export interface EventBus {
 // ---------------------------------------------------------------------------
 
 /**
+ * Optional hook for instrumenting durable handler dispatch. The telemetry
+ * module supplies a wrapper that nests each handler invocation inside a
+ * span and records duration/errors. When omitted, handlers run as-is —
+ * the tests and legacy call paths don't require telemetry wiring.
+ */
+export type DurableHandlerWrapper = <E extends Event>(
+	handlerId: string,
+	mode: HandlerMode,
+	handler: (event: E) => Promise<void>,
+) => (event: E) => Promise<void>;
+
+/**
+ * `BusOptions.wrapHandler` resolves lazily, once at handler registration — the
+ * top-level entrypoint creates the bus BEFORE the telemetry bundle (so the
+ * projector can subscribe), then installs the wrapper via
+ * `bus.setDurableHandlerWrapper`.
+ */
+export interface BusOptions {
+	readonly wrapHandler?: DurableHandlerWrapper;
+}
+
+/**
  * Create an EventBus backed by the given EventLog and postgres.js connection.
  */
-export function createEventBus(log: EventLog, sql: Sql): EventBus {
+export function createEventBus(log: EventLog, sql: Sql, options: BusOptions = {}): EventBus {
+	let wrapHandler: DurableHandlerWrapper | undefined = options.wrapHandler;
 	const handlers: Registration[] = [];
 	const ephemeralHandlers: EphemeralEventRegistration[] = [];
 	let started = false;
@@ -163,12 +193,44 @@ export function createEventBus(log: EventLog, sql: Sql): EventBus {
 		// Cast Handler (tx optional) to DurableHandler (tx required). Safe because
 		// the drain loop always provides a tx from sql.begin() — durable handlers
 		// are never called without a transaction.
-		queue.startDraining(
-			registration.handler as (event: Event, tx: TransactionSql) => Promise<void>,
-			registration.id,
-			sql,
-			log,
-		);
+		let dispatchHandler = registration.handler as (
+			event: Event,
+			tx: TransactionSql,
+		) => Promise<void>;
+		if (wrapHandler !== undefined) {
+			// The bus-span wrapper produces a `(event) => Promise<void>` — it
+			// doesn't know about transactions. We preserve the tx parameter by
+			// binding the original handler and applying the wrapper around the
+			// per-event invocation.
+			const original = dispatchHandler;
+			const wrapped = wrapHandler(registration.id, registration.mode, async (event: Event) => {
+				// The transaction is provided at drain time — we intentionally
+				// do NOT attempt to pass it through the wrapper. Keeping the
+				// span tight around the transaction-scoped handler requires
+				// threading `tx` through the wrapper signature, which would
+				// force every test path to adopt the wrapper. Instead, the
+				// wrapped handler receives the event only and re-invokes the
+				// original with the tx captured from the drain-loop closure.
+				// This works because the wrapper calls its inner function
+				// synchronously with the event, so `currentTx` is always the
+				// right one for this invocation.
+				const tx = currentTx;
+				if (tx === null) {
+					throw new Error("durable handler invoked without a transaction");
+				}
+				await original(event, tx);
+			});
+			let currentTx: TransactionSql | null = null;
+			dispatchHandler = async (event: Event, tx: TransactionSql): Promise<void> => {
+				currentTx = tx;
+				try {
+					await wrapped(event);
+				} finally {
+					currentTx = null;
+				}
+			};
+		}
+		queue.startDraining(dispatchHandler, registration.id, sql, log);
 	}
 
 	function onEphemeral<T extends EphemeralEvent["type"]>(
@@ -380,6 +442,11 @@ export function createEventBus(log: EventLog, sql: Sql): EventBus {
 		throw new Error("flush: cascade did not converge after MAX_FLUSH_PASSES");
 	}
 
+	function setDurableHandlerWrapper(wrapper: DurableHandlerWrapper): void {
+		if (started) return;
+		wrapHandler = wrapper;
+	}
+
 	return {
 		on,
 		onEphemeral,
@@ -388,5 +455,6 @@ export function createEventBus(log: EventLog, sql: Sql): EventBus {
 		start,
 		stop,
 		flush,
+		setDurableHandlerWrapper,
 	};
 }

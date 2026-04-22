@@ -1,0 +1,88 @@
+{
+	"title": "Theo — Turns",
+	"uid": "theo-turns",
+	"schemaVersion": 39,
+	"version": 1,
+	"refresh": "30s",
+	"panels": [
+		{
+			"id": 1,
+			"type": "stat",
+			"title": "Turns / 5m",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(rate(theo_turns_total[5m]))" }
+			]
+		},
+		{
+			"id": 2,
+			"type": "stat",
+			"title": "Cost today (USD)",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(increase(theo_cost_usd[1d]))" }
+			]
+		},
+		{
+			"id": 3,
+			"type": "stat",
+			"title": "Input tokens / 5m",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(rate(theo_tokens_input[5m]))" }
+			]
+		},
+		{
+			"id": 4,
+			"type": "stat",
+			"title": "Output tokens / 5m",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(rate(theo_tokens_output[5m]))" }
+			]
+		},
+		{
+			"id": 5,
+			"type": "timeseries",
+			"title": "Turn latency (p95) by gate",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "theo:turns:p95_1h"
+				}
+			]
+		},
+		{
+			"id": 6,
+			"type": "timeseries",
+			"title": "Retrieval latency (p95)",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "theo:retrieval:p95_5m"
+				}
+			]
+		},
+		{
+			"id": 7,
+			"type": "timeseries",
+			"title": "Turn error rate (5m)",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 12, "w": 24, "h": 8 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "theo:turns:error_rate_5m"
+				}
+			]
+		}
+	]
+}

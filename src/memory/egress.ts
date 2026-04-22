@@ -21,8 +21,10 @@
 import type { Sql, TransactionSql } from "postgres";
 import { asQueryable } from "../db/pool.ts";
 import type { EventBus } from "../events/bus.ts";
+import type { EventId } from "../events/ids.ts";
 import type { TurnClass } from "../events/reflexes.ts";
 import type { Actor } from "../events/types.ts";
+import type { UserModelRepository } from "./user_model.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -160,6 +162,83 @@ export async function grantAutonomousCloudEgress(
 			},
 			{ tx },
 		);
+	});
+}
+
+// ---------------------------------------------------------------------------
+// Autonomous-site helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Preflight for an autonomous SDK call: read current user-model dimensions,
+ * read consent, and run the pure `filterOutgoingPrompt` decision. Callers use
+ * the returned decision to either abort the turn (when `!allowed`) or, after
+ * the SDK call, record the audit event via `recordCloudEgressTurn`.
+ *
+ * The autonomous sites (executive / ideation / reflex) share this helper so
+ * the egress contract is enforced identically at every call site.
+ */
+export async function prepareAutonomousEgress(deps: {
+	readonly sql: Sql;
+	readonly userModel: UserModelRepository;
+	readonly turnClass: TurnClass;
+}): Promise<EgressDecision> {
+	const [dimensions, consent] = await Promise.all([
+		deps.userModel.getDimensions(),
+		readConsent(deps.sql),
+	]);
+	const prompt: AssembledPromptForEgress = {
+		userModelDimensions: dimensions.map((d) => ({
+			name: d.name,
+			egressSensitivity: d.egressSensitivity,
+		})),
+	};
+	return filterOutgoingPrompt(prompt, deps.turnClass, consent);
+}
+
+/**
+ * Emit a `cloud_egress.turn` audit event. Call after any cloud SDK turn so the
+ * `/cloud-audit` rollup captures executive/ideation/reflex/interactive spend.
+ *
+ * `decision` is `null` for interactive turns (no consent-gate needed); in that
+ * case, `strippedDimensions`/`includedDimensions` are left empty since
+ * interactive turns already strip `local_only` unconditionally in
+ * `assembleSystemPrompt`.
+ */
+export interface CloudEgressRecord {
+	readonly subagent: string;
+	readonly model: string;
+	readonly advisorModel?: string | undefined;
+	readonly inputTokens: number;
+	readonly outputTokens: number;
+	readonly costUsd: number;
+	readonly turnClass: TurnClass;
+	readonly causeEventId: EventId;
+	readonly strippedDimensions?: readonly string[];
+	readonly includedDimensions?: readonly string[];
+}
+
+export async function recordCloudEgressTurn(
+	bus: EventBus,
+	record: CloudEgressRecord,
+): Promise<void> {
+	await bus.emit({
+		type: "cloud_egress.turn",
+		version: 1,
+		actor: "theo",
+		data: {
+			subagent: record.subagent,
+			model: record.model,
+			...(record.advisorModel !== undefined ? { advisorModel: record.advisorModel } : {}),
+			inputTokens: record.inputTokens,
+			outputTokens: record.outputTokens,
+			costUsd: record.costUsd,
+			dimensionsIncluded: record.includedDimensions ?? [],
+			dimensionsExcluded: record.strippedDimensions ?? [],
+			turnClass: record.turnClass,
+			causeEventId: record.causeEventId,
+		},
+		metadata: { causeId: record.causeEventId },
 	});
 }
 

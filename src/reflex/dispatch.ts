@@ -25,6 +25,8 @@ import type { EventBus } from "../events/bus.ts";
 import type { ReflexOutcome } from "../events/reflexes.ts";
 import type { EventOfType } from "../events/types.ts";
 import { EXTERNAL_CONTENT_INSTRUCTION, wrapExternal } from "../gates/webhooks/envelope.ts";
+import { prepareAutonomousEgress, recordCloudEgressTurn } from "../memory/egress.ts";
+import type { UserModelRepository } from "../memory/user_model.ts";
 
 // ---------------------------------------------------------------------------
 // External tool allowlist (foundation.md §7.6)
@@ -102,6 +104,13 @@ export interface ReflexDispatchDeps {
 	/** Reflex-speed subagent. Default: `scanner` (Haiku, no advisor). */
 	readonly subagent?: string;
 	readonly model?: string;
+	/**
+	 * Optional user-model repo. When present, reflex dispatch runs the egress
+	 * consent + sensitivity filter before invoking the subagent and emits
+	 * `cloud_egress.turn` after. Without it, reflexes still run (matching
+	 * pre-existing behavior) but no audit record is produced.
+	 */
+	readonly userModel?: UserModelRepository;
 }
 
 export function registerReflexDispatch(deps: ReflexDispatchDeps): void {
@@ -112,7 +121,7 @@ export function registerReflexDispatch(deps: ReflexDispatchDeps): void {
 	bus.on(
 		"reflex.triggered",
 		async (event) => {
-			await dispatchReflex(sql, bus, runner, subagent, model, event);
+			await dispatchReflex(sql, bus, runner, subagent, model, event, deps.userModel ?? null);
 		},
 		{ id: "reflex-dispatch", mode: "effect" },
 	);
@@ -125,6 +134,7 @@ async function dispatchReflex(
 	subagent: string,
 	model: string,
 	event: EventOfType<"reflex.triggered">,
+	userModel: UserModelRepository | null,
 ): Promise<void> {
 	// Fetch the verified event so we can locate the webhook body.
 	const query = asQueryable(sql);
@@ -155,6 +165,28 @@ async function dispatchReflex(
 	const contentStr = JSON.stringify(body, null, 2);
 	const envelope = wrapExternal(contentStr, event.data.source, event.data.envelopeNonce);
 
+	// Egress consent + filter. Reflex turns are autonomous; block dispatch
+	// when consent is denied. We still emit `reflex.suppressed` so downstream
+	// observability distinguishes "no match" from "no consent".
+	let egressDecision: Awaited<ReturnType<typeof prepareAutonomousEgress>> | null = null;
+	if (userModel !== null) {
+		egressDecision = await prepareAutonomousEgress({
+			sql,
+			userModel,
+			turnClass: "reflex",
+		});
+		if (!egressDecision.allowed) {
+			await bus.emit({
+				type: "reflex.suppressed",
+				version: 1,
+				actor: "system",
+				data: { webhookEventId: event.data.webhookEventId, reason: "degradation" },
+				metadata: { causeId: event.id },
+			});
+			return;
+		}
+	}
+
 	const result = await runner.run({
 		systemPrompt: EXTERNAL_CONTENT_INSTRUCTION,
 		envelope: envelope.wrapped,
@@ -165,7 +197,7 @@ async function dispatchReflex(
 		model,
 	});
 
-	await bus.emit({
+	const thought = await bus.emit({
 		type: "reflex.thought",
 		version: 1,
 		actor: "theo",
@@ -183,4 +215,21 @@ async function dispatchReflex(
 		},
 		metadata: { causeId: event.id },
 	});
+
+	// Cloud-egress audit (when wired). Emit after `reflex.thought` so the audit
+	// entry references the concrete turn result.
+	if (egressDecision?.allowed) {
+		await recordCloudEgressTurn(bus, {
+			subagent: result.subagent,
+			model: result.model,
+			...(result.advisorModel !== undefined ? { advisorModel: result.advisorModel } : {}),
+			inputTokens: result.inputTokens,
+			outputTokens: result.outputTokens,
+			costUsd: result.costUsd,
+			turnClass: "reflex",
+			causeEventId: thought.id,
+			includedDimensions: egressDecision.includedDimensions,
+			strippedDimensions: egressDecision.strippedDimensions,
+		});
+	}
 }

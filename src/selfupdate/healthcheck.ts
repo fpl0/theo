@@ -15,12 +15,16 @@
 import { mkdir } from "node:fs/promises";
 import * as path from "node:path";
 import type { Sql } from "postgres";
+import type { EventBus } from "../events/bus.ts";
+import { checkSlosBeforeMerge, type SloGateDecision } from "./slo_gate.ts";
 
 export interface HealthCheckResult {
 	readonly ok: boolean;
 	readonly commit: string;
 	readonly healthyCommit: string | null;
 	readonly errors?: readonly string[];
+	/** SLO gate decision — populated when `preMerge` was true in the call. */
+	readonly slo?: SloGateDecision;
 }
 
 export interface HealthCheckDeps {
@@ -33,6 +37,15 @@ export interface HealthCheckDeps {
 	/** Override filesystem reads/writes for testing. */
 	readonly readHealthy?: () => Promise<string | null>;
 	readonly writeHealthy?: (commit: string) => Promise<void>;
+	/**
+	 * When set, also run the SLO pre-merge gate. Only applicable right before
+	 * self-updating merges; at startup, the SLO gate is skipped because
+	 * Prometheus may not be reachable yet.
+	 */
+	readonly preMerge?: {
+		readonly prometheusUrl: string;
+		readonly bus?: EventBus;
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -93,6 +106,34 @@ export async function runHealthCheck(deps: HealthCheckDeps): Promise<HealthCheck
 	const check = await (deps.runCheck ?? runJustCheck)();
 
 	if (check.ok) {
+		// SLO gate — only when explicitly requested. A failing gate blocks the
+		// merge but does NOT mark the current commit unhealthy; the error
+		// budget might recover without code changes.
+		if (deps.preMerge !== undefined) {
+			const slo = await checkSlosBeforeMerge({
+				prometheusUrl: deps.preMerge.prometheusUrl,
+				...(deps.preMerge.bus !== undefined ? { bus: deps.preMerge.bus } : {}),
+			});
+			if (!slo.ok) {
+				return {
+					ok: false,
+					commit: current,
+					healthyCommit: healthy,
+					errors: ["SLO gate rejected merge"],
+					slo,
+				};
+			}
+			await write(current);
+			if (deps.sql !== undefined) {
+				await deps.sql`
+					UPDATE self_update_state
+					SET healthy_commit = ${current}, updated_at = now()
+					WHERE id = 'singleton'
+				`;
+			}
+			return { ok: true, commit: current, healthyCommit: current, slo };
+		}
+
 		await write(current);
 		if (deps.sql !== undefined) {
 			await deps.sql`

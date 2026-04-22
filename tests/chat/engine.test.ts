@@ -504,6 +504,7 @@ describe("ChatEngine.handleMessage — success path", () => {
 			"session.created",
 			"turn.started",
 			"turn.completed",
+			"cloud_egress.turn",
 		]);
 	});
 

@@ -36,6 +36,9 @@ import { BUILTIN_JOBS } from "./scheduler/builtin.ts";
 import { Scheduler } from "./scheduler/runner.ts";
 import { createJobStore } from "./scheduler/store.ts";
 import { initTelemetry } from "./telemetry/index.ts";
+import { wrapHandlerWithSpan } from "./telemetry/spans/bus.ts";
+import { instrumentSql } from "./telemetry/spans/db.ts";
+import { SyntheticProbeScheduler } from "./telemetry/synthetic.ts";
 
 // ---------------------------------------------------------------------------
 // Config + pool
@@ -88,6 +91,20 @@ const telemetry = await initTelemetry(
 	bus,
 	pool.sql,
 );
+
+// Install the bus-dispatch span wrapper AFTER telemetry init — subsequent
+// handler registrations see the wrapper. Calling this before `bus.start()`
+// means every registered durable handler is instrumented.
+bus.setDurableHandlerWrapper(
+	wrapHandlerWithSpan(telemetry.internals.tracer, telemetry.internals.metrics),
+);
+
+// Install the pg query-timing hook. Wraps `pool.sql` in a Proxy so every
+// downstream repository and handler records `theo.db.query_duration_ms`.
+// The Proxy is transparent: every property access forwards to the original,
+// so transaction helpers (`sql.begin`), array helpers, and unsafe queries
+// pass through unchanged.
+pool.sql = instrumentSql(pool.sql, telemetry.internals.metrics);
 
 // ---------------------------------------------------------------------------
 // Memory layer
@@ -149,6 +166,21 @@ const scheduler = new Scheduler({
 });
 
 // ---------------------------------------------------------------------------
+// Synthetic prober — issues a canary "ping" every 5 minutes via the engine's
+// chat surface so `theo.synthetic.probe_*` populates for the SyntheticProbeFailing
+// alert. The scheduler is SDK-light; probe turns hit the interactive path so
+// they exercise the full assembly pipeline.
+// ---------------------------------------------------------------------------
+
+const syntheticProbe = new SyntheticProbeScheduler({
+	chat: {
+		handleMessage: (body, gate) => chatEngine.handleMessage(body, gate),
+	},
+	bus,
+	metrics: telemetry.internals.metrics,
+});
+
+// ---------------------------------------------------------------------------
 // Gate
 // ---------------------------------------------------------------------------
 
@@ -165,6 +197,7 @@ const engine = new Engine({
 	chatEngine,
 	gate,
 	telemetry,
+	syntheticProbe,
 	...(process.env["THEO_WORKSPACE"] !== undefined
 		? { selfUpdateWorkspace: process.env["THEO_WORKSPACE"] }
 		: {}),

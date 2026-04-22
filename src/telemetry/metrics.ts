@@ -15,6 +15,7 @@
 
 import { registerCardinalityRejectSink } from "./labels.ts";
 import type { Environment } from "./resource.ts";
+import { getActiveExemplar } from "./tracer.ts";
 
 // ---------------------------------------------------------------------------
 // Instrument types
@@ -134,6 +135,8 @@ export interface Sample {
 	readonly value: number;
 	readonly labels: Labels;
 	readonly at: number;
+	/** Populated on histogram samples when recorded inside an active span. */
+	readonly exemplar?: { readonly traceId: string; readonly spanId: string };
 }
 
 /**
@@ -159,7 +162,17 @@ export class InMemoryMeter {
 		return {
 			name,
 			record: (value, labels = {}): void => {
-				(this.samples.get(name) ?? []).push({ value, labels, at: Date.now() });
+				const exemplar = getActiveExemplar();
+				const sample: Sample =
+					exemplar !== null
+						? {
+								value,
+								labels,
+								at: Date.now(),
+								exemplar: { traceId: exemplar.traceId, spanId: exemplar.spanId },
+							}
+						: { value, labels, at: Date.now() };
+				(this.samples.get(name) ?? []).push(sample);
 			},
 		};
 	}

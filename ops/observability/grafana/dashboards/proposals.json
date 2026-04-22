@@ -1,0 +1,60 @@
+{
+	"title": "Theo — Proposals",
+	"uid": "theo-proposals",
+	"schemaVersion": 39,
+	"version": 1,
+	"refresh": "30s",
+	"panels": [
+		{
+			"id": 1,
+			"type": "stat",
+			"title": "Pending proposals",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 0, "w": 8, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "theo_proposals_pending_gauge" }
+			]
+		},
+		{
+			"id": 2,
+			"type": "stat",
+			"title": "Approved / 1h",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 8, "y": 0, "w": 8, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(increase(theo_proposals_approved_total[1h]))" }
+			]
+		},
+		{
+			"id": 3,
+			"type": "stat",
+			"title": "Expired / 1h",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 16, "y": 0, "w": 8, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(increase(theo_proposals_expired_total[1h]))" }
+			]
+		},
+		{
+			"id": 4,
+			"type": "timeseries",
+			"title": "Approval + expiry rates (1h)",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(rate(theo_proposals_approved_total[1h]))" },
+				{ "refId": "B", "expr": "sum(rate(theo_proposals_expired_total[1h]))" }
+			]
+		},
+		{
+			"id": 5,
+			"type": "timeseries",
+			"title": "Ideation proposals / 1h",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 12, "w": 24, "h": 8 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(rate(theo_ideation_proposals_total[1h]))" }
+			]
+		}
+	]
+}

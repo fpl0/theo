@@ -28,10 +28,13 @@ import type {
 	SDKResultSuccess,
 } from "@anthropic-ai/claude-agent-sdk";
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
+import type { Sql } from "postgres";
 import { advisorSettings } from "../chat/subagents.ts";
 import { describeError } from "../errors.ts";
 import type { EventBus } from "../events/bus.ts";
 import { EXTERNAL_CONTENT_INSTRUCTION } from "../gates/webhooks/envelope.ts";
+import { prepareAutonomousEgress, recordCloudEgressTurn } from "../memory/egress.ts";
+import type { UserModelRepository } from "../memory/user_model.ts";
 import { unrefTimer } from "../util/timers.ts";
 import type { GoalLease } from "./lease.ts";
 import { shouldReconsider } from "./reconsideration.ts";
@@ -124,6 +127,14 @@ export interface ExecutiveDeps {
 	readonly queryFn?: QueryFn;
 	readonly planner?: Planner;
 	readonly now?: () => Date;
+	/**
+	 * Autonomous cloud-egress dependencies. When both `sql` and `userModel` are
+	 * supplied, every cloud-bound subagent dispatch runs the egress consent
+	 * check and emits `cloud_egress.turn` for audit. Tests that do not
+	 * exercise the egress path omit these.
+	 */
+	readonly sql?: Sql;
+	readonly userModel?: UserModelRepository;
 }
 
 export interface ExecutiveContext {
@@ -151,6 +162,8 @@ export class ExecutiveLoop {
 	private readonly goalBudgetUsd: number;
 	private readonly queryFn: QueryFn;
 	private readonly plannerFn: Planner | null;
+	private readonly sql: Sql | null;
+	private readonly userModel: UserModelRepository | null;
 
 	constructor(deps: ExecutiveDeps) {
 		this.bus = deps.bus;
@@ -163,6 +176,8 @@ export class ExecutiveLoop {
 		this.goalBudgetUsd = deps.goalBudgetUsd ?? DEFAULT_GOAL_BUDGET_USD;
 		this.queryFn = deps.queryFn ?? sdkQuery;
 		this.plannerFn = deps.planner ?? null;
+		this.sql = deps.sql ?? null;
+		this.userModel = deps.userModel ?? null;
 	}
 
 	/**
@@ -245,7 +260,7 @@ export class ExecutiveLoop {
 		// 5. Dispatch the task.
 		const turnId = newGoalTurnId();
 		const subagentName = task.subagent ?? "planner";
-		await this.bus.emit({
+		const taskStarted = await this.bus.emit({
 			type: "goal.task_started",
 			version: 1,
 			actor: "theo",
@@ -262,7 +277,53 @@ export class ExecutiveLoop {
 			metadata: { goalEffectiveTrust: goal.effectiveTrust },
 		});
 
+		// Egress consent + audit. Executive turns are autonomous; dispatch is
+		// blocked unless autonomous cloud egress is granted. We emit the audit
+		// record post-SDK so it captures real token/cost figures.
+		let egressDecision: Awaited<ReturnType<typeof prepareAutonomousEgress>> | null = null;
+		if (this.sql !== null && this.userModel !== null) {
+			egressDecision = await prepareAutonomousEgress({
+				sql: this.sql,
+				userModel: this.userModel,
+				turnClass: "executive",
+			});
+			if (!egressDecision.allowed) {
+				await this.bus.emit({
+					type: "goal.task_failed",
+					version: 1,
+					actor: "theo",
+					data: {
+						nodeId: Number(goal.nodeId),
+						taskId: task.taskId,
+						turnId,
+						errorClass: "validation_error",
+						message: "consent_denied",
+						recoverable: false,
+					},
+					metadata: {},
+				});
+				return;
+			}
+		}
+
 		const result = await this.dispatchSubagent(goal, task, subagentName);
+
+		// Cloud-egress audit (when wired). Captures real post-SDK usage.
+		if (egressDecision?.allowed) {
+			const subagent = this.subagents[subagentName];
+			await recordCloudEgressTurn(this.bus, {
+				subagent: subagentName,
+				model: subagent?.model ?? "unknown",
+				...(subagent?.advisorModel !== undefined ? { advisorModel: subagent.advisorModel } : {}),
+				inputTokens: Math.round(result.tokens / 2),
+				outputTokens: Math.round(result.tokens / 2),
+				costUsd: result.costUsd,
+				turnClass: "executive",
+				causeEventId: taskStarted.id,
+				includedDimensions: egressDecision.includedDimensions,
+				strippedDimensions: egressDecision.strippedDimensions,
+			});
+		}
 
 		// 6. Terminal event.
 		switch (result.kind) {

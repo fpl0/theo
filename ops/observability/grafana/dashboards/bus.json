@@ -1,0 +1,75 @@
+{
+	"title": "Theo — Bus",
+	"uid": "theo-bus",
+	"schemaVersion": 39,
+	"version": 1,
+	"refresh": "30s",
+	"panels": [
+		{
+			"id": 1,
+			"type": "stat",
+			"title": "Events appended / 5m",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(rate(theo_bus_events_appended_total[5m]))" }
+			]
+		},
+		{
+			"id": 2,
+			"type": "stat",
+			"title": "Handler errors / 5m",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(rate(theo_bus_handler_errors_total[5m]))" }
+			]
+		},
+		{
+			"id": 3,
+			"type": "stat",
+			"title": "Max handler lag (seconds)",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "max(theo_bus_handler_lag_seconds)" }
+			]
+		},
+		{
+			"id": 4,
+			"type": "stat",
+			"title": "Dead-lettered / 1h",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "sum(increase(theo_bus_handler_errors_total[1h]))"
+				}
+			]
+		},
+		{
+			"id": 5,
+			"type": "timeseries",
+			"title": "Per-handler duration (p95)",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "histogram_quantile(0.95, sum by (le, handler) (rate(theo_bus_handler_duration_ms_bucket[5m])))"
+				}
+			]
+		},
+		{
+			"id": 6,
+			"type": "timeseries",
+			"title": "Handler lag by handler",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 12, "w": 24, "h": 8 },
+			"targets": [
+				{ "refId": "A", "expr": "theo_bus_handler_lag_seconds" }
+			]
+		}
+	]
+}

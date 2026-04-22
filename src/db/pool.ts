@@ -50,12 +50,35 @@ const MAX_LIFETIME_SECONDS = 1800;
 
 /** Bundled pool interface: the sql tagged template + lifecycle methods. */
 export interface Pool {
-	/** The postgres.js tagged template. All queries go through this. */
-	readonly sql: postgres.Sql;
+	/**
+	 * The postgres.js tagged template. All queries go through this.
+	 *
+	 * Intentionally mutable so the entrypoint can swap it for an
+	 * instrumented proxy AFTER telemetry has been built. The property is
+	 * set once at wiring time; downstream callers receive the wrapped
+	 * handle via the `pool` object, not a captured closure.
+	 */
+	sql: postgres.Sql;
 	/** Eagerly connect to verify the database is reachable. Returns Result. */
 	connect(): Promise<Result<void, AppError>>;
 	/** Drain connections. Call in shutdown and test teardown. */
 	end(): Promise<void>;
+}
+
+/**
+ * Options passed to `createPool`. `wrap` lets the caller install a
+ * transparent proxy around the `sql` callable (e.g., for query timing);
+ * the wrapper runs BEFORE `sql.end()` returns a handle to the caller, so
+ * subsequent downstream wiring sees the wrapped `sql`.
+ */
+export interface PoolOptions {
+	readonly onnotice?: () => void;
+	/**
+	 * Instrument the `sql` tagged template. The wrapper must return a value
+	 * that still satisfies `postgres.Sql`; the telemetry module's `instrumentSql`
+	 * uses a `Proxy` that forwards every property access.
+	 */
+	readonly wrap?: (sql: postgres.Sql) => postgres.Sql;
 }
 
 /**
@@ -64,14 +87,15 @@ export interface Pool {
  * Does NOT connect immediately -- postgres.js connects on first query.
  * Call pool.connect() to verify connectivity at startup.
  */
-export function createPool(config: DbConfig, options?: { onnotice?: () => void }): Pool {
-	const sql = postgres(config.DATABASE_URL, {
+export function createPool(config: DbConfig, options?: PoolOptions): Pool {
+	const rawSql = postgres(config.DATABASE_URL, {
 		max: config.DB_POOL_MAX,
 		idle_timeout: config.DB_IDLE_TIMEOUT,
 		connect_timeout: config.DB_CONNECT_TIMEOUT,
 		max_lifetime: MAX_LIFETIME_SECONDS,
 		...(options?.onnotice ? { onnotice: options.onnotice } : {}),
 	});
+	const sql = options?.wrap !== undefined ? options.wrap(rawSql) : rawSql;
 
 	return {
 		sql,
@@ -87,7 +111,7 @@ export function createPool(config: DbConfig, options?: { onnotice?: () => void }
 			}
 		},
 		async end(): Promise<void> {
-			await sql.end();
+			await rawSql.end();
 		},
 	};
 }

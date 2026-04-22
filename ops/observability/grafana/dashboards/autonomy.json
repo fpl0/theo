@@ -1,0 +1,72 @@
+{
+	"title": "Theo — Autonomy",
+	"uid": "theo-autonomy",
+	"schemaVersion": 39,
+	"version": 1,
+	"refresh": "30s",
+	"panels": [
+		{
+			"id": 1,
+			"type": "stat",
+			"title": "Degradation level",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "theo_degradation_level_gauge" }
+			]
+		},
+		{
+			"id": 2,
+			"type": "stat",
+			"title": "Autonomy violations / 1h",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(increase(theo_autonomy_violations_total[1h]))" }
+			]
+		},
+		{
+			"id": 3,
+			"type": "stat",
+			"title": "Cloud egress cost today (USD)",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(increase(theo_cloud_egress_cost_usd_total[1d]))" }
+			]
+		},
+		{
+			"id": 4,
+			"type": "stat",
+			"title": "Cloud egress tokens today",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(increase(theo_cloud_egress_tokens_total[1d]))" }
+			]
+		},
+		{
+			"id": 5,
+			"type": "timeseries",
+			"title": "Degradation level over time",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+			"targets": [
+				{ "refId": "A", "expr": "theo_degradation_level_gauge" }
+			]
+		},
+		{
+			"id": 6,
+			"type": "timeseries",
+			"title": "Autonomy violations by domain",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 12, "w": 24, "h": 8 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "sum by (domain) (rate(theo_autonomy_violations_total[1h]))"
+				}
+			]
+		}
+	]
+}

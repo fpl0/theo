@@ -1,0 +1,75 @@
+{
+	"title": "Theo — Reflex",
+	"uid": "theo-reflex",
+	"schemaVersion": 39,
+	"version": 1,
+	"refresh": "30s",
+	"panels": [
+		{
+			"id": 1,
+			"type": "stat",
+			"title": "Webhooks received / 5m",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(rate(theo_reflex_received_total[5m]))" }
+			]
+		},
+		{
+			"id": 2,
+			"type": "stat",
+			"title": "Rejected / 5m",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(rate(theo_reflex_rejected_total[5m]))" }
+			]
+		},
+		{
+			"id": 3,
+			"type": "stat",
+			"title": "Rate limited / 5m",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(rate(theo_reflex_rate_limited_total[5m]))" }
+			]
+		},
+		{
+			"id": 4,
+			"type": "stat",
+			"title": "Dispatched / 5m",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{ "refId": "A", "expr": "sum(rate(theo_reflex_dispatched_total[5m]))" }
+			]
+		},
+		{
+			"id": 5,
+			"type": "timeseries",
+			"title": "Rejection breakdown by reason",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "sum by (reason) (rate(theo_reflex_rejected_total[5m]))"
+				}
+			]
+		},
+		{
+			"id": 6,
+			"type": "timeseries",
+			"title": "Webhook ingress by source",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 12, "w": 24, "h": 8 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "sum by (source) (rate(theo_reflex_received_total[5m]))"
+				}
+			]
+		}
+	]
+}

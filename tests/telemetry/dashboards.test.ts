@@ -72,6 +72,9 @@ describe("dashboards", () => {
 			"theo:retrieval:p95_5m",
 			"theo:slo:turns_available_ratio_30d",
 			"theo:slo:error_budget_remaining_ratio",
+			"theo:slo:turns_available:burn_rate_1h",
+			"theo:slo:turns_latency:burn_rate_1h",
+			"theo:slo:turns_latency:error_budget_remaining_ratio",
 		]);
 		const files = (await readdir(DASH_DIR)).filter((f) => f.endsWith(".json"));
 		const drifted: Array<{ file: string; missing: string }> = [];

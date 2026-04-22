@@ -25,7 +25,8 @@ import { advisorAllowed, ideationAllowed, readDegradation } from "../degradation
 import type { EventBus } from "../events/bus.ts";
 import { newUlid } from "../events/ids.ts";
 import type { EventOfType } from "../events/types.ts";
-import { readConsent } from "../memory/egress.ts";
+import { prepareAutonomousEgress, readConsent, recordCloudEgressTurn } from "../memory/egress.ts";
+import type { UserModelRepository } from "../memory/user_model.ts";
 import { requestProposal } from "../proposals/store.ts";
 import { sha256Hex } from "../util/hash.ts";
 
@@ -188,6 +189,13 @@ export interface IdeationDeps {
 	readonly model?: string;
 	readonly advisorModel?: string;
 	readonly now?: () => Date;
+	/**
+	 * Optional user-model repo. When supplied, ideation runs the full egress
+	 * filter against the current dimension set and emits `cloud_egress.turn`
+	 * with the included/stripped dimensions. Without it, ideation only gates
+	 * on the blunt consent flag (existing behavior).
+	 */
+	readonly userModel?: UserModelRepository;
 }
 
 /**
@@ -203,11 +211,27 @@ export async function runIdeationJob(deps: IdeationDeps): Promise<void> {
 	const candidateCount = deps.candidateCount ?? 32;
 	const model = deps.model ?? "claude-sonnet-4-6";
 
-	// Consent: ideation is autonomous and cloud-bound — block without consent.
-	const consent = await readConsent(sql);
-	if (!consent.autonomousCloudEgressEnabled) {
-		// Suppress silently — the owner controls this via `/consent`.
-		return;
+	// Egress preflight: when a user-model repo is wired, run the full
+	// `filterOutgoingPrompt` decision so the per-dimension strip/include
+	// lists are captured in `cloud_egress.turn`. Otherwise fall back to the
+	// bare consent flag so legacy call sites still gate cloud access.
+	let egressDecision: Awaited<ReturnType<typeof prepareAutonomousEgress>> | null = null;
+	if (deps.userModel !== undefined) {
+		egressDecision = await prepareAutonomousEgress({
+			sql,
+			userModel: deps.userModel,
+			turnClass: "ideation",
+		});
+		if (!egressDecision.allowed) {
+			// Suppress silently — the owner controls this via `/consent`.
+			return;
+		}
+	} else {
+		const consent = await readConsent(sql);
+		if (!consent.autonomousCloudEgressEnabled) {
+			// Suppress silently — the owner controls this via `/consent`.
+			return;
+		}
 	}
 
 	// Degradation gate: level 2+ disables ideation entirely.
@@ -296,6 +320,22 @@ export async function runIdeationJob(deps: IdeationDeps): Promise<void> {
 		SET completed_at = now(), cost_usd = ${runResult.costUsd}, status = 'completed'
 		WHERE run_id = ${runId}
 	`;
+
+	// Egress audit — emit `cloud_egress.turn` with the included/stripped
+	// dimensions. All ideation turns are cloud-bound; the interactive path
+	// is the only one that skips this.
+	await recordCloudEgressTurn(bus, {
+		subagent: "ideation",
+		model,
+		...(advisorModel !== undefined ? { advisorModel } : {}),
+		inputTokens: runResult.iterations.reduce((sum, it) => sum + it.inputTokens, 0),
+		outputTokens: runResult.iterations.reduce((sum, it) => sum + it.outputTokens, 0),
+		costUsd: runResult.costUsd,
+		turnClass: "ideation",
+		causeEventId: proposed.id,
+		includedDimensions: egressDecision?.includedDimensions ?? [],
+		strippedDimensions: egressDecision?.strippedDimensions ?? [],
+	});
 
 	// 4. Dedup — match hash against the last `dedupWindowDays` proposed events.
 	// Use `<= now` (inclusive) so a concurrent ideation run emitting at the

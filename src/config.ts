@@ -32,6 +32,19 @@ export const configSchema = z.object({
 	// Optional -- gates not required at startup
 	TELEGRAM_BOT_TOKEN: z.string().optional(),
 	TELEGRAM_OWNER_ID: z.string().optional(),
+
+	// Optional -- observability
+	/** OTLP collector endpoint. Set to enable OTLP/HTTP export for traces and metrics. */
+	OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
+	/** Prometheus endpoint the self-update SLO gate queries before auto-merges. */
+	PROMETHEUS_URL: z.string().default("http://localhost:9090"),
+	/** Continuous-profiling endpoint (Pyroscope). Ignored unless THEO_PYROSCOPE_ENABLED=true. */
+	THEO_PYROSCOPE_URL: z.string().default("http://localhost:4040"),
+	/** Master switch for continuous profiling. Default: disabled (Bun-incompat SDK). */
+	THEO_PYROSCOPE_ENABLED: z
+		.string()
+		.optional()
+		.transform((v) => v === "true"),
 });
 
 /** Validated configuration object. */

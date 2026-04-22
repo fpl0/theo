@@ -13,12 +13,19 @@
 
 import type { Sql } from "postgres";
 import type { EventBus } from "../events/bus.ts";
+import {
+	initOtlpExporters,
+	isOtlpEnabled,
+	loadOtlpConfig,
+	type OtlpExporterBundle,
+} from "./exporters.ts";
 import { registerGauges } from "./gauges.ts";
 import { type LoggerConfig, TheoLogger } from "./logger.ts";
 import { type InitializedMetrics, initMetrics } from "./metrics.ts";
+import { loadProfilingConfig, type ProfilingHandle, startProfiling } from "./profiling.ts";
 import { TelemetryProjector } from "./projector.ts";
 import { buildResource, type Environment, type ResourceConfig } from "./resource.ts";
-import { initTracer, type TracerBundle, type WithSpan } from "./tracer.ts";
+import { type FinishedSpan, initTracer, type TracerBundle, type WithSpan } from "./tracer.ts";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -75,7 +82,37 @@ export async function initTelemetry(
 		// tracer is built — done below.
 	});
 
-	const tracer = initTracer({ resource, metrics });
+	// OTLP exporter bootstrap (conditional). When env configures the OTLP
+	// endpoint, the exporter bundle is built once; the tracer's `exporter`
+	// callback forwards finished spans into it. When absent, spans land in
+	// the in-memory list only.
+	let otlp: OtlpExporterBundle | null = null;
+	if (isOtlpEnabled()) {
+		try {
+			otlp = initOtlpExporters(loadOtlpConfig(), metrics);
+			// Prime the OTel API cache so the span-bridge has a hot handle
+			// before the first `withSpan` fires.
+			await primeOtelApiCache();
+		} catch (error) {
+			// OTLP bootstrap must never block startup. Log and continue with
+			// the in-memory tracer.
+			logger.error("OTLP exporter init failed — continuing with in-memory tracer", {
+				error: error instanceof Error ? error.message : String(error),
+			});
+			otlp = null;
+		}
+	}
+
+	const traceExporterSink =
+		otlp !== null
+			? (span: FinishedSpan): void => forwardSpanToOtlp(span, otlp as OtlpExporterBundle)
+			: undefined;
+
+	const tracer = initTracer({
+		resource,
+		metrics,
+		...(traceExporterSink !== undefined ? { exporter: traceExporterSink } : {}),
+	});
 
 	// Re-bind logger to the tracer's active-context getter so every log line
 	// carries the current trace/span ids.
@@ -97,13 +134,102 @@ export async function initTelemetry(
 
 	registerGauges({ metrics: metrics.registry, sql });
 
+	// Continuous profiling (Pyroscope shim). Disabled by default because the
+	// upstream SDK's native `@datadog/pprof` crashes Bun; see `profiling.ts`.
+	const profilingConfig = loadProfilingConfig(process.env, {
+		version: resource["service.version"] ?? "unknown",
+		instance: resource["service.instance.id"] ?? "unknown",
+	});
+	const profiling: ProfilingHandle = startProfiling(profilingConfig, logger);
+
 	return {
 		withSpan: tracer.withSpan,
 		shutdown: async () => {
 			await tracer.shutdown();
+			await profiling.stop();
+			if (otlp !== null) {
+				await otlp.shutdown();
+			}
 		},
 		internals: { projector, metrics, logger, tracer },
 	};
+}
+
+// ---------------------------------------------------------------------------
+// Bridge: forward in-memory `FinishedSpan` to the OTLP exporter.
+//
+// The in-memory tracer is SDK-agnostic (see `tracer.ts`); bridging is a thin
+// adapter that constructs a `ReadableSpan` stub the BatchSpanProcessor
+// tolerates. This keeps the business-code surface (`withSpan`) unchanged
+// while letting OTLP see our spans.
+// ---------------------------------------------------------------------------
+
+let otelApiCache: typeof import("@opentelemetry/api") | null = null;
+
+function forwardSpanToOtlp(span: FinishedSpan, _bundle: OtlpExporterBundle): void {
+	// The SDK's `ReadableSpan` interface is wide (30+ fields, many from the
+	// SDK-internal `Tracer`). We don't own a Tracer — the forward path is
+	// "best effort": we create spans through the SDK tracer itself so the
+	// BSP sees SDK-native objects.
+	// Implementation: start and end an SDK span with matching attributes.
+	// This double-instruments but keeps traces flowing end-to-end to the
+	// collector without us hand-rolling a ReadableSpan.
+	const api = otelApiCache;
+	if (api === null) {
+		// First call primes the cache — we kick off the dynamic import once
+		// and let subsequent spans fall through until the module resolves.
+		void primeOtelApiCache();
+		return;
+	}
+	try {
+		const sdkTracer = api.trace.getTracer("theo.bridge");
+		const sdkSpan = sdkTracer.startSpan(span.name, {
+			startTime: spanStartTimeMs(span),
+			attributes: flatAttributes(span.attributes),
+		});
+		if (span.status === "error") {
+			sdkSpan.recordException(
+				span.errorMessage !== undefined ? new Error(span.errorMessage) : new Error("error"),
+			);
+			// `SpanStatusCode.ERROR` is numeric 2 in OTel API.
+			sdkSpan.setStatus({ code: 2 });
+		}
+		sdkSpan.end(spanEndTimeMs(span));
+	} catch {
+		// Never propagate exporter failures — the in-memory list still works.
+	}
+}
+
+async function primeOtelApiCache(): Promise<void> {
+	if (otelApiCache !== null) return;
+	try {
+		otelApiCache = await import("@opentelemetry/api");
+	} catch {
+		// Leave the cache null; subsequent spans stay in-memory only.
+	}
+}
+
+function spanStartTimeMs(span: FinishedSpan): number {
+	// `performance.now()` returns fractional ms since an arbitrary epoch.
+	// The OTel SDK accepts `[seconds, nanoseconds]` or `number` (ms). We use
+	// milliseconds for simplicity; tests use the in-memory exporter.
+	return Date.now() - (performance.now() - span.startMs);
+}
+
+function spanEndTimeMs(span: FinishedSpan): number {
+	return Date.now() - (performance.now() - span.endMs);
+}
+
+function flatAttributes(attrs: Record<string, unknown>): Record<string, string | number | boolean> {
+	const out: Record<string, string | number | boolean> = {};
+	for (const [k, v] of Object.entries(attrs)) {
+		if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+			out[k] = v;
+		} else if (v !== null && v !== undefined) {
+			out[k] = String(v);
+		}
+	}
+	return out;
 }
 
 // ---------------------------------------------------------------------------

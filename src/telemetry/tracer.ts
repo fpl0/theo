@@ -24,6 +24,29 @@ import type { InitializedMetrics } from "./metrics.ts";
 import { isAllowed, REDACTED, redactAttributes } from "./redact.ts";
 import type { ResourceAttributes } from "./resource.ts";
 
+/** Exemplar attached to a histogram sample — carries the active traceId so
+ *  Grafana can link p99 outliers back to the originating trace. */
+export interface Exemplar {
+	readonly traceId: string;
+	readonly spanId: string;
+	readonly recordedAt: number;
+}
+
+type ExemplarGetter = () => Exemplar | null;
+let activeExemplar: ExemplarGetter = () => null;
+
+/** Internal: let the metrics layer ask the tracer for the active trace context
+ *  at emission time, so histogram records carry an exemplar. */
+export function registerExemplarGetter(getter: ExemplarGetter): void {
+	activeExemplar = getter;
+}
+
+/** Called from `InMemoryMeter.histogram(...)` — returns the active exemplar
+ *  or null when no span is active. */
+export function getActiveExemplar(): Exemplar | null {
+	return activeExemplar();
+}
+
 // ---------------------------------------------------------------------------
 // Span shape + store
 // ---------------------------------------------------------------------------
@@ -92,6 +115,13 @@ export function initTracer(config: TracerConfig): TracerBundle {
 	registerActiveContextGetter(() => {
 		const s = als.getStore();
 		return s ? { traceId: s.traceId, spanId: s.spanId } : null;
+	});
+
+	// Publish the exemplar getter so `InMemoryMeter.histogram(...)` attaches a
+	// traceId to every sample recorded inside a live span.
+	registerExemplarGetter(() => {
+		const s = als.getStore();
+		return s ? { traceId: s.traceId, spanId: s.spanId, recordedAt: Date.now() } : null;
 	});
 
 	async function withSpan<T>(
