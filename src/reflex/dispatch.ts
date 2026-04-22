@@ -24,7 +24,7 @@ import { asQueryable } from "../db/pool.ts";
 import type { EventBus } from "../events/bus.ts";
 import type { ReflexOutcome } from "../events/reflexes.ts";
 import type { EventOfType } from "../events/types.ts";
-import { wrapExternal } from "../gates/webhooks/envelope.ts";
+import { EXTERNAL_CONTENT_INSTRUCTION, wrapExternal } from "../gates/webhooks/envelope.ts";
 
 // ---------------------------------------------------------------------------
 // External tool allowlist (foundation.md §7.6)
@@ -58,6 +58,13 @@ export interface ReflexRunner {
 }
 
 export interface ReflexRunInput {
+	/**
+	 * System prompt for the reflex turn. Includes the mandatory
+	 * `EXTERNAL_CONTENT_INSTRUCTION` (§7.6) that tells the model to treat
+	 * envelope-wrapped content as data, never instructions. Runners MUST
+	 * forward this verbatim to the SDK's `options.systemPrompt`.
+	 */
+	readonly systemPrompt: string;
 	readonly envelope: string;
 	readonly nonce: string;
 	readonly source: string;
@@ -149,6 +156,7 @@ async function dispatchReflex(
 	const envelope = wrapExternal(contentStr, event.data.source, event.data.envelopeNonce);
 
 	const result = await runner.run({
+		systemPrompt: EXTERNAL_CONTENT_INSTRUCTION,
 		envelope: envelope.wrapped,
 		nonce: envelope.nonce,
 		source: event.data.source,

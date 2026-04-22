@@ -15,6 +15,12 @@
 const SLUG_CLEAN = /[^a-z0-9-]+/g;
 const SLUG_TRIM_DASHES = /^-+|-+$/g;
 const MAX_SLUG_LEN = 40;
+/**
+ * Alphanumeric + hyphen only. Refuses `.`, `/`, and whitespace so a
+ * malicious caller cannot path-traverse out of the workspace branch
+ * namespace (`theo/proposal/<id>/...`). ULIDs always pass.
+ */
+const SAFE_ID_RE = /^[A-Za-z0-9-]+$/;
 
 /**
  * Build a branch name of the form `theo/proposal/<id>/<slug>`. Draft PRs
@@ -22,6 +28,9 @@ const MAX_SLUG_LEN = 40;
  * expired branches.
  */
 export function proposalBranchName(proposalId: string, summary: string): string {
+	if (!SAFE_ID_RE.test(proposalId)) {
+		throw new Error("proposalBranchName: invalid proposalId (path-unsafe characters)");
+	}
 	const slug = summary
 		.toLowerCase()
 		.replace(SLUG_CLEAN, "-")

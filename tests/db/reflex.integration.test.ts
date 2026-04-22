@@ -45,7 +45,7 @@ describe("reflex decision handler", () => {
 		try {
 			const payloadRef = "P1";
 			await insertWebhookBody(payloadRef, {
-				["_autonomyDomain"]: "code.review",
+				theoMeta: { autonomyDomain: "code.review" },
 				action: "opened",
 			});
 

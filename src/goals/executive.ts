@@ -31,6 +31,7 @@ import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import { advisorSettings } from "../chat/subagents.ts";
 import { describeError } from "../errors.ts";
 import type { EventBus } from "../events/bus.ts";
+import { EXTERNAL_CONTENT_INSTRUCTION } from "../gates/webhooks/envelope.ts";
 import { unrefTimer } from "../util/timers.ts";
 import type { GoalLease } from "./lease.ts";
 import { shouldReconsider } from "./reconsideration.ts";
@@ -417,7 +418,13 @@ export class ExecutiveLoop {
 		unrefTimer(timeoutId);
 
 		try {
+			const isExternalTrust =
+				goal.effectiveTrust === "external" || goal.effectiveTrust === "untrusted";
 			const systemPrompt = [
+				// External-trust turns get the content-envelope instruction (§7.6)
+				// in front of the subagent prefix so any envelope-wrapped content
+				// in the task body is unambiguously data, not instructions.
+				isExternalTrust ? EXTERNAL_CONTENT_INSTRUCTION : "",
 				subagent.systemPromptPrefix,
 				`You are executing task ${String(task.taskId)} for goal ${String(goal.nodeId)}.`,
 				`Trust tier: ${goal.effectiveTrust}.`,
@@ -427,10 +434,9 @@ export class ExecutiveLoop {
 				.join("\n\n");
 
 			// External-trust turns run with a restricted tool allowlist.
-			const allowedTools =
-				goal.effectiveTrust === "external" || goal.effectiveTrust === "untrusted"
-					? ["mcp__memory__search_memory", "mcp__memory__read_core"]
-					: ["mcp__memory__*"];
+			const allowedTools = isExternalTrust
+				? ["mcp__memory__search_memory", "mcp__memory__read_core"]
+				: ["mcp__memory__*"];
 
 			const settings = advisorSettings(subagent.advisorModel);
 			const options: Options = {

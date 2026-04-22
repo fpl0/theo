@@ -140,6 +140,7 @@ function makeDim(name: string, value: JsonValue, confidence: number): UserModelD
 		confidence,
 		evidenceCount: 1,
 		threshold: 5,
+		egressSensitivity: "private",
 		createdAt: new Date(0),
 		updatedAt: new Date(0),
 	};
@@ -472,6 +473,7 @@ describe("assembleSystemPrompt experimental-dimension filter (Phase 13a)", () =>
 			confidence,
 			evidenceCount,
 			threshold: 10,
+			egressSensitivity: "private",
 			createdAt: new Date(0),
 			updatedAt: new Date(0),
 		};

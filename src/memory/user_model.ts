@@ -105,6 +105,8 @@ export function isDimensionPromptReady(name: string, evidenceCount: number): boo
 // Types
 // ---------------------------------------------------------------------------
 
+export type EgressSensitivity = "public" | "private" | "local_only";
+
 export interface UserModelDimension {
 	readonly id: number;
 	readonly name: string;
@@ -112,6 +114,7 @@ export interface UserModelDimension {
 	readonly confidence: number;
 	readonly evidenceCount: number;
 	readonly threshold: number;
+	readonly egressSensitivity: EgressSensitivity;
 	readonly createdAt: Date;
 	readonly updatedAt: Date;
 }
@@ -125,6 +128,7 @@ function rowToDimension(row: Record<string, unknown>): UserModelDimension {
 		confidence: row["confidence"] as number,
 		evidenceCount: row["evidence_count"] as number,
 		threshold: getThreshold(row["name"] as string),
+		egressSensitivity: (row["egress_sensitivity"] as EgressSensitivity | undefined) ?? "private",
 		createdAt: row["created_at"] as Date,
 		updatedAt: row["updated_at"] as Date,
 	};
@@ -148,7 +152,7 @@ export interface UserModelRepository {
 export function createUserModelRepository(sql: Sql, bus: EventBus): UserModelRepository {
 	async function getDimensions(): Promise<readonly UserModelDimension[]> {
 		const rows = await sql<Record<string, unknown>[]>`
-			SELECT id, name, value, confidence, evidence_count, created_at, updated_at
+			SELECT id, name, value, confidence, evidence_count, egress_sensitivity, created_at, updated_at
 			FROM user_model_dimension
 			ORDER BY name
 		`;
@@ -157,7 +161,7 @@ export function createUserModelRepository(sql: Sql, bus: EventBus): UserModelRep
 
 	async function getDimension(name: string): Promise<UserModelDimension | null> {
 		const rows = await sql<Record<string, unknown>[]>`
-			SELECT id, name, value, confidence, evidence_count, created_at, updated_at
+			SELECT id, name, value, confidence, evidence_count, egress_sensitivity, created_at, updated_at
 			FROM user_model_dimension
 			WHERE name = ${name}
 		`;

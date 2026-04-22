@@ -237,11 +237,28 @@ export async function handleWebhookRequest(
 	//    decision events in sequence. The dedup row is written last so a
 	//    duplicate second attempt doesn't re-emit.
 	const payloadRef = ulid();
+	// Store the raw body with parser-derived classification metadata in a
+	// reserved `__theo` namespace. Downstream reflex handlers read the
+	// classification from here without re-parsing, and using a namespace
+	// keyed on `__theo` keeps the raw body fields intact even if a webhook
+	// payload happens to contain `_summary` etc.
+	const baseBody =
+		typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+			? (parsed as Record<string, unknown>)
+			: { data: parsed };
+	const enrichedBody = {
+		...baseBody,
+		theoMeta: {
+			autonomyDomain: parsedWebhook.autonomyDomain,
+			eventKind: parsedWebhook.eventKind,
+			summary: parsedWebhook.summary,
+		},
+	};
 	await sql.begin(async (tx) => {
 		const q = asQueryable(tx);
 		await q`
 			INSERT INTO webhook_body (id, source, body, expires_at)
-			VALUES (${payloadRef}, ${source}, ${sql.json(parsed as never)},
+			VALUES (${payloadRef}, ${source}, ${sql.json(enrichedBody as never)},
 			        ${new Date(receivedAt.getTime() + WEBHOOK_BODY_TTL_MS)})
 		`;
 

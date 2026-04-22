@@ -25,6 +25,8 @@ import { asQueryable } from "../db/pool.ts";
 import type { EventBus } from "../events/bus.ts";
 import type { ProposalKind, ProposalOrigin, TrustTierString } from "../events/reflexes.ts";
 import type { Actor } from "../events/types.ts";
+import type { TrustTier } from "../memory/graph/types.ts";
+import { minTier } from "../memory/trust.ts";
 
 const ulid = monotonicFactory();
 
@@ -86,6 +88,12 @@ export interface RequestProposalInput {
  * Insert a proposal row and emit `proposal.requested`. Ideation-origin
  * proposals are capped at autonomy level 2 — callers may request higher
  * but this function enforces the cap.
+ *
+ * `effectiveTrust` is computed from the causation chain (not taken from
+ * caller input) by reading the `sourceCauseId` event's stored
+ * `effective_trust_tier` and flooring at the caller's suggested minimum.
+ * This prevents trust laundering via a trusted caller asserting a higher
+ * tier than the chain actually carries.
  */
 export async function requestProposal(
 	deps: { readonly sql: Sql; readonly bus: EventBus },
@@ -101,6 +109,14 @@ export async function requestProposal(
 
 	return deps.sql.begin(async (tx) => {
 		const q = asQueryable(tx);
+		// Resolve effective trust from the causation chain so a trusted caller
+		// can't assert a higher tier than the source event actually carries.
+		const trustRows = await q<{ tier: TrustTier }[]>`
+			SELECT effective_trust_tier AS tier FROM events WHERE id = ${input.sourceCauseId}
+		`;
+		const chainTrust = trustRows[0]?.tier ?? "external";
+		const effectiveTrust = minTier(chainTrust, input.effectiveTrust);
+
 		await q`
 			INSERT INTO proposal (
 				id, origin, source_cause_id, title, summary, kind, payload,
@@ -108,7 +124,7 @@ export async function requestProposal(
 			) VALUES (
 				${id}, ${input.origin}, ${input.sourceCauseId}, ${input.title},
 				${input.summary}, ${input.kind}, ${tx.json(input.payload as never)},
-				${input.effectiveTrust}, ${input.autonomyDomain}, ${requiredLevel},
+				${effectiveTrust}, ${input.autonomyDomain}, ${requiredLevel},
 				'pending', ${expiresAt}
 			)
 		`;
@@ -126,7 +142,7 @@ export async function requestProposal(
 					payload: input.payload,
 					autonomyDomain: input.autonomyDomain,
 					requiredLevel,
-					effectiveTrust: input.effectiveTrust,
+					effectiveTrust,
 					expiresAt: expiresAt.toISOString(),
 				},
 				metadata: { causeId: input.sourceCauseId as never },
@@ -142,7 +158,7 @@ export async function requestProposal(
 			summary: input.summary,
 			kind: input.kind,
 			payload: input.payload,
-			effectiveTrust: input.effectiveTrust,
+			effectiveTrust,
 			autonomyDomain: input.autonomyDomain,
 			requiredLevel,
 			status: "pending",

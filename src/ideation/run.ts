@@ -310,12 +310,15 @@ export async function runIdeationJob(deps: IdeationDeps): Promise<void> {
 	`;
 
 	// 4. Dedup — match hash against the last `dedupWindowDays` proposed events.
-	const sinceDate = new Date(now().getTime() - budget.dedupWindowDays * 24 * 60 * 60_000);
+	// Use `<= now` (inclusive) so a concurrent ideation run emitting at the
+	// same instant is still caught by the dedup.
+	const currentNow = now();
+	const sinceDate = new Date(currentNow.getTime() - budget.dedupWindowDays * 24 * 60 * 60_000);
 	const dupRows = await q<{ data: Record<string, unknown> }[]>`
 		SELECT data FROM events
 		WHERE type = 'ideation.proposed'
 		  AND timestamp >= ${sinceDate}
-		  AND timestamp < ${now()}
+		  AND timestamp <= ${currentNow}
 		  AND data->>'proposalHash' = ${proposalHash}
 		  AND data->>'runId' != ${runId}
 		ORDER BY timestamp DESC

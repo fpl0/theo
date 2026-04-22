@@ -108,13 +108,13 @@ async function decideReflex(
 	`;
 	const body = bodyRows[0]?.["body"] as Record<string, unknown> | undefined;
 
-	// Autonomy domain inference is intentionally simple — the parser wrote
-	// it into the body via the gate's parsing step (see gates/webhooks/*).
-	// If we can't find one, fall back to `webhook.generic`.
+	// Autonomy domain inference is intentionally simple — the webhook gate
+	// writes parser-derived classification into `body.__theo.autonomyDomain`
+	// (see gates/webhooks/server.ts). Fall back to `webhook.generic` if
+	// the field is missing (older rows or parser returned an unknown kind).
+	const meta = body?.["theoMeta"] as { autonomyDomain?: unknown } | undefined;
 	const autonomyDomain =
-		typeof body?.["_autonomyDomain"] === "string"
-			? (body["_autonomyDomain"] as string)
-			: "webhook.generic";
+		typeof meta?.autonomyDomain === "string" ? meta.autonomyDomain : "webhook.generic";
 
 	// 4. Emit reflex.triggered. The effective trust is inherited from the
 	//    webhook.received event (external). The envelope nonce rotates per

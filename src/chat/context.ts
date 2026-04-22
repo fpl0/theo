@@ -106,7 +106,14 @@ export async function assembleSystemPrompt(
 	// Experimental dimensions (Jungian) are gated out of the prompt until
 	// their evidence count crosses the floor. They stay in the repository
 	// for later promotion but do not influence agent behavior before then.
-	const promptDimensions = userModel.filter((d) => isDimensionPromptReady(d.name, d.evidenceCount));
+	//
+	// `local_only` dimensions are stripped unconditionally — the egress
+	// invariant (§7.8) forbids them from reaching the cloud SDK. Chat turns
+	// are interactive so `private` may pass; background/reflex/ideation
+	// call sites that build their own prompts must strip `private` too.
+	const promptDimensions = userModel.filter(
+		(d) => d.egressSensitivity !== "local_only" && isDimensionPromptReady(d.name, d.evidenceCount),
+	);
 
 	const prompt = buildPrompt(
 		{

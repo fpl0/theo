@@ -34,6 +34,7 @@ function makeDim(name: string, value: JsonValue): UserModelDimension {
 		confidence: 0.5,
 		evidenceCount: 1,
 		threshold: 10,
+		egressSensitivity: "private",
 		createdAt: now,
 		updatedAt: now,
 	};
