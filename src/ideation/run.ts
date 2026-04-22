@@ -20,15 +20,14 @@
  */
 
 import type { Sql } from "postgres";
-import { monotonicFactory } from "ulid";
 import { asQueryable } from "../db/pool.ts";
 import { advisorAllowed, ideationAllowed, readDegradation } from "../degradation/state.ts";
 import type { EventBus } from "../events/bus.ts";
+import { newUlid } from "../events/ids.ts";
 import type { EventOfType } from "../events/types.ts";
 import { readConsent } from "../memory/egress.ts";
 import { requestProposal } from "../proposals/store.ts";
-
-const ulid = monotonicFactory();
+import { sha256Hex } from "../util/hash.ts";
 
 // ---------------------------------------------------------------------------
 // Budget config
@@ -140,19 +139,8 @@ function normalize(text: string): string {
 	return text.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-async function sha256Hex(text: string): Promise<string> {
-	const buf = new TextEncoder().encode(normalize(text));
-	const digest = await crypto.subtle.digest("SHA-256", buf);
-	const view = new Uint8Array(digest);
-	let out = "";
-	for (const byte of view) {
-		out += byte.toString(16).padStart(2, "0");
-	}
-	return out;
-}
-
 export async function hashProposal(text: string): Promise<string> {
-	return sha256Hex(text);
+	return sha256Hex(normalize(text));
 }
 
 // ---------------------------------------------------------------------------
@@ -232,7 +220,7 @@ export async function runIdeationJob(deps: IdeationDeps): Promise<void> {
 
 	// Budget gate.
 	const budgetCheck = await checkBudget(sql, now(), budget);
-	const runId = ulid();
+	const runId = newUlid();
 	if (!budgetCheck.ok) {
 		await bus.emit({
 			type: "ideation.budget_exceeded",

@@ -10,21 +10,13 @@
  * the `webhook_secret` table and rotation events carry no key material.
  */
 
+import type { TrustTier } from "../memory/graph/types.ts";
 import type { EventId } from "./ids.ts";
 import type { Actor, TheoEvent } from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Shared shapes
 // ---------------------------------------------------------------------------
-
-/** Trust tier as a plain string — avoids cross-module import cycles. */
-export type TrustTierString =
-	| "owner"
-	| "owner_confirmed"
-	| "verified"
-	| "inferred"
-	| "external"
-	| "untrusted";
 
 /** Turn class used by the egress filter and audit log. */
 export type TurnClass = "interactive" | "reflex" | "executive" | "ideation";
@@ -95,7 +87,7 @@ export interface ReflexTriggeredData {
 	readonly source: string;
 	readonly goalNodeId: number | null;
 	readonly autonomyDomain: string;
-	readonly effectiveTrust: TrustTierString;
+	readonly effectiveTrust: TrustTier;
 	readonly envelopeNonce: string;
 }
 
@@ -190,7 +182,7 @@ export interface ProposalRequestedData {
 	readonly payload: Record<string, unknown>;
 	readonly autonomyDomain: string;
 	readonly requiredLevel: number;
-	readonly effectiveTrust: TrustTierString;
+	readonly effectiveTrust: TrustTier;
 	readonly expiresAt: string;
 }
 

@@ -20,10 +20,11 @@
  */
 
 import type { Sql, TransactionSql } from "postgres";
-import { monotonicFactory } from "ulid";
 import { asQueryable } from "../../db/pool.ts";
 import { describeError } from "../../errors.ts";
 import type { EventBus } from "../../events/bus.ts";
+import { newUlid } from "../../events/ids.ts";
+import { sha256Hex } from "../../util/hash.ts";
 import type { RateLimiter } from "./rate_limit.ts";
 import type { WebhookSecretStore } from "./secrets.ts";
 import { type KnownSource, verifierFor } from "./signature.ts";
@@ -31,8 +32,6 @@ import { parseEmailPayload } from "./sources/email.ts";
 import { parseGithubPayload } from "./sources/github.ts";
 import { parseLinearPayload } from "./sources/linear.ts";
 import type { Parser } from "./sources/types.ts";
-
-const ulid = monotonicFactory();
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -105,20 +104,6 @@ function collectHeaders(request: Request): Record<string, string> {
 	request.headers.forEach((value, key) => {
 		out[key.toLowerCase()] = value;
 	});
-	return out;
-}
-
-// ---------------------------------------------------------------------------
-// Body hashing
-// ---------------------------------------------------------------------------
-
-async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
-	const digest = await crypto.subtle.digest("SHA-256", bytes);
-	const view = new Uint8Array(digest);
-	let out = "";
-	for (const byte of view) {
-		out += byte.toString(16).padStart(2, "0");
-	}
 	return out;
 }
 
@@ -236,7 +221,7 @@ export async function handleWebhookRequest(
 	// 8. Store the raw body in the transient table, then emit the two
 	//    decision events in sequence. The dedup row is written last so a
 	//    duplicate second attempt doesn't re-emit.
-	const payloadRef = ulid();
+	const payloadRef = newUlid();
 	// Store the raw body with parser-derived classification metadata in a
 	// reserved `__theo` namespace. Downstream reflex handlers read the
 	// classification from here without re-parsing, and using a namespace

@@ -20,15 +20,13 @@
  */
 
 import type { Sql, TransactionSql } from "postgres";
-import { monotonicFactory } from "ulid";
 import { asQueryable } from "../db/pool.ts";
 import type { EventBus } from "../events/bus.ts";
-import type { ProposalKind, ProposalOrigin, TrustTierString } from "../events/reflexes.ts";
+import { newUlid } from "../events/ids.ts";
+import type { ProposalKind, ProposalOrigin } from "../events/reflexes.ts";
 import type { Actor } from "../events/types.ts";
 import type { TrustTier } from "../memory/graph/types.ts";
 import { minTier } from "../memory/trust.ts";
-
-const ulid = monotonicFactory();
 
 // ---------------------------------------------------------------------------
 // Types
@@ -44,7 +42,7 @@ export interface Proposal {
 	readonly summary: string;
 	readonly kind: ProposalKind;
 	readonly payload: Record<string, unknown>;
-	readonly effectiveTrust: TrustTierString;
+	readonly effectiveTrust: TrustTier;
 	readonly autonomyDomain: string;
 	readonly requiredLevel: number;
 	readonly status: ProposalStatus;
@@ -78,7 +76,7 @@ export interface RequestProposalInput {
 	readonly summary: string;
 	readonly kind: ProposalKind;
 	readonly payload: Record<string, unknown>;
-	readonly effectiveTrust: TrustTierString;
+	readonly effectiveTrust: TrustTier;
 	readonly autonomyDomain: string;
 	readonly requiredLevel: number;
 	readonly expiresAt?: Date;
@@ -99,7 +97,7 @@ export async function requestProposal(
 	deps: { readonly sql: Sql; readonly bus: EventBus },
 	input: RequestProposalInput,
 ): Promise<Proposal> {
-	const id = ulid();
+	const id = newUlid();
 	const now = new Date();
 	const expiresAt = input.expiresAt ?? new Date(now.getTime() + DEFAULT_TTL_MS);
 	const requiredLevel =
@@ -313,7 +311,7 @@ function rowToProposal(row: ProposalRow): Proposal {
 		summary: row["summary"] as string,
 		kind: row["kind"] as ProposalKind,
 		payload: row["payload"] as Record<string, unknown>,
-		effectiveTrust: row["effective_trust"] as TrustTierString,
+		effectiveTrust: row["effective_trust"] as TrustTier,
 		autonomyDomain: row["autonomy_domain"] as string,
 		requiredLevel: row["required_level"] as number,
 		status: row["status"] as ProposalStatus,

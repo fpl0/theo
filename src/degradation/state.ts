@@ -18,6 +18,7 @@
 import type { Sql, TransactionSql } from "postgres";
 import { asQueryable } from "../db/pool.ts";
 import type { EventBus } from "../events/bus.ts";
+import type { TurnClass } from "../events/reflexes.ts";
 import type { Actor } from "../events/types.ts";
 
 // ---------------------------------------------------------------------------
@@ -119,11 +120,16 @@ export function ideationAllowed(level: DegradationLevel): boolean {
 }
 
 /** Is the advisor allowed at this level? Dropped from ideation at L1; from all autonomous at L2. */
-export function advisorAllowed(level: DegradationLevel, turnClass: string): boolean {
-	if (turnClass === "interactive") return level <= 3;
-	if (turnClass === "ideation") return level === 0;
-	// reflex / executive
-	return level <= 1;
+export function advisorAllowed(level: DegradationLevel, turnClass: TurnClass): boolean {
+	switch (turnClass) {
+		case "interactive":
+			return level <= 3;
+		case "ideation":
+			return level === 0;
+		case "reflex":
+		case "executive":
+			return level <= 1;
+	}
 }
 
 /** Is the executive class allowed? Paused at L3. */

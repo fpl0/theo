@@ -22,3 +22,13 @@ export function newEventId(): EventId {
 	// The ULID library returns `string`, and we brand it exactly once here.
 	return ulid() as EventId;
 }
+
+/**
+ * Mint a fresh ULID as an unbranded string. Use this for opaque identifiers
+ * (proposal ids, webhook payload refs, ideation run ids) that don't merit a
+ * dedicated branded type but should share the same monotonic factory so
+ * everything still sorts coherently.
+ */
+export function newUlid(): string {
+	return ulid();
+}

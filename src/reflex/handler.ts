@@ -21,9 +21,9 @@
 import type { Sql } from "postgres";
 import { asQueryable } from "../db/pool.ts";
 import type { EventBus } from "../events/bus.ts";
-import type { TrustTierString } from "../events/reflexes.ts";
 import type { EventOfType } from "../events/types.ts";
 import { newEnvelopeNonce } from "../gates/webhooks/envelope.ts";
+import type { TrustTier } from "../memory/graph/types.ts";
 
 // ---------------------------------------------------------------------------
 // Staleness
@@ -87,7 +87,7 @@ async function decideReflex(
 
 	// 2. Staleness check.
 	const receivedTimestamp = received["timestamp"] as Date;
-	const receivedEffectiveTrust = received["effective_trust_tier"] as TrustTierString;
+	const receivedEffectiveTrust = received["effective_trust_tier"] as TrustTier;
 	const receivedAtMs = receivedTimestamp.getTime();
 	if (currentTime.getTime() - receivedAtMs > staleMs) {
 		await bus.emit({
