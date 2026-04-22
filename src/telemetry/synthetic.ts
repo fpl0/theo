@@ -13,8 +13,10 @@
  */
 
 import type { TurnResult } from "../chat/types.ts";
+import { describeError } from "../errors.ts";
 import type { EventBus } from "../events/bus.ts";
 import { newUlid } from "../events/ids.ts";
+import { unrefTimer } from "../util/timers.ts";
 import { asProbeFailReason } from "./labels.ts";
 import type { InitializedMetrics } from "./metrics.ts";
 
@@ -90,9 +92,8 @@ export async function runProbe(deps: ProbeDeps): Promise<void> {
  * Convert an arbitrary probe error into the closed-set bucket used by
  * `theo.synthetic.probe_failures_total{reason}`.
  */
-export function classifyProbeError(err: unknown): "timeout" | "not_ok" | "exception" {
-	const msg = err instanceof Error ? err.message : String(err);
-	if (/timeout|timed out/iu.test(msg)) return "timeout";
+export function classifyProbeError(err: unknown): "timeout" | "exception" {
+	if (/timeout|timed out/iu.test(describeError(err))) return "timeout";
 	return "exception";
 }
 
@@ -161,16 +162,10 @@ export class SyntheticProbeScheduler {
 			this.inFlight = p;
 			// Surface errors to the console but never throw from the timer.
 			p.catch((err: unknown) => {
-				console.error(
-					"synthetic probe unexpected error",
-					err instanceof Error ? err.message : String(err),
-				);
+				console.error("synthetic probe unexpected error", describeError(err));
 			});
 		}, this.config.intervalMs);
-		// Do not block shutdown on the probe timer.
-		if (typeof (this.timer as unknown as { unref?: () => void }).unref === "function") {
-			(this.timer as unknown as { unref: () => void }).unref();
-		}
+		unrefTimer(this.timer);
 	}
 
 	async stop(): Promise<void> {

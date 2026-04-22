@@ -14,8 +14,9 @@
  * Theo-specific attributes use the `theo.*` namespace.
  */
 
+import { describeError } from "../../errors.ts";
 import type { HandlerMode } from "../../events/handlers.ts";
-import type { Event, EventMetadata } from "../../events/types.ts";
+import type { Event } from "../../events/types.ts";
 import { rehydrateContext } from "../context.ts";
 import type { InitializedMetrics } from "../metrics.ts";
 import {
@@ -96,18 +97,9 @@ export function wrapHandlerWithSpan(
 function classifyHandlerError(
 	err: unknown,
 ): "db_error" | "timeout" | "validation_error" | "unknown" {
-	const msg = err instanceof Error ? err.message : String(err);
+	const msg = describeError(err);
 	if (/timeout/iu.test(msg)) return "timeout";
 	if (/invalid|validation|zod/iu.test(msg)) return "validation_error";
 	if (/postgres|database|ECONN|relation|column/iu.test(msg)) return "db_error";
 	return "unknown";
-}
-
-/** Narrow-typed helper: read the trace metadata off an event for inspection. */
-export function traceHeadersFromEvent(
-	metadata: EventMetadata,
-): { readonly traceId: string; readonly spanId: string } | null {
-	const m = metadata as EventMetadata & { readonly spanId?: string };
-	if (m.traceId === undefined || m.spanId === undefined) return null;
-	return { traceId: m.traceId, spanId: m.spanId };
 }

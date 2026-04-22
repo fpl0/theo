@@ -10,6 +10,7 @@ import type { Event } from "../../src/events/types.ts";
 import { initMetrics } from "../../src/telemetry/metrics.ts";
 import { wrapHandlerWithSpan } from "../../src/telemetry/spans/bus.ts";
 import { initTracer } from "../../src/telemetry/tracer.ts";
+import { expectReject } from "../helpers.ts";
 
 function syntheticEvent(): Event {
 	// Pick any event type from the union so type-checking is honest.
@@ -45,7 +46,7 @@ describe("wrapHandlerWithSpan", () => {
 		const boom = wrap("boom", "effect", async () => {
 			throw new Error("validation failed for input");
 		});
-		await expect(boom(syntheticEvent())).rejects.toThrow("validation failed");
+		await expectReject(() => boom(syntheticEvent()), "validation failed");
 		const errors = metrics.meter.samplesFor("theo.bus.handler_errors_total");
 		expect(errors.length).toBe(1);
 		expect(errors[0]?.labels["handler"]).toBe("boom");
@@ -59,7 +60,7 @@ describe("wrapHandlerWithSpan", () => {
 		const boom = wrap("db", "effect", async () => {
 			throw new Error("relation does not exist");
 		});
-		await expect(boom(syntheticEvent())).rejects.toThrow();
+		await expectReject(() => boom(syntheticEvent()), /.+/);
 		const errors = metrics.meter.samplesFor("theo.bus.handler_errors_total");
 		expect(errors[0]?.labels["reason"]).toBe("db_error");
 	});

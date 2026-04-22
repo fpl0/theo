@@ -140,25 +140,47 @@ export interface Sample {
 }
 
 /**
+ * Per-instrument cap on the in-memory sample ring buffer. Keeps total
+ * memory bounded over long runs; OTLP export and on-demand snapshots
+ * operate on the retained tail.
+ */
+const SAMPLE_CAP = 2048;
+
+function pushCapped(buf: Sample[], sample: Sample): void {
+	buf.push(sample);
+	if (buf.length > SAMPLE_CAP) buf.shift();
+}
+
+/**
  * The default meter keeps counters and histograms as append-only sample
- * lists. An OTLP adapter would instead forward to an SDK meter.
+ * lists, capped per instrument to `SAMPLE_CAP` so long-running processes
+ * don't leak memory. An OTLP adapter would instead forward to an SDK meter.
  */
 export class InMemoryMeter {
 	private readonly samples = new Map<string, Sample[]>();
 	private readonly callbacks = new Map<string, Array<() => Promise<void> | void>>();
 
+	private bucket(name: string): Sample[] {
+		let buf = this.samples.get(name);
+		if (buf === undefined) {
+			buf = [];
+			this.samples.set(name, buf);
+		}
+		return buf;
+	}
+
 	counter(name: string): Counter {
-		this.samples.set(name, this.samples.get(name) ?? []);
+		const buf = this.bucket(name);
 		return {
 			name,
 			add: (delta, labels = {}): void => {
-				(this.samples.get(name) ?? []).push({ value: delta, labels, at: Date.now() });
+				pushCapped(buf, { value: delta, labels, at: Date.now() });
 			},
 		};
 	}
 
 	histogram(name: string): Histogram {
-		this.samples.set(name, this.samples.get(name) ?? []);
+		const buf = this.bucket(name);
 		return {
 			name,
 			record: (value, labels = {}): void => {
@@ -172,13 +194,13 @@ export class InMemoryMeter {
 								exemplar: { traceId: exemplar.traceId, spanId: exemplar.spanId },
 							}
 						: { value, labels, at: Date.now() };
-				(this.samples.get(name) ?? []).push(sample);
+				pushCapped(buf, sample);
 			},
 		};
 	}
 
 	observableGauge(name: string): ObservableGauge {
-		this.samples.set(name, this.samples.get(name) ?? []);
+		const buf = this.bucket(name);
 		this.callbacks.set(name, this.callbacks.get(name) ?? []);
 		return {
 			name,
@@ -186,7 +208,7 @@ export class InMemoryMeter {
 				(this.callbacks.get(name) ?? []).push(cb);
 			},
 			observe: (value, labels = {}): void => {
-				(this.samples.get(name) ?? []).push({ value, labels, at: Date.now() });
+				pushCapped(buf, { value, labels, at: Date.now() });
 			},
 		};
 	}

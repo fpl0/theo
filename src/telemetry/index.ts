@@ -12,6 +12,7 @@
  */
 
 import type { Sql } from "postgres";
+import { describeError } from "../errors.ts";
 import type { EventBus } from "../events/bus.ts";
 import {
 	initOtlpExporters,
@@ -97,16 +98,13 @@ export async function initTelemetry(
 			// OTLP bootstrap must never block startup. Log and continue with
 			// the in-memory tracer.
 			logger.error("OTLP exporter init failed — continuing with in-memory tracer", {
-				error: error instanceof Error ? error.message : String(error),
+				error: describeError(error),
 			});
 			otlp = null;
 		}
 	}
 
-	const traceExporterSink =
-		otlp !== null
-			? (span: FinishedSpan): void => forwardSpanToOtlp(span, otlp as OtlpExporterBundle)
-			: undefined;
+	const traceExporterSink = otlp !== null ? forwardSpanToOtlp : undefined;
 
 	const tracer = initTracer({
 		resource,
@@ -166,7 +164,7 @@ export async function initTelemetry(
 
 let otelApiCache: typeof import("@opentelemetry/api") | null = null;
 
-function forwardSpanToOtlp(span: FinishedSpan, _bundle: OtlpExporterBundle): void {
+function forwardSpanToOtlp(span: FinishedSpan): void {
 	// The SDK's `ReadableSpan` interface is wide (30+ fields, many from the
 	// SDK-internal `Tracer`). We don't own a Tracer — the forward path is
 	// "best effort": we create spans through the SDK tracer itself so the
@@ -191,8 +189,7 @@ function forwardSpanToOtlp(span: FinishedSpan, _bundle: OtlpExporterBundle): voi
 			sdkSpan.recordException(
 				span.errorMessage !== undefined ? new Error(span.errorMessage) : new Error("error"),
 			);
-			// `SpanStatusCode.ERROR` is numeric 2 in OTel API.
-			sdkSpan.setStatus({ code: 2 });
+			sdkSpan.setStatus({ code: api.SpanStatusCode.ERROR });
 		}
 		sdkSpan.end(spanEndTimeMs(span));
 	} catch {

@@ -46,6 +46,8 @@ export interface TurnBudget {
 }
 
 export interface CostBreakdown {
+	readonly inputTokens: number;
+	readonly outputTokens: number;
 	readonly tokens: number;
 	readonly costUsd: number;
 }
@@ -119,12 +121,18 @@ export function extractTaskCost(
 	const usage = result.usage as unknown as Record<string, unknown>;
 	const iterations = usage["iterations"];
 	if (!Array.isArray(iterations) || iterations.length === 0) {
-		const input = numberField(usage, "input_tokens");
-		const output = numberField(usage, "output_tokens");
-		return { tokens: input + output, costUsd: result.total_cost_usd };
+		const inputTokens = numberField(usage, "input_tokens");
+		const outputTokens = numberField(usage, "output_tokens");
+		return {
+			inputTokens,
+			outputTokens,
+			tokens: inputTokens + outputTokens,
+			costUsd: result.total_cost_usd,
+		};
 	}
 
-	let tokens = 0;
+	let inputTokens = 0;
+	let outputTokens = 0;
 	let costUsd = 0;
 	for (const iter of iterations) {
 		const rec = iter as Record<string, unknown>;
@@ -132,13 +140,14 @@ export function extractTaskCost(
 		const output = numberField(rec, "output_tokens");
 		const cached = numberField(rec, "cache_read_input_tokens");
 		const billableInput = Math.max(0, input - cached);
-		tokens += input + output;
+		inputTokens += input;
+		outputTokens += output;
 		const modelName = typeof rec["model"] === "string" ? (rec["model"] as string) : defaultModel;
 		const rate = rateFor(modelName, rates);
 		costUsd += (billableInput * rate.input) / 1_000_000;
 		costUsd += (output * rate.output) / 1_000_000;
 	}
-	return { tokens, costUsd };
+	return { inputTokens, outputTokens, tokens: inputTokens + outputTokens, costUsd };
 }
 
 function numberField(obj: Record<string, unknown>, key: string): number {

@@ -107,9 +107,21 @@ export interface TracerConfig {
 	readonly exporter?: (span: FinishedSpan) => void;
 }
 
+/**
+ * Cap on the in-memory ring buffer of finished spans when no external
+ * exporter is registered. Keeps memory bounded over long runs; tests that
+ * need fewer spans use `reset()` / `snapshot()` between turns.
+ */
+const FINISHED_SPAN_CAP = 1024;
+
 export function initTracer(config: TracerConfig): TracerBundle {
 	const finished: FinishedSpan[] = [];
-	const exporter = config.exporter ?? ((s): void => void finished.push(s));
+	const exporter =
+		config.exporter ??
+		((s): void => {
+			finished.push(s);
+			if (finished.length > FINISHED_SPAN_CAP) finished.shift();
+		});
 
 	// Publish the active-context getter so `injectContext` can stamp events.
 	registerActiveContextGetter(() => {

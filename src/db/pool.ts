@@ -67,18 +67,11 @@ export interface Pool {
 
 /**
  * Options passed to `createPool`. `wrap` lets the caller install a
- * transparent proxy around the `sql` callable (e.g., for query timing);
- * the wrapper runs BEFORE `sql.end()` returns a handle to the caller, so
- * subsequent downstream wiring sees the wrapped `sql`.
+ * transparent proxy around the `sql` callable via `instrumentSql` installed
+ * post-hoc from the top-level entrypoint once telemetry has initialized.
  */
 export interface PoolOptions {
 	readonly onnotice?: () => void;
-	/**
-	 * Instrument the `sql` tagged template. The wrapper must return a value
-	 * that still satisfies `postgres.Sql`; the telemetry module's `instrumentSql`
-	 * uses a `Proxy` that forwards every property access.
-	 */
-	readonly wrap?: (sql: postgres.Sql) => postgres.Sql;
 }
 
 /**
@@ -88,14 +81,13 @@ export interface PoolOptions {
  * Call pool.connect() to verify connectivity at startup.
  */
 export function createPool(config: DbConfig, options?: PoolOptions): Pool {
-	const rawSql = postgres(config.DATABASE_URL, {
+	const sql = postgres(config.DATABASE_URL, {
 		max: config.DB_POOL_MAX,
 		idle_timeout: config.DB_IDLE_TIMEOUT,
 		connect_timeout: config.DB_CONNECT_TIMEOUT,
 		max_lifetime: MAX_LIFETIME_SECONDS,
 		...(options?.onnotice ? { onnotice: options.onnotice } : {}),
 	});
-	const sql = options?.wrap !== undefined ? options.wrap(rawSql) : rawSql;
 
 	return {
 		sql,
@@ -111,7 +103,7 @@ export function createPool(config: DbConfig, options?: PoolOptions): Pool {
 			}
 		},
 		async end(): Promise<void> {
-			await rawSql.end();
+			await sql.end();
 		},
 	};
 }

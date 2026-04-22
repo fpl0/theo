@@ -105,7 +105,7 @@ export interface SloGateDecision {
 		readonly budgetRemaining: number | null;
 		readonly burnRate1h: number | null;
 		readonly blocked: boolean;
-		readonly reason?: "budget_exhausted" | "fast_burn";
+		readonly reason?: "budget_exhausted" | "fast_burn" | "prometheus_unreachable";
 	}[];
 }
 

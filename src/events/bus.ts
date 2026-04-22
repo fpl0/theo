@@ -129,20 +129,13 @@ export type DurableHandlerWrapper = <E extends Event>(
 ) => (event: E) => Promise<void>;
 
 /**
- * `BusOptions.wrapHandler` resolves lazily, once at handler registration — the
- * top-level entrypoint creates the bus BEFORE the telemetry bundle (so the
- * projector can subscribe), then installs the wrapper via
- * `bus.setDurableHandlerWrapper`.
- */
-export interface BusOptions {
-	readonly wrapHandler?: DurableHandlerWrapper;
-}
-
-/**
  * Create an EventBus backed by the given EventLog and postgres.js connection.
+ * The durable handler wrapper (telemetry spans) is installed post-hoc via
+ * `bus.setDurableHandlerWrapper` — the top-level entrypoint creates the bus
+ * BEFORE the telemetry bundle so the projector can subscribe first.
  */
-export function createEventBus(log: EventLog, sql: Sql, options: BusOptions = {}): EventBus {
-	let wrapHandler: DurableHandlerWrapper | undefined = options.wrapHandler;
+export function createEventBus(log: EventLog, sql: Sql): EventBus {
+	let wrapHandler: DurableHandlerWrapper | undefined;
 	const handlers: Registration[] = [];
 	const ephemeralHandlers: EphemeralEventRegistration[] = [];
 	let started = false;

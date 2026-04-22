@@ -111,7 +111,13 @@ export interface ReflexThoughtData {
 
 export interface ReflexSuppressedData {
 	readonly webhookEventId: EventId;
-	readonly reason: "stale" | "rate_limited" | "coalesced" | "no_match" | "degradation";
+	readonly reason:
+		| "stale"
+		| "rate_limited"
+		| "coalesced"
+		| "no_match"
+		| "degradation"
+		| "no_consent";
 }
 
 // ---------------------------------------------------------------------------

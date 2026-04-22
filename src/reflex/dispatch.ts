@@ -180,7 +180,7 @@ async function dispatchReflex(
 				type: "reflex.suppressed",
 				version: 1,
 				actor: "system",
-				data: { webhookEventId: event.data.webhookEventId, reason: "degradation" },
+				data: { webhookEventId: event.data.webhookEventId, reason: "no_consent" },
 				metadata: { causeId: event.id },
 			});
 			return;

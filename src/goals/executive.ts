@@ -88,6 +88,8 @@ export interface DispatchResult {
 		| "timeout"
 		| "abort"
 		| "internal";
+	readonly inputTokens: number;
+	readonly outputTokens: number;
 	readonly tokens: number;
 	readonly costUsd: number;
 	readonly artifactIds: readonly string[];
@@ -315,8 +317,8 @@ export class ExecutiveLoop {
 				subagent: subagentName,
 				model: subagent?.model ?? "unknown",
 				...(subagent?.advisorModel !== undefined ? { advisorModel: subagent.advisorModel } : {}),
-				inputTokens: Math.round(result.tokens / 2),
-				outputTokens: Math.round(result.tokens / 2),
+				inputTokens: result.inputTokens,
+				outputTokens: result.outputTokens,
 				costUsd: result.costUsd,
 				turnClass: "executive",
 				causeEventId: taskStarted.id,
@@ -466,6 +468,8 @@ export class ExecutiveLoop {
 				kind: "failed",
 				outcome: `Unknown subagent "${subagentName}"`,
 				errorClass: "internal",
+				inputTokens: 0,
+				outputTokens: 0,
 				tokens: 0,
 				costUsd: 0,
 				artifactIds: [],
@@ -542,6 +546,8 @@ export class ExecutiveLoop {
 					kind: errorClass === "timeout" ? "yielded" : "failed",
 					outcome: failure.errors.length > 0 ? failure.errors.join("; ") : failure.subtype,
 					errorClass,
+					inputTokens: 0,
+					outputTokens: 0,
 					tokens: 0,
 					costUsd: 0,
 					artifactIds: [],
@@ -553,6 +559,8 @@ export class ExecutiveLoop {
 					kind: "failed",
 					outcome: "SDK returned no result",
 					errorClass: "internal",
+					inputTokens: 0,
+					outputTokens: 0,
 					tokens: 0,
 					costUsd: 0,
 					artifactIds: [],
@@ -563,6 +571,8 @@ export class ExecutiveLoop {
 			return {
 				kind: "completed",
 				outcome: responseText.slice(0, 500),
+				inputTokens: cost.inputTokens,
+				outputTokens: cost.outputTokens,
 				tokens: cost.tokens,
 				costUsd: cost.costUsd,
 				artifactIds: [],
@@ -573,6 +583,8 @@ export class ExecutiveLoop {
 					kind: "yielded",
 					outcome: "aborted",
 					errorClass: "abort",
+					inputTokens: 0,
+					outputTokens: 0,
 					tokens: 0,
 					costUsd: 0,
 					artifactIds: [],
@@ -582,6 +594,8 @@ export class ExecutiveLoop {
 				kind: "failed",
 				outcome: describeError(error),
 				errorClass: "internal",
+				inputTokens: 0,
+				outputTokens: 0,
 				tokens: 0,
 				costUsd: 0,
 				artifactIds: [],
