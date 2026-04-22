@@ -22,11 +22,30 @@
 import type { Sql, TransactionSql } from "postgres";
 import { asQueryable } from "../db/pool.ts";
 import type { EventBus } from "../events/bus.ts";
-import { newUlid } from "../events/ids.ts";
+import { type EventId, newUlid } from "../events/ids.ts";
 import type { ProposalKind, ProposalOrigin } from "../events/reflexes.ts";
 import type { Actor } from "../events/types.ts";
 import type { TrustTier } from "../memory/graph/types.ts";
 import { minTier } from "../memory/trust.ts";
+import { sha256Hex } from "../util/hash.ts";
+
+/**
+ * SHA-256 hex digest of a proposal payload. Deterministic JSON
+ * serialization via key sort keeps the hash stable across object
+ * construction orderings.
+ */
+export async function hashProposalPayload(payload: Record<string, unknown>): Promise<string> {
+	return sha256Hex(stableStringify(payload));
+}
+
+function stableStringify(value: unknown): string {
+	if (value === null || typeof value !== "object") return JSON.stringify(value);
+	if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+	const obj = value as Record<string, unknown>;
+	const keys = Object.keys(obj).sort();
+	const parts = keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`);
+	return `{${parts.join(",")}}`;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,6 +61,14 @@ export interface Proposal {
 	readonly summary: string;
 	readonly kind: ProposalKind;
 	readonly payload: Record<string, unknown>;
+	/**
+	 * SHA-256 hex of a stable JSON serialization of `payload`. Captured at
+	 * `requestProposal` time. `approveProposal` demands the caller pass the
+	 * hash they reviewed; if the stored and expected hashes disagree, the
+	 * approval is refused (`reason: "payload_hash_mismatch"`). This binds
+	 * owner approval to the exact payload the owner saw.
+	 */
+	readonly payloadHash: string;
 	readonly effectiveTrust: TrustTier;
 	readonly autonomyDomain: string;
 	readonly requiredLevel: number;
@@ -105,6 +132,8 @@ export async function requestProposal(
 			? Math.min(input.requiredLevel, IDEATION_MAX_LEVEL)
 			: input.requiredLevel;
 
+	const payloadHash = await hashProposalPayload(input.payload);
+
 	return deps.sql.begin(async (tx) => {
 		const q = asQueryable(tx);
 		// Resolve effective trust from the causation chain so a trusted caller
@@ -118,11 +147,11 @@ export async function requestProposal(
 		await q`
 			INSERT INTO proposal (
 				id, origin, source_cause_id, title, summary, kind, payload,
-				effective_trust, autonomy_domain, required_level, status, expires_at
+				payload_hash, effective_trust, autonomy_domain, required_level, status, expires_at
 			) VALUES (
 				${id}, ${input.origin}, ${input.sourceCauseId}, ${input.title},
 				${input.summary}, ${input.kind}, ${tx.json(input.payload as never)},
-				${effectiveTrust}, ${input.autonomyDomain}, ${requiredLevel},
+				${payloadHash}, ${effectiveTrust}, ${input.autonomyDomain}, ${requiredLevel},
 				'pending', ${expiresAt}
 			)
 		`;
@@ -156,6 +185,7 @@ export async function requestProposal(
 			summary: input.summary,
 			kind: input.kind,
 			payload: input.payload,
+			payloadHash,
 			effectiveTrust,
 			autonomyDomain: input.autonomyDomain,
 			requiredLevel,
@@ -171,27 +201,167 @@ export async function requestProposal(
 	});
 }
 
-/** Approve a pending proposal. Emits `proposal.approved`. */
+/** Outcome of an approve attempt — distinguishes normal cases from hash mismatch. */
+export type ApproveOutcome =
+	| { readonly kind: "approved" }
+	| { readonly kind: "not_pending" }
+	| { readonly kind: "payload_hash_mismatch"; readonly stored: string; readonly expected: string };
+
+/**
+ * Approve a pending proposal. Emits `proposal.approved`.
+ *
+ * When `expectedPayloadHash` is supplied, the stored `payload_hash` must
+ * equal it — otherwise the approval is refused with `payload_hash_mismatch`
+ * (TOCTOU guard: binds the owner's approval to the exact payload they
+ * reviewed). Callers that do not care about binding may omit it; the
+ * high-level `/approve` CLI wiring always supplies it.
+ */
 export async function approveProposal(
 	deps: { readonly sql: Sql; readonly bus: EventBus },
 	proposalId: string,
 	approvedBy: Actor,
-): Promise<void> {
-	await deps.sql.begin(async (tx) => {
+	expectedPayloadHash?: string,
+): Promise<ApproveOutcome> {
+	return deps.sql.begin(async (tx) => {
 		const q = asQueryable(tx);
+		if (expectedPayloadHash !== undefined) {
+			const rows = await q<Record<string, unknown>[]>`
+				SELECT payload_hash, status FROM proposal WHERE id = ${proposalId}
+			`;
+			const row = rows[0];
+			const storedHash = row?.["payload_hash"] as string | undefined;
+			const storedStatus = row?.["status"] as string | undefined;
+			if (storedStatus === undefined || storedStatus !== "pending") {
+				return { kind: "not_pending" } as ApproveOutcome;
+			}
+			if (storedHash !== expectedPayloadHash) {
+				return {
+					kind: "payload_hash_mismatch",
+					stored: storedHash ?? "",
+					expected: expectedPayloadHash,
+				} as ApproveOutcome;
+			}
+		}
 		const updated = await q<{ id: string }[]>`
 			UPDATE proposal
 			SET status = 'approved', decided_at = now(), decided_by = ${approvedBy}
 			WHERE id = ${proposalId} AND status = 'pending'
 			RETURNING id
 		`;
-		if (updated.length === 0) return;
+		if (updated.length === 0) return { kind: "not_pending" } as ApproveOutcome;
 		await deps.bus.emit(
 			{
 				type: "proposal.approved",
 				version: 1,
 				actor: approvedBy,
 				data: { proposalId, approvedBy },
+				metadata: {},
+			},
+			{ tx },
+		);
+		return { kind: "approved" } as ApproveOutcome;
+	});
+}
+
+/**
+ * Record workspace artifacts (branch, draft id) created for a proposal and
+ * emit `proposal.drafted`. Called by the effect handler that actually
+ * materializes the branch/draft — `store.ts` itself does no git/Gmail I/O.
+ * Populates `proposal.workspace_branch` and `proposal.workspace_draft_id`.
+ */
+export async function recordProposalDrafted(
+	deps: { readonly sql: Sql; readonly bus: EventBus },
+	proposalId: string,
+	draft: { readonly workspaceBranch?: string; readonly workspaceDraftId?: string },
+): Promise<void> {
+	await deps.sql.begin(async (tx) => {
+		const q = asQueryable(tx);
+		await q`
+			UPDATE proposal
+			SET workspace_branch = COALESCE(${draft.workspaceBranch ?? null}, workspace_branch),
+			    workspace_draft_id = COALESCE(${draft.workspaceDraftId ?? null}, workspace_draft_id)
+			WHERE id = ${proposalId}
+		`;
+		await deps.bus.emit(
+			{
+				type: "proposal.drafted",
+				version: 1,
+				actor: "system",
+				data: {
+					proposalId,
+					...(draft.workspaceBranch !== undefined
+						? { workspaceBranch: draft.workspaceBranch }
+						: {}),
+					...(draft.workspaceDraftId !== undefined
+						? { workspaceDraftId: draft.workspaceDraftId }
+						: {}),
+				},
+				metadata: {},
+			},
+			{ tx },
+		);
+	});
+}
+
+/**
+ * Mark an approved proposal as executed. Emits `proposal.executed` with the
+ * outcome event ids so downstream audits can chase the causation tree.
+ */
+export async function executeProposal(
+	deps: { readonly sql: Sql; readonly bus: EventBus },
+	proposalId: string,
+	outcomeEventIds: readonly EventId[],
+): Promise<void> {
+	await deps.sql.begin(async (tx) => {
+		const q = asQueryable(tx);
+		const updated = await q<{ id: string }[]>`
+			UPDATE proposal
+			SET status = 'executed'
+			WHERE id = ${proposalId} AND status = 'approved'
+			RETURNING id
+		`;
+		if (updated.length === 0) return;
+		await deps.bus.emit(
+			{
+				type: "proposal.executed",
+				version: 1,
+				actor: "system",
+				data: { proposalId, outcomeEventIds },
+				metadata: {},
+			},
+			{ tx },
+		);
+	});
+}
+
+/**
+ * Redact a proposal — clears sensitive payload fields. Idempotent: sets
+ * `redacted = true`, zeroes the payload, and emits `proposal.redacted`.
+ * Used when the owner explicitly asks Theo to forget a proposal's contents
+ * (the row stays for audit; only the sensitive body is removed).
+ */
+export async function redactProposal(
+	deps: { readonly sql: Sql; readonly bus: EventBus },
+	proposalId: string,
+	redactedBy: Actor,
+): Promise<void> {
+	await deps.sql.begin(async (tx) => {
+		const q = asQueryable(tx);
+		const updated = await q<{ id: string }[]>`
+			UPDATE proposal
+			SET redacted = true,
+			    payload = ${tx.json({} as never)},
+			    summary = '[redacted]'
+			WHERE id = ${proposalId} AND redacted = false
+			RETURNING id
+		`;
+		if (updated.length === 0) return;
+		await deps.bus.emit(
+			{
+				type: "proposal.redacted",
+				version: 1,
+				actor: redactedBy,
+				data: { proposalId, redactedBy },
 				metadata: {},
 			},
 			{ tx },
@@ -277,7 +447,7 @@ export async function listPending(sql: Sql | TransactionSql): Promise<readonly P
 	const q = asQueryable(sql);
 	const rows = await q<ProposalRow[]>`
 		SELECT id, origin, source_cause_id, title, summary, kind, payload,
-		       effective_trust, autonomy_domain, required_level, status,
+		       payload_hash, effective_trust, autonomy_domain, required_level, status,
 		       workspace_branch, workspace_draft_id, created_at, expires_at,
 		       decided_at, decided_by, redacted
 		FROM proposal
@@ -291,7 +461,7 @@ export async function getProposal(sql: Sql | TransactionSql, id: string): Promis
 	const q = asQueryable(sql);
 	const rows = await q<ProposalRow[]>`
 		SELECT id, origin, source_cause_id, title, summary, kind, payload,
-		       effective_trust, autonomy_domain, required_level, status,
+		       payload_hash, effective_trust, autonomy_domain, required_level, status,
 		       workspace_branch, workspace_draft_id, created_at, expires_at,
 		       decided_at, decided_by, redacted
 		FROM proposal WHERE id = ${id}
@@ -311,6 +481,7 @@ function rowToProposal(row: ProposalRow): Proposal {
 		summary: row["summary"] as string,
 		kind: row["kind"] as ProposalKind,
 		payload: row["payload"] as Record<string, unknown>,
+		payloadHash: row["payload_hash"] as string,
 		effectiveTrust: row["effective_trust"] as TrustTier,
 		autonomyDomain: row["autonomy_domain"] as string,
 		requiredLevel: row["required_level"] as number,

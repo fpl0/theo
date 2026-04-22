@@ -1,0 +1,168 @@
+---
+# Grafana unified alerting — SLO burn-rate + threshold guards.
+#
+# Every rule carries a `runbook_url` annotation pointing at a file under
+# `ops/observability/runbooks/`. The `alerts.test.ts` test fails CI if any
+# alert is missing a runbook or if the referenced file doesn't exist.
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: theo-binary
+    folder: Theo
+    interval: 1m
+    rules:
+      - uid: theo-down
+        title: TheoDown
+        condition: A
+        data:
+          - refId: A
+            datasourceUid: prom
+            model:
+              refId: A
+              expr: |
+                absent_over_time(theo_turns_total[15m])
+                and absent_over_time(theo_reflex_dispatched_total[15m])
+        for: 15m
+        labels: { severity: critical }
+        annotations:
+          summary: "Theo has produced no turns or reflexes in 15 minutes"
+          runbook_url: "runbooks/theo-down.md"
+
+      - uid: degradation-critical
+        title: DegradationCritical
+        condition: A
+        data:
+          - refId: A
+            datasourceUid: prom
+            model: { refId: A, expr: "theo_degradation_level_gauge >= 4" }
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Degradation ladder reached L4 (essential-only)"
+          runbook_url: "runbooks/degradation-critical.md"
+
+      - uid: autonomy-violation
+        title: AutonomyViolation
+        condition: A
+        data:
+          - refId: A
+            datasourceUid: prom
+            model:
+              refId: A
+              expr: "rate(theo_autonomy_violations_total[5m]) > 0"
+        for: 0m
+        labels: { severity: critical }
+        annotations:
+          summary: "Autonomy violation detected"
+          runbook_url: "runbooks/autonomy-violation.md"
+
+      - uid: cloud-budget-exceeded
+        title: CloudBudgetExceeded
+        condition: A
+        data:
+          - refId: A
+            datasourceUid: prom
+            model:
+              refId: A
+              expr: |
+                sum(increase(theo_cloud_egress_cost_usd_total[1d])) > 1
+        for: 0m
+        labels: { severity: critical }
+        annotations:
+          summary: "Daily cloud egress cost exceeded budget"
+          runbook_url: "runbooks/cloud-budget-exceeded.md"
+
+      - uid: handler-lag
+        title: HandlerLag
+        condition: A
+        data:
+          - refId: A
+            datasourceUid: prom
+            model:
+              refId: A
+              expr: "max(theo_bus_handler_lag_seconds) > 300"
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Handler lag exceeded 5 minutes"
+          runbook_url: "runbooks/handler-lag.md"
+
+      - uid: rollback-occurred
+        title: RollbackOccurred
+        condition: A
+        data:
+          - refId: A
+            datasourceUid: prom
+            model:
+              refId: A
+              expr: "increase(theo_system_rollback_total[1h]) > 0"
+        for: 0m
+        labels: { severity: critical }
+        annotations:
+          summary: "Self-update rollback executed"
+          runbook_url: "runbooks/rollback-occurred.md"
+
+      - uid: exporter-dropping
+        title: ExporterDropping
+        condition: A
+        data:
+          - refId: A
+            datasourceUid: prom
+            model:
+              refId: A
+              expr: "rate(theo_telemetry_exporter_dropped_total[10m]) > 0"
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Telemetry exporter dropping spans/metrics"
+          runbook_url: "runbooks/exporter-drops.md"
+
+      - uid: synthetic-failing
+        title: SyntheticProbeFailing
+        condition: A
+        data:
+          - refId: A
+            datasourceUid: prom
+            model:
+              refId: A
+              expr: "rate(theo_synthetic_probe_failures_total[15m]) > 0"
+        for: 15m
+        labels: { severity: critical }
+        annotations:
+          summary: "Synthetic probe failing"
+          runbook_url: "runbooks/synthetic-failing.md"
+
+  - orgId: 1
+    name: theo-slo
+    folder: Theo
+    interval: 1m
+    rules:
+      - uid: slo-fast-burn-turns
+        title: SLOFastBurn_turns
+        condition: A
+        data:
+          - refId: A
+            datasourceUid: prom
+            model:
+              refId: A
+              expr: "theo:turns:error_rate_5m > (1 - 0.99) * 14.4"
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "Fast burn on turn availability SLO"
+          runbook_url: "runbooks/slo-burn-fast.md"
+
+      - uid: slo-slow-burn-turns
+        title: SLOSlowBurn_turns
+        condition: A
+        data:
+          - refId: A
+            datasourceUid: prom
+            model:
+              refId: A
+              expr: "theo:turns:error_rate_5m > (1 - 0.99) * 6"
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: "Slow burn on turn availability SLO"
+          runbook_url: "runbooks/slo-burn-slow.md"

@@ -55,3 +55,33 @@ down:
 # Run the migration runner scaffold
 migrate:
     bun run src/db/migrate.ts
+
+# Start the local LGTM+P observability stack (Grafana, Loki, Tempo, Prometheus, Pyroscope, collector, Promtail)
+observe-up:
+    docker compose -f ops/observability/docker-compose.yaml up -d
+    @echo "Grafana: http://localhost:3000  (admin/admin)"
+
+# Stop the local observability stack
+observe-down:
+    docker compose -f ops/observability/docker-compose.yaml down
+
+# Install Theo as a launchd agent (creates workspace, seeds healthy_commit, loads plist)
+install:
+    bash ops/install.sh
+
+# Install the launchd agent AND bring up the observability stack
+install-full:
+    bash ops/install.sh --with-observability
+
+# Roll back to the healthy commit (manual escape hatch for broken self-updates)
+rollback:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    WORKSPACE="${THEO_WORKSPACE:-$HOME/Theo}"
+    if [ ! -f "$WORKSPACE/data/healthy_commit" ]; then
+      echo "No healthy_commit recorded at $WORKSPACE/data/healthy_commit — cannot roll back" >&2
+      exit 1
+    fi
+    HEALTHY=$(cat "$WORKSPACE/data/healthy_commit")
+    echo "Resetting working tree to $HEALTHY"
+    git reset --hard "$HEALTHY"

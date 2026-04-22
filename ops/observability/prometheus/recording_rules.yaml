@@ -1,0 +1,42 @@
+---
+# Recording rules — precompute p50/p95/p99 and SLO error rates so dashboards
+# and alerts read cheap time series.
+#
+# Names follow the Prometheus convention `job:signal:aggregation`. Every
+# referenced metric exists in `src/telemetry/metrics.ts` (ALL_METRIC_NAMES).
+
+groups:
+  - name: theo_turns
+    interval: 30s
+    rules:
+      - record: theo:turns:p95_1h
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le, gate) (rate(theo_turns_duration_ms_bucket[1h])))
+      - record: theo:turns:p99_1h
+        expr: |
+          histogram_quantile(0.99,
+            sum by (le, gate) (rate(theo_turns_duration_ms_bucket[1h])))
+      - record: theo:turns:error_rate_5m
+        expr: |
+          sum(rate(theo_turns_total{status="failed"}[5m]))
+            / clamp_min(sum(rate(theo_turns_total[5m])), 1)
+
+  - name: theo_retrieval
+    interval: 30s
+    rules:
+      - record: theo:retrieval:p95_5m
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(theo_retrieval_duration_ms_bucket[5m])))
+
+  - name: theo_slo
+    interval: 30s
+    rules:
+      - record: theo:slo:turns_available_ratio_30d
+        expr: |
+          1 - (sum(increase(theo_turns_total{status="failed"}[30d]))
+               / clamp_min(sum(increase(theo_turns_total[30d])), 1))
+      - record: theo:slo:error_budget_remaining_ratio
+        expr: |
+          (theo:slo:turns_available_ratio_30d - 0.99) / (1 - 0.99)

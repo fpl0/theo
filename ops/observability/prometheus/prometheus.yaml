@@ -1,0 +1,40 @@
+---
+# Prometheus scrape config for Theo's local stack.
+#
+# Scrapes itself, the collector's self-metrics, and receives Theo's metrics
+# via remote-write (the collector pushes them). Recording rules and alerts
+# are loaded from sibling files.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: dev
+    service: theo
+
+rule_files:
+  - /etc/prometheus/recording_rules.yaml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: collector
+    static_configs:
+      - targets: ["otel-collector:8888"]
+
+  - job_name: loki
+    static_configs:
+      - targets: ["loki:3100"]
+    metrics_path: /metrics
+
+  - job_name: tempo
+    static_configs:
+      - targets: ["tempo:3200"]
+    metrics_path: /metrics
+
+  - job_name: pyroscope
+    static_configs:
+      - targets: ["pyroscope:4040"]
+    metrics_path: /metrics

@@ -1,0 +1,61 @@
+{
+	"title": "Theo — Cost",
+	"uid": "theo-cost",
+	"schemaVersion": 39,
+	"version": 1,
+	"refresh": "1m",
+	"panels": [
+		{
+			"id": 1,
+			"type": "timeseries",
+			"title": "Model cost (USD) — by model, role",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "sum by (model, role) (rate(theo_cost_usd[5m]))"
+				}
+			]
+		},
+		{
+			"id": 2,
+			"type": "timeseries",
+			"title": "Advisor cost (USD, by model)",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "sum by (model) (rate(theo_advisor_cost_usd_total[5m]))"
+				}
+			]
+		},
+		{
+			"id": 3,
+			"type": "timeseries",
+			"title": "Cloud egress cost (USD, by turn class)",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "sum by (turn_class) (rate(theo_cloud_egress_cost_usd_total[5m]))"
+				}
+			]
+		},
+		{
+			"id": 4,
+			"type": "timeseries",
+			"title": "Ideation cost (USD cumulative)",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 16, "w": 24, "h": 6 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "theo_ideation_cost_usd_total"
+				}
+			]
+		}
+	]
+}

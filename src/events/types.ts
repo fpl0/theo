@@ -400,6 +400,39 @@ export interface SystemRollbackData {
 	readonly reason: string;
 }
 
+/**
+ * Degradation ladder healing — the autonomic self-restoration counterpart
+ * to `degradation.level_changed`. Emitted when the healing timer (Phase 15)
+ * observes that the conditions that forced a degradation have cleared for
+ * a sustained window.
+ */
+export interface SystemDegradationHealedData {
+	readonly previousLevel: number;
+	readonly newLevel: number;
+	readonly reason: string;
+}
+
+/**
+ * Emitted when the self-update path refuses to auto-merge because a SLO's
+ * error budget is exhausted. The bot opens/holds the PR; no merge occurs.
+ */
+export interface SelfUpdateBlockedData {
+	readonly slo: string;
+	readonly budgetRemainingRatio: number;
+	readonly reason: string;
+}
+
+/**
+ * Result of one synthetic probe turn — the "canary" self-test Theo issues
+ * on a schedule to detect alive-but-stuck failures that `launchd` misses.
+ */
+export interface SyntheticProbeCompletedData {
+	readonly probeId: string;
+	readonly ok: boolean;
+	readonly durationMs: number;
+	readonly reason?: string | undefined;
+}
+
 export interface HandlerDeadLetteredData {
 	readonly handlerId: string;
 	readonly eventId: EventId;
@@ -416,6 +449,9 @@ export type SystemEvent =
 	| TheoEvent<"system.started", SystemStartedData>
 	| TheoEvent<"system.stopped", SystemStoppedData>
 	| TheoEvent<"system.rollback", SystemRollbackData>
+	| TheoEvent<"system.degradation.healed", SystemDegradationHealedData>
+	| TheoEvent<"self_update.blocked", SelfUpdateBlockedData>
+	| TheoEvent<"synthetic.probe.completed", SyntheticProbeCompletedData>
 	| TheoEvent<"system.handler.dead_lettered", HandlerDeadLetteredData>
 	| TheoEvent<"hook.failed", HookFailedData>;
 

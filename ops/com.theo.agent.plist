@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  launchd plist — Theo's always-on wrapper on macOS.
+
+  The install script (`ops/install.sh`) rewrites the OWNER/THEO_HOME
+  placeholders before copying this file into
+  `~/Library/LaunchAgents/com.theo.agent.plist`. `KeepAlive` + `RunAtLoad`
+  keep the process up through reboots and crashes; `ThrottleInterval: 10`
+  prevents rapid restart loops while the healthcheck retries rollbacks.
+
+  The engine's startup sequence (migrations → healthcheck → bus replay →
+  scheduler → gate) takes responsibility for recovery on restart.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.theo.agent</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__BUN_PATH__</string>
+    <string>run</string>
+    <string>src/index.ts</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__REPO_DIR__</string>
+  <key>KeepAlive</key>
+  <true/>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>__THEO_WORKSPACE__/logs/launchd-stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>__THEO_WORKSPACE__/logs/launchd-stderr.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>THEO_WORKSPACE</key>
+    <string>__THEO_WORKSPACE__</string>
+    <key>OTEL_EXPORTER_OTLP_ENDPOINT</key>
+    <string>http://localhost:4318</string>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+</dict>
+</plist>

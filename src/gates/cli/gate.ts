@@ -16,6 +16,7 @@ import type { ChatEngine } from "../../chat/engine.ts";
 import type { EventBus } from "../../events/bus.ts";
 import type { Gate } from "../types.ts";
 import { App } from "./app.tsx";
+import type { OperatorDeps } from "./operator.ts";
 
 // Structural slice of Ink's Instance. Only the two methods we actually call
 // are modeled so we don't pin on internal details of the ink package.
@@ -32,6 +33,7 @@ export class CliGate implements Gate {
 	constructor(
 		private readonly engine: ChatEngine,
 		private readonly bus: EventBus,
+		private readonly operator?: OperatorDeps,
 	) {}
 
 	async start(): Promise<void> {
@@ -41,7 +43,12 @@ export class CliGate implements Gate {
 			this.instance?.unmount();
 		};
 		const instance: InkInstance = render(
-			React.createElement(App, { engine: this.engine, bus: this.bus, onExit: handleExit }),
+			React.createElement(App, {
+				engine: this.engine,
+				bus: this.bus,
+				onExit: handleExit,
+				...(this.operator !== undefined ? { operator: this.operator } : {}),
+			}),
 		);
 		this.instance = instance;
 		await instance.waitUntilExit();

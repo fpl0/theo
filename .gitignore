@@ -32,3 +32,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Finder (MacOS) folder config
 .DS_Store
+
+# Observability stack container volumes (Phase 15)
+ops/observability/data/
+
+# Theo workspace (local state managed by the engine, never committed)
+Theo/

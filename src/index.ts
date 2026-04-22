@@ -35,6 +35,7 @@ import { createUserModelRepository } from "./memory/user_model.ts";
 import { BUILTIN_JOBS } from "./scheduler/builtin.ts";
 import { Scheduler } from "./scheduler/runner.ts";
 import { createJobStore } from "./scheduler/store.ts";
+import { initTelemetry } from "./telemetry/index.ts";
 
 // ---------------------------------------------------------------------------
 // Config + pool
@@ -69,6 +70,24 @@ console.info("Connected to PostgreSQL.");
 const upcasters = createUpcasterRegistry();
 const eventLog = createEventLog(pool.sql, upcasters);
 const bus = createEventBus(eventLog, pool.sql);
+
+// ---------------------------------------------------------------------------
+// Telemetry — wires the projector to the bus BEFORE handlers run
+// ---------------------------------------------------------------------------
+
+const telemetry = await initTelemetry(
+	{
+		environment: (process.env["THEO_ENV"] as "prod" | "dev" | "test") ?? "dev",
+		logger: {
+			...(process.env["THEO_WORKSPACE"] !== undefined
+				? { logDir: `${process.env["THEO_WORKSPACE"]}/logs` }
+				: {}),
+			level: (process.env["THEO_LOG_LEVEL"] as "debug" | "info" | "warn" | "error") ?? "info",
+		},
+	},
+	bus,
+	pool.sql,
+);
 
 // ---------------------------------------------------------------------------
 // Memory layer
@@ -133,7 +152,7 @@ const scheduler = new Scheduler({
 // Gate
 // ---------------------------------------------------------------------------
 
-const gate = new CliGate(chatEngine, bus);
+const gate = new CliGate(chatEngine, bus, { sql: pool.sql, bus });
 
 // ---------------------------------------------------------------------------
 // Engine lifecycle
@@ -145,6 +164,10 @@ const engine = new Engine({
 	scheduler,
 	chatEngine,
 	gate,
+	telemetry,
+	...(process.env["THEO_WORKSPACE"] !== undefined
+		? { selfUpdateWorkspace: process.env["THEO_WORKSPACE"] }
+		: {}),
 });
 
 installSignalHandlers(engine);

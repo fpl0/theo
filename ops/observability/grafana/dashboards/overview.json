@@ -1,0 +1,74 @@
+{
+	"title": "Theo — Overview",
+	"uid": "theo-overview",
+	"schemaVersion": 39,
+	"version": 1,
+	"refresh": "30s",
+	"panels": [
+		{
+			"id": 1,
+			"type": "stat",
+			"title": "Turns / 5m",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "sum(rate(theo_turns_total[5m]))"
+				}
+			]
+		},
+		{
+			"id": 2,
+			"type": "stat",
+			"title": "Degradation level",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "theo_degradation_level_gauge"
+				}
+			]
+		},
+		{
+			"id": 3,
+			"type": "stat",
+			"title": "Pending proposals",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "theo_proposals_pending_gauge"
+				}
+			]
+		},
+		{
+			"id": 4,
+			"type": "stat",
+			"title": "Cost today (USD)",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "sum(increase(theo_cost_usd[1d]))"
+				}
+			]
+		},
+		{
+			"id": 5,
+			"type": "timeseries",
+			"title": "Handler lag (seconds, by handler)",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "theo_bus_handler_lag_seconds"
+				}
+			]
+		}
+	]
+}

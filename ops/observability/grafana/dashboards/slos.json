@@ -1,0 +1,61 @@
+{
+	"title": "Theo — SLOs",
+	"uid": "theo-slos",
+	"schemaVersion": 39,
+	"version": 1,
+	"refresh": "1m",
+	"panels": [
+		{
+			"id": 1,
+			"type": "stat",
+			"title": "Error budget remaining (turns)",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 0, "w": 8, "h": 6 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "theo_slo_error_budget_remaining_ratio"
+				}
+			]
+		},
+		{
+			"id": 2,
+			"type": "timeseries",
+			"title": "Burn rate",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 8, "y": 0, "w": 16, "h": 6 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "theo_slo_burn_rate"
+				}
+			]
+		},
+		{
+			"id": 3,
+			"type": "timeseries",
+			"title": "Turn error rate (5m)",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 0, "y": 6, "w": 12, "h": 8 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "theo:turns:error_rate_5m"
+				}
+			]
+		},
+		{
+			"id": 4,
+			"type": "timeseries",
+			"title": "Turn p95 (1h)",
+			"datasource": { "type": "prometheus", "uid": "prom" },
+			"gridPos": { "x": 12, "y": 6, "w": 12, "h": 8 },
+			"targets": [
+				{
+					"refId": "A",
+					"expr": "theo:turns:p95_1h"
+				}
+			]
+		}
+	]
+}

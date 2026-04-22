@@ -173,7 +173,26 @@ export async function handleWebhookRequest(
 		return { status: 400, body: "parse error" };
 	}
 
-	// 4. Rate limit.
+	// 4. HMAC — verified BEFORE the rate limiter so unsigned garbage cannot
+	//    drain the legitimate source's token bucket. This closes a DoS
+	//    amplification vector where a public endpoint receiving forged
+	//    requests would starve real webhook deliveries.
+	const secretPair = await secrets.getSecrets(source);
+	if (!secretPair) {
+		await emitRejection(bus, source, parsedWebhook.deliveryId, "unknown_source");
+		return { status: 404, body: "unknown source" };
+	}
+	const sigHeader = signatureHeader(source as KnownSource, headerUndefined);
+	const verifier = verifierFor(source);
+	const signatureOk =
+		sigHeader !== null && verifier !== null ? verifier(bodyBuffer, sigHeader, secretPair) : false;
+	if (!signatureOk) {
+		await recordDelivery(sql, source, parsedWebhook.deliveryId, false, "rejected");
+		await emitRejection(bus, source, parsedWebhook.deliveryId, "signature_invalid");
+		return { status: 401, body: "signature invalid" };
+	}
+
+	// 5. Rate limit — applied only to verified requests.
 	const rateDecision = await rateLimiter.consume(source);
 	if (!rateDecision.allowed) {
 		await bus.emit({
@@ -191,27 +210,11 @@ export async function handleWebhookRequest(
 		};
 	}
 
-	// 5. Dedup — (source, delivery_id) unique insert. First writer wins.
+	// 6. Dedup — (source, delivery_id) unique insert. First writer wins.
 	const alreadySeen = await isDuplicate(sql, source, parsedWebhook.deliveryId);
 	if (alreadySeen) {
 		await emitRejection(bus, source, parsedWebhook.deliveryId, "duplicate");
 		return { status: 200, body: "duplicate" };
-	}
-
-	// 6. HMAC.
-	const secretPair = await secrets.getSecrets(source);
-	if (!secretPair) {
-		await emitRejection(bus, source, parsedWebhook.deliveryId, "unknown_source");
-		return { status: 404, body: "unknown source" };
-	}
-	const sigHeader = signatureHeader(source as KnownSource, headerUndefined);
-	const verifier = verifierFor(source);
-	const signatureOk =
-		sigHeader !== null && verifier !== null ? verifier(bodyBuffer, sigHeader, secretPair) : false;
-	if (!signatureOk) {
-		await recordDelivery(sql, source, parsedWebhook.deliveryId, false, "rejected");
-		await emitRejection(bus, source, parsedWebhook.deliveryId, "signature_invalid");
-		return { status: 401, body: "signature invalid" };
 	}
 
 	// 7. Hash + byte length for the durable `webhook.received` event.
@@ -340,7 +343,11 @@ async function recordDelivery(
  * Start the webhook server. Returns a `Server` handle the engine can stop.
  *
  * The server binds to `127.0.0.1` by default. `config.public = true`
- * requires `config.tunnel` to be set; a bare public bind is refused.
+ * requires BOTH `config.tunnel` AND an explicit `config.hostname` — we
+ * refuse to silently bind `0.0.0.0` even when a tunnel is declared, so a
+ * misconfigured tunnel cannot accidentally expose the webhook server to
+ * every interface. The hostname must be a routable but restricted address
+ * (for example the tunnel's loopback sidecar or a tailscale `100.x.x.x`).
  */
 export function startWebhookServer(deps: WebhookServerDeps): ReturnType<typeof Bun.serve> {
 	const { config } = deps;
@@ -350,7 +357,18 @@ export function startWebhookServer(deps: WebhookServerDeps): ReturnType<typeof B
 				"set config.tunnel to 'cloudflare' | 'tailscale' | 'relay' first",
 		);
 	}
-	const hostname = config.public === true ? (config.hostname ?? "0.0.0.0") : "127.0.0.1";
+	if (config.public === true && (config.hostname === undefined || config.hostname === "")) {
+		throw new Error(
+			"webhook server refuses to bind publicly without an explicit hostname — " +
+				"set config.hostname to the tunnel adapter's interface (never '0.0.0.0')",
+		);
+	}
+	if (config.public === true && config.hostname === "0.0.0.0") {
+		throw new Error(
+			"webhook server refuses hostname '0.0.0.0' — bind to a specific interface instead",
+		);
+	}
+	const hostname = config.public === true ? (config.hostname as string) : "127.0.0.1";
 
 	return Bun.serve({
 		port: config.port,

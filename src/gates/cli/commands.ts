@@ -21,6 +21,48 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = [
 	{ name: "/memory", description: "Show memory stats", aliases: [] },
 	{ name: "/clear", description: "Clear screen", aliases: [] },
 	{ name: "/help", description: "Show available commands", aliases: ["/?"] },
+	// ---- Phase 13b operator commands (wired in Phase 15) -------------------
+	{
+		name: "/proposals",
+		description: "List pending proposals awaiting approval",
+		aliases: [],
+	},
+	{
+		name: "/approve",
+		description: "Approve a proposal by id (usage: /approve <id>)",
+		aliases: [],
+	},
+	{
+		name: "/reject",
+		description: "Reject a proposal by id (usage: /reject <id> [reason])",
+		aliases: [],
+	},
+	{
+		name: "/redact",
+		description: "Redact a proposal's sensitive contents (usage: /redact <id>)",
+		aliases: [],
+	},
+	{
+		name: "/consent",
+		description:
+			"Grant or revoke autonomous cloud egress consent (usage: /consent grant|revoke [reason])",
+		aliases: [],
+	},
+	{
+		name: "/cloud-audit",
+		description: "Summarize autonomous cloud spend — accepts window: day / week / month",
+		aliases: [],
+	},
+	{
+		name: "/degradation",
+		description: "Show or set degradation level (usage: /degradation [0-4] [reason])",
+		aliases: [],
+	},
+	{
+		name: "/webhook-rotate",
+		description: "Rotate a webhook source secret (usage: /webhook-rotate <source> <newSecret>)",
+		aliases: [],
+	},
 ] as const;
 
 /** All canonical slash-command names for strict matching. */

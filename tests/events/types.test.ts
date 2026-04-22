@@ -106,6 +106,12 @@ describe("Event type system", () => {
 					return "system.stopped";
 				case "system.rollback":
 					return "system.rollback";
+				case "system.degradation.healed":
+					return "system.degradation.healed";
+				case "self_update.blocked":
+					return "self_update.blocked";
+				case "synthetic.probe.completed":
+					return "synthetic.probe.completed";
 				case "system.handler.dead_lettered":
 					return "system.handler.dead_lettered";
 				case "hook.failed":

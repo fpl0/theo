@@ -20,14 +20,26 @@ import { InputArea } from "./components/input-area.tsx";
 import { MessageList } from "./components/message-list.tsx";
 import { StatusBar } from "./components/status-bar.tsx";
 import { useEngine } from "./hooks.ts";
+import {
+	isOperatorCommand,
+	type OperatorDeps,
+	parseOperatorLine,
+	runOperatorCommand,
+} from "./operator.ts";
 
 export interface AppProps {
 	readonly engine: ChatEngine;
 	readonly bus: EventBus;
 	readonly onExit: () => void;
+	/**
+	 * Deps for Phase 13b/15 operator commands. When omitted, operator
+	 * commands report "not configured" — useful for headless test wiring
+	 * that only exercises the chat path.
+	 */
+	readonly operator?: OperatorDeps;
 }
 
-export function App({ engine, bus, onExit }: AppProps): React.JSX.Element {
+export function App({ engine, bus, onExit, operator }: AppProps): React.JSX.Element {
 	const {
 		state,
 		messages,
@@ -39,6 +51,25 @@ export function App({ engine, bus, onExit }: AppProps): React.JSX.Element {
 		clearMessages,
 		appendSystem,
 	} = useEngine(engine, bus);
+
+	const dispatchOperator = useCallback(
+		(text: string): boolean => {
+			const parsed = parseOperatorLine(text);
+			if (parsed === null || !isOperatorCommand(parsed.name)) return false;
+			if (operator === undefined) {
+				appendSystem(`${parsed.name}: operator commands not configured`);
+				return true;
+			}
+			void runOperatorCommand(operator, text)
+				.then((result) => appendSystem(result.message))
+				.catch((err: unknown) => {
+					const message = err instanceof Error ? err.message : String(err);
+					appendSystem(`${parsed.name}: ${message}`);
+				});
+			return true;
+		},
+		[appendSystem, operator],
+	);
 
 	const handleSubmit = useCallback(
 		(text: string) => {
@@ -72,13 +103,32 @@ export function App({ engine, bus, onExit }: AppProps): React.JSX.Element {
 						appendSystem(help);
 						return;
 					}
+					case "/proposals":
+					case "/approve":
+					case "/reject":
+					case "/redact":
+					case "/consent":
+					case "/cloud-audit":
+					case "/degradation":
+					case "/webhook-rotate":
+						dispatchOperator(trimmed);
+						return;
 				}
 				return;
 			}
 			if (trimmed.length === 0) return;
 			send(text);
 		},
-		[send, onExit, resetSession, clearMessages, appendSystem, sessionId, state.phase],
+		[
+			send,
+			onExit,
+			resetSession,
+			clearMessages,
+			appendSystem,
+			sessionId,
+			state.phase,
+			dispatchOperator,
+		],
 	);
 
 	const handleAbort = useCallback(() => {

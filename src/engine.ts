@@ -27,6 +27,9 @@ import { describeError } from "./errors.ts";
 import type { EventBus } from "./events/bus.ts";
 import type { Gate } from "./gates/types.ts";
 import type { Scheduler } from "./scheduler/runner.ts";
+import { runHealthCheck } from "./selfupdate/healthcheck.ts";
+import { rollbackToHealthy } from "./selfupdate/rollback.ts";
+import type { TelemetryBundle } from "./telemetry/index.ts";
 
 // ---------------------------------------------------------------------------
 // State
@@ -61,11 +64,23 @@ export interface EngineDependencies {
 	readonly chatEngine: ChatEngine;
 	readonly gate: Gate;
 	/**
+	 * Telemetry bundle, if initialized. When absent, the engine skips
+	 * `shutdown()` — useful for tests that don't spin up the observability
+	 * layer.
+	 */
+	readonly telemetry?: TelemetryBundle;
+	/**
 	 * Optional: semver/build identifier embedded in `system.started`. Reads
 	 * from `package.json` would couple the engine to the filesystem; the
 	 * caller passes it in.
 	 */
 	readonly version?: string;
+	/**
+	 * When set, run the self-update healthcheck at startup against this
+	 * workspace path. A failed check triggers `rollbackToHealthy()` and
+	 * throws — `launchd` restarts the process into the rolled-back commit.
+	 */
+	readonly selfUpdateWorkspace?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -109,6 +124,25 @@ export class Engine {
 			const migrateResult = await migrate(this.deps.pool.sql);
 			if (!migrateResult.ok) {
 				throw migrateResult.error;
+			}
+
+			// Self-update safety: run `just check` against the current tree
+			// and either mark the current commit healthy or roll back to the
+			// last known-good commit. Skipped when no workspace is configured
+			// (tests; non-launchd environments).
+			if (this.deps.selfUpdateWorkspace !== undefined) {
+				const check = await runHealthCheck({
+					workspace: this.deps.selfUpdateWorkspace,
+					sql: this.deps.pool.sql,
+				});
+				if (!check.ok) {
+					await rollbackToHealthy({
+						workspace: this.deps.selfUpdateWorkspace,
+						bus: this.deps.bus,
+						sql: this.deps.pool.sql,
+					});
+					throw new Error("startup healthcheck failed; rolled back to healthy commit");
+				}
 			}
 
 			await this.deps.bus.start();
@@ -165,6 +199,12 @@ export class Engine {
 		});
 
 		await safeShutdown("bus.stop", () => this.deps.bus.stop());
+		if (this.deps.telemetry !== undefined) {
+			await safeShutdown(
+				"telemetry.shutdown",
+				() => this.deps.telemetry?.shutdown() ?? Promise.resolve(),
+			);
+		}
 		await safeShutdown("pool.end", () => this.deps.pool.end());
 		this.stateValue = "stopped";
 	}

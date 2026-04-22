@@ -1,0 +1,89 @@
+---
+# Theo local observability stack — "LGTM+P": Loki, Grafana, Tempo, Prometheus, Pyroscope.
+#
+# Managed via `just observe-up` / `just observe-down`. Optional — Theo runs
+# fine without it; when absent, tracing no-ops and metrics stay in-process.
+#
+# Volumes live under `ops/observability/data/` (gitignored) so they're
+# independent of both the workspace and the source tree.
+version: "3.9"
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.100.0
+    command: ["--config=/etc/otel-collector/config.yaml"]
+    volumes:
+      - ./otel-collector:/etc/otel-collector:ro
+    ports:
+      - "127.0.0.1:4317:4317"   # OTLP gRPC
+      - "127.0.0.1:4318:4318"   # OTLP HTTP
+      - "127.0.0.1:8888:8888"   # Collector self-metrics
+    depends_on:
+      - prometheus
+      - tempo
+      - loki
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yaml"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-remote-write-receiver"
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - ./data/prometheus:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+
+  loki:
+    image: grafana/loki:3.1.0
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes:
+      - ./loki:/etc/loki:ro
+      - ./data/loki:/loki
+    ports:
+      - "127.0.0.1:3100:3100"
+
+  promtail:
+    image: grafana/promtail:3.1.0
+    command: ["-config.file=/etc/promtail/promtail.yaml"]
+    volumes:
+      - ./promtail:/etc/promtail:ro
+      - ${HOME}/Theo/logs:/var/log/theo:ro
+    depends_on:
+      - loki
+
+  tempo:
+    image: grafana/tempo:2.5.0
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./tempo:/etc/tempo:ro
+      - ./data/tempo:/var/tempo
+    ports:
+      - "127.0.0.1:3200:3200"
+
+  pyroscope:
+    image: grafana/pyroscope:1.7.1
+    ports:
+      - "127.0.0.1:4040:4040"
+    volumes:
+      - ./data/pyroscope:/var/lib/pyroscope
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./data/grafana:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+      - pyroscope
