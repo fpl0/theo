@@ -22,6 +22,8 @@ import { createEventBus } from "./events/bus.ts";
 import { createEventLog } from "./events/log.ts";
 import { createUpcasterRegistry } from "./events/upcasters.ts";
 import { CliGate } from "./gates/cli/gate.ts";
+import { registerGoalHandlers } from "./goals/handlers.ts";
+import { GoalRepository } from "./goals/repository.ts";
 import { CoreMemoryRepository } from "./memory/core.ts";
 import { HuggingFaceEmbeddingService } from "./memory/embeddings.ts";
 import { EpisodicRepository } from "./memory/episodic.ts";
@@ -119,6 +121,14 @@ const userModel = createUserModelRepository(pool.sql, bus);
 const selfModel = createSelfModelRepository(pool.sql, bus);
 const skills = createSkillRepository(pool.sql, embeddings, bus);
 const episodic = new EpisodicRepository(pool.sql, bus, embeddings);
+const goals = new GoalRepository(pool.sql, bus, nodes);
+
+// Register goal projection handlers + poison-quarantine circuit breaker so
+// `goal.created` and friends project into the `goal_state` table. Without
+// this, GoalRepository.create() emits the event but the projection never
+// runs and `readState` returns null — the repository then throws, so every
+// goal-capture SDK call fails.
+registerGoalHandlers({ sql: pool.sql, bus, goals });
 
 const memoryServer = createMemoryServer({
 	nodes,
@@ -128,6 +138,7 @@ const memoryServer = createMemoryServer({
 	userModel,
 	selfModel,
 	skills,
+	goals,
 });
 
 // ---------------------------------------------------------------------------
@@ -215,3 +226,9 @@ try {
 	});
 	process.exit(1);
 }
+
+// Daemon: stay alive until `stop()` resolves (signal handlers or self-update).
+// Without this, a gate that throws synchronously (e.g., Ink render without a
+// TTY) lets `runGate` swallow the error and `main` returns, letting Bun drain
+// the event loop and exit silently with code 0.
+await engine.awaitStopped();

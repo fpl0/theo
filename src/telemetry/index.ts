@@ -94,6 +94,11 @@ export async function initTelemetry(
 			// Prime the OTel API cache so the span-bridge has a hot handle
 			// before the first `withSpan` fires.
 			await primeOtelApiCache();
+			// Bridge the in-memory meter to the SDK meter so every counter /
+			// histogram / observable gauge dual-writes to OTLP. Without this
+			// the InMemoryMeter runs isolated and Prometheus receives no
+			// `theo_*` metrics — the dashboards and SLO alerts all go blind.
+			metrics.meter.bindOtlp(otlp.meterProvider.getMeter("theo"));
 		} catch (error) {
 			// OTLP bootstrap must never block startup. Log and continue with
 			// the in-memory tracer.

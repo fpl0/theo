@@ -265,13 +265,13 @@ describe("SessionManager.decide", () => {
 // ---------------------------------------------------------------------------
 
 describe("SessionManager lifecycle", () => {
-	test("startSession returns a ULID and exposes it via getActiveSessionId", async () => {
+	test("startSession returns a UUID and exposes it via getActiveSessionId", async () => {
 		const { repo } = countingSelfModel();
 		const mgr = new SessionManager(keyedEmbeddings({}), repo);
 
 		const id = await mgr.startSession(hasher("H"));
 
-		expect(id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+		expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
 		expect(mgr.getActiveSessionId()).toBe(id);
 		expect(mgr.getTurnCount()).toBe(0);
 	});

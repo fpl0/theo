@@ -74,7 +74,7 @@ describe("loadConfig invalid input", () => {
 		expect(result.error.code).toBe("CONFIG_INVALID");
 	});
 
-	test("multiple errors when both required vars missing", () => {
+	test("error when DATABASE_URL missing", () => {
 		const result = loadConfig({});
 		expect(result.ok).toBe(false);
 		if (result.ok) {
@@ -88,6 +88,25 @@ describe("loadConfig invalid input", () => {
 
 		const paths = result.error.issues.map((i) => i.path);
 		expect(paths).toContain("DATABASE_URL");
+	});
+
+	test("empty ANTHROPIC_API_KEY is rejected (must be unset or non-empty)", () => {
+		const result = loadConfig({
+			DATABASE_URL: "postgresql://u:p@localhost:5432/d",
+			ANTHROPIC_API_KEY: "",
+		});
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.error.code).toBe("CONFIG_INVALID");
+		if (result.error.code !== "CONFIG_INVALID") return;
+		const paths = result.error.issues.map((i) => i.path);
 		expect(paths).toContain("ANTHROPIC_API_KEY");
+	});
+
+	test("unset ANTHROPIC_API_KEY is accepted (OAuth fallback)", () => {
+		const result = loadConfig({
+			DATABASE_URL: "postgresql://u:p@localhost:5432/d",
+		});
+		expect(result.ok).toBe(true);
 	});
 });

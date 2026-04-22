@@ -7,9 +7,12 @@
  * and reused as a singleton — call warmup() at boot to avoid cold-start latency.
  *
  * Model: Xenova/all-mpnet-base-v2 (768 dimensions, L2-normalized).
- * Precision: fp16 — the M1 Neural Engine operates natively in fp16, so fp32 models
- * are internally downcast by CoreML with no quality benefit. fp16 halves model size
- * (218MB vs 436MB) and load time while producing identical embeddings on Apple Silicon.
+ * Precision: fp32. The Xenova fp16 variant of this model has a LayerNorm fusion
+ * that onnxruntime's graph optimizer cannot resolve (insertedPrecisionFreeCast
+ * references a non-existent node), so init fails on every execution provider.
+ * CoreML handles fp32 natively and is ~4× faster than CPU fp32, so the quality
+ * and speed win is kept without the fp16 download. Revisit if upstream fixes the
+ * fp16 graph or we pin a different model.
  * Schema: vector(768) columns in PostgreSQL via pgvector.
  */
 
@@ -153,12 +156,12 @@ export interface EmbeddingServiceOptions {
 	/** ONNX execution provider device. Defaults to "coreml" on macOS, "cpu" elsewhere. */
 	readonly device?: DeviceType;
 	/**
-	 * Model precision. Defaults to "fp16".
+	 * Model precision. Defaults to "fp32".
 	 *
-	 * fp16 is optimal for Apple Silicon: the Neural Engine operates natively in fp16,
-	 * so CoreML internally downcasts fp32 models anyway. Using fp16 directly halves
-	 * model download (218MB vs 436MB) and load time with no quality difference.
-	 * The output is still Float32Array — the pipeline upscales after inference.
+	 * The Xenova/all-mpnet-base-v2 fp16 ONNX graph has a LayerNorm fusion that
+	 * onnxruntime's optimizer cannot resolve (insertedPrecisionFreeCast references
+	 * a node removed during fusion). fp16 therefore fails on both CoreML and CPU.
+	 * fp32 on CoreML is fast (~1.5s init) and keeps identical embedding output.
 	 */
 	readonly dtype?: DataType;
 }
@@ -179,7 +182,7 @@ export class HuggingFaceEmbeddingService implements EmbeddingService {
 
 	constructor(options?: EmbeddingServiceOptions) {
 		this.device = options?.device ?? (process.platform === "darwin" ? "coreml" : "cpu");
-		this.dtype = options?.dtype ?? "fp16";
+		this.dtype = options?.dtype ?? "fp32";
 	}
 
 	async warmup(): Promise<void> {

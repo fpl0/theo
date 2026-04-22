@@ -1,14 +1,18 @@
 /**
- * `read_goals` MCP tool.
+ * Goals MCP tools — `read_goals` and `record_goal`.
  *
- * Reads active goals visible at the caller's effective trust tier. The
- * chat engine threads `effectiveTrust` into tool metadata (Phase 10); this
- * tool filters by that tier to prevent webhook-trust turns from seeing
- * owner_confirmed goals (foundation.md §7.3).
+ * `read_goals`: lists active goals visible at the caller's effective trust
+ * tier. The chat engine threads `effectiveTrust` into tool metadata
+ * (Phase 10); the tool filters by that tier to prevent webhook-trust turns
+ * from seeing owner_confirmed goals (foundation.md §7.3). Redacted goals
+ * appear with title + status but body masked.
  *
- * Redacted goals appear with title + status but bodies masked. The
- * goal_state row carries the `redacted` flag; the projection sets it on
- * `goal.redacted` and the tool respects it here.
+ * `record_goal`: creates a new goal with origin = "owner" (or whatever the
+ * caller's trust tier implies). Without this tool, goal creation could only
+ * happen via internal code paths — the SDK had no way to persist an owner's
+ * stated intent, so "I want to set a goal: …" turns went into the episodic
+ * log and nowhere else. The tool is trust-scoped: only an `owner` or
+ * `owner_confirmed` turn may record goals; other tiers get a clear refusal.
  */
 
 import { tool } from "@anthropic-ai/claude-agent-sdk";
@@ -59,6 +63,70 @@ export interface ReadGoalsDeps {
 	 * or an equivalent hook; tests can inject a constant.
 	 */
 	readonly resolveTrust: (extra: unknown) => TrustTier;
+}
+
+/**
+ * Minimum trust tier allowed to create goals via `record_goal`. Lower tiers
+ * (verified/inferred/external/untrusted) would let a webhook-originated turn
+ * fabricate commitments in the owner's name — foundation.md §7.3 forbids
+ * this without an explicit proposal + approval flow.
+ */
+function canRecordGoal(tier: TrustTier): boolean {
+	return tier === "owner" || tier === "owner_confirmed";
+}
+
+export function recordGoalTool(deps: ReadGoalsDeps) {
+	return tool(
+		"record_goal",
+		'Record a goal the owner has stated (e.g. "I want to draft a summary by Friday"). ' +
+			"Use this whenever the owner expresses a commitment, intent, or durable objective. " +
+			"Pick a short imperative `title` and a 1-2 sentence `description` capturing the " +
+			"what/why/deadline. `ownerPriority` defaults to 50 on a 0-100 scale; use higher " +
+			"values for stated-important goals and lower for aspirational ones. Only call this " +
+			"at trust tier owner or owner_confirmed — lower tiers are refused.",
+		{
+			title: z.string().min(1).max(200),
+			description: z.string().min(1).max(2000),
+			ownerPriority: z.number().int().min(0).max(100).default(50),
+		},
+		async ({ title, description, ownerPriority }, extra) => {
+			try {
+				const trust = deps.resolveTrust(extra);
+				if (!canRecordGoal(trust)) {
+					return {
+						content: [
+							{
+								type: "text",
+								text:
+									`Refused: record_goal requires trust tier owner or owner_confirmed; ` +
+									`this turn runs at ${trust}. Ask the owner to confirm.`,
+							},
+						],
+					};
+				}
+				const state = await deps.goals.create({
+					title,
+					description,
+					origin: "owner",
+					ownerPriority,
+					effectiveTrust: trust,
+					actor: "user",
+				});
+				return {
+					content: [
+						{
+							type: "text",
+							text:
+								`Recorded goal #${String(state.nodeId)}: ${title} ` +
+								`(status=${state.status}, priority=${String(state.ownerPriority)}, trust=${state.effectiveTrust}).`,
+						},
+					],
+				};
+			} catch (error) {
+				return errorResult(error);
+			}
+		},
+	);
 }
 
 export function readGoalsTool(deps: ReadGoalsDeps) {

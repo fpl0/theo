@@ -129,6 +129,60 @@ tests/
 The current repository is tooling-first. Keep the structure minimal and let it
 grow with implementation rather than pre-creating the full target module tree.
 
+## Auth modes (Agent SDK)
+
+Theo spawns the `claude` CLI as a subprocess. Three credential paths, in
+precedence order:
+
+1. **`ANTHROPIC_API_KEY`** — direct API key from console.anthropic.com.
+   Production default. Fully isolated: the subprocess has no Claude account
+   context, so no cloud MCP integrations (Linear, Gmail, Calendar,
+   Excalidraw) bleed into Theo's tool list. Billed per-token against the
+   API key's workspace.
+2. **`CLAUDE_CODE_OAUTH_TOKEN`** — dedicated long-lived OAuth token generated
+   by `claude setup-token`. Theo's preferred path on a Claude subscription:
+   the token is tied to a specific Anthropic account you choose for Theo,
+   not your interactive Claude Code user. If that account has no
+   integrations enabled, the tool list is clean.
+3. **Neither set** — the SDK falls back to whoever is `claude login`-ed
+   interactively. Convenient for quick local dev but inherits everything
+   from the host Claude Code user: cloud MCP integrations, skills, and
+   auto-memory. `settingSources: []` does *not* filter those out — they're
+   server-side, not file-based.
+
+### Setting up the dedicated OAuth token (path 2)
+
+```bash
+claude setup-token
+# opens a browser, authenticate with the Anthropic account you want Theo
+# tied to (ideally a clean one without cloud integrations), copy the token
+```
+
+Then in `.env.local`:
+
+```
+CLAUDE_CODE_OAUTH_TOKEN=<token>
+```
+
+`src/config.ts` accepts both auth env vars as optional but rejects empty
+strings — a set-but-empty var would override a working auth path and 401
+every turn.
+
+### Zod schemas on MCP tools — always use JSON-Schema-able types
+
+Every tool registered via `createSdkMcpServer` must use Zod types that the
+SDK can serialize to JSON Schema: `z.string`, `z.number`, `z.enum`,
+`z.array`, `z.object`, `z.unknown().refine(...)`, etc. A `z.custom()` input
+schema has **no** JSON Schema representation, and the SDK's response to
+the resulting malformed schema is to **silently drop every tool on the
+server** — not just the offending one. The bridge still reports
+`status: "connected"`, but `system/init` lists zero tools from that server
+and the model has no idea any of them exist.
+
+See `jsonValueSchema` in `src/memory/tools.ts` for the canonical
+arbitrary-JSON pattern: `z.unknown().refine(value => value !== undefined)`
+with a `ZodType<JsonValue>` cast to keep downstream types tight.
+
 ## Gotchas
 
 - postgres.js uses tagged templates — `` sql`...` `` not `sql("...")`. The template IS the parameterization.

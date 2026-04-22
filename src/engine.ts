@@ -98,6 +98,7 @@ export class Engine {
 	private readonly version: string;
 	private stateValue: EngineState = "stopped";
 	private readonly messageQueue: QueuedMessage[] = [];
+	private stoppedResolvers: Array<() => void> = [];
 
 	constructor(deps: EngineDependencies) {
 		this.deps = deps;
@@ -112,6 +113,19 @@ export class Engine {
 	/** Number of messages currently parked in the pause queue. */
 	get queuedMessageCount(): number {
 		return this.messageQueue.length;
+	}
+
+	/**
+	 * Resolves when the engine reaches the `stopped` state. `main()` awaits
+	 * this to stay alive as a daemon — without it, a gate that exits (cleanly
+	 * or via crash) would let Bun drain the event loop and exit silently.
+	 * Signal handlers call `stop()`, which resolves every outstanding waiter.
+	 */
+	awaitStopped(): Promise<void> {
+		if (this.stateValue === "stopped") return Promise.resolve();
+		return new Promise<void>((resolve) => {
+			this.stoppedResolvers.push(resolve);
+		});
 	}
 
 	/**
@@ -222,6 +236,9 @@ export class Engine {
 		}
 		await safeShutdown("pool.end", () => this.deps.pool.end());
 		this.stateValue = "stopped";
+		const resolvers = this.stoppedResolvers;
+		this.stoppedResolvers = [];
+		for (const resolve of resolvers) resolve();
 	}
 
 	/** Transition to `paused`. Incoming messages are queued until resume. */

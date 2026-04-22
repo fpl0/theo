@@ -22,7 +22,21 @@ const DEFAULT_CONNECT_TIMEOUT = 10;
 export const configSchema = z.object({
 	// Required
 	DATABASE_URL: z.url(),
-	ANTHROPIC_API_KEY: z.string().min(1),
+	// Anthropic auth — exactly one of these three paths:
+	// 1. `ANTHROPIC_API_KEY` set → SDK uses it directly (production).
+	// 2. `CLAUDE_CODE_OAUTH_TOKEN` set → SDK uses this dedicated long-lived
+	//    OAuth token (generated via `claude setup-token`). This is Theo's
+	//    preferred credential: tied to its own Anthropic account, not the
+	//    interactive Claude Code user. Avoids the host-user cloud-MCP bleed.
+	// 3. Both unset → SDK falls back to whoever is `claude login`-ed.
+	//    Only useful for quick local dev.
+	// Empty strings are rejected explicitly — they'd override a working auth
+	// path and cause silent 401s.
+	ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY, if set, must be non-empty").optional(),
+	CLAUDE_CODE_OAUTH_TOKEN: z
+		.string()
+		.min(1, "CLAUDE_CODE_OAUTH_TOKEN, if set, must be non-empty")
+		.optional(),
 
 	// Optional with defaults -- pool tuning
 	DB_POOL_MAX: z.coerce.number().default(DEFAULT_POOL_MAX),

@@ -393,15 +393,44 @@ function streamTextDelta(text: string): SDKMessage {
 	} as unknown as SDKMessage;
 }
 
-/** Build a queryFn that yields the provided messages in order. */
+/**
+ * Build a queryFn that yields the provided messages in order.
+ *
+ * The engine now passes prompts as `AsyncIterable<SDKUserMessage>` (streaming
+ * input mode) so in-process SDK MCP servers work. Tests assert on the textual
+ * prompt via `captured.lastPrompt`, so we eagerly materialize the iterable
+ * into the string body of its first user message.
+ */
 function mockQueryFn(
 	messages: readonly SDKMessage[],
 	captured?: { lastOptions?: Options | undefined; lastPrompt?: string },
-): (params: { prompt: string; options?: Options }) => Query {
+): (params: {
+	prompt: string | AsyncIterable<import("@anthropic-ai/claude-agent-sdk").SDKUserMessage>;
+	options?: Options;
+}) => Query {
 	return ({ prompt, options }) => {
 		if (captured) {
 			captured.lastOptions = options;
-			captured.lastPrompt = prompt;
+			if (typeof prompt === "string") {
+				captured.lastPrompt = prompt;
+			} else {
+				// Drain the iterable asynchronously; record the first user message's
+				// text content so test assertions see the original prompt string.
+				void (async () => {
+					for await (const msg of prompt) {
+						const content = msg.message.content;
+						if (typeof content === "string") captured.lastPrompt = content;
+						else if (Array.isArray(content)) {
+							const text = content.find(
+								(c): c is { type: "text"; text: string } =>
+									typeof c === "object" && c !== null && (c as { type?: string }).type === "text",
+							);
+							if (text) captured.lastPrompt = text.text;
+						}
+						break;
+					}
+				})();
+			}
 		}
 		async function* gen(): AsyncGenerator<SDKMessage, void> {
 			for (const m of messages) yield m;
@@ -411,7 +440,12 @@ function mockQueryFn(
 }
 
 /** queryFn whose generator throws on first next() — simulates a mid-stream crash. */
-function throwingQueryFn(message: string): (p: { prompt: string; options?: Options }) => Query {
+function throwingQueryFn(
+	message: string,
+): (p: {
+	prompt: string | AsyncIterable<import("@anthropic-ai/claude-agent-sdk").SDKUserMessage>;
+	options?: Options;
+}) => Query {
 	return () => {
 		const iter: AsyncIterator<SDKMessage, void, undefined> = {
 			next: () => Promise.reject(new Error(message)),
@@ -434,7 +468,10 @@ function throwingQueryFn(message: string): (p: { prompt: string; options?: Optio
 
 function buildEngine(overrides?: {
 	readonly core?: CoreMemoryRepository;
-	readonly queryFn?: (params: { prompt: string; options?: Options }) => Query;
+	readonly queryFn?: (params: {
+		prompt: string | AsyncIterable<import("@anthropic-ai/claude-agent-sdk").SDKUserMessage>;
+		options?: Options;
+	}) => Query;
 	readonly maxBudgetPerTurn?: number;
 	readonly agents?: Record<string, import("@anthropic-ai/claude-agent-sdk").AgentDefinition>;
 	readonly advisorModel?: string;
@@ -906,7 +943,7 @@ describe("ChatEngine SDK options", () => {
 		expect(captured.lastOptions?.settingSources).toEqual([]);
 	});
 
-	test("allowedTools auto-approves mcp__memory__*", async () => {
+	test("allowedTools enumerates every mcp__memory__ tool explicitly", async () => {
 		const captured: { lastOptions?: Options | undefined; lastPrompt?: string } = {};
 		const { engine } = buildEngine({
 			queryFn: mockQueryFn(
@@ -917,7 +954,14 @@ describe("ChatEngine SDK options", () => {
 
 		await engine.handleMessage("hi", "cli");
 
-		expect(captured.lastOptions?.allowedTools).toEqual(["mcp__memory__*"]);
+		// Wildcard matching works post-hoc for permissions but does not drive
+		// enumeration into the model's system/init tools list — list every
+		// memory tool by name so the subprocess enumerates them.
+		const allowed = captured.lastOptions?.allowedTools ?? [];
+		expect(allowed).toContain("mcp__memory__store_memory");
+		expect(allowed).toContain("mcp__memory__search_memory");
+		expect(allowed).toContain("mcp__memory__record_goal");
+		expect(allowed).toContain("mcp__memory__read_goals");
 	});
 
 	test("system prompt is non-empty and passed to the SDK", async () => {

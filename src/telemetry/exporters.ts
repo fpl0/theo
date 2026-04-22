@@ -21,7 +21,11 @@
 import { metrics, trace } from "@opentelemetry/api";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { MeterProvider, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
+import {
+	AggregationTemporality,
+	MeterProvider,
+	PeriodicExportingMetricReader,
+} from "@opentelemetry/sdk-metrics";
 import {
 	BasicTracerProvider,
 	BatchSpanProcessor,
@@ -155,7 +159,14 @@ export function initOtlpExporters(
 	});
 	trace.setGlobalTracerProvider(tracerProvider);
 
-	const metricExporter = new OTLPMetricExporter({ url: metricUrl });
+	// Prometheus remote-write expects **cumulative** temporality for counters
+	// and histograms. The OTel SDK defaults to delta, which the collector
+	// converts to `_total` counters that reset every export — they land in
+	// Prometheus as zero-diff samples and disappear. Force cumulative here.
+	const metricExporter = new OTLPMetricExporter({
+		url: metricUrl,
+		temporalityPreference: AggregationTemporality.CUMULATIVE,
+	});
 	const metricReader = new PeriodicExportingMetricReader({
 		exporter: metricExporter,
 		exportIntervalMillis: config.metricExportIntervalMillis,

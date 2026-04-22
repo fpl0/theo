@@ -5,7 +5,7 @@ import {
 	tool,
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { readGoalsTool } from "../goals/mcp.ts";
+import { readGoalsTool, recordGoalTool } from "../goals/mcp.ts";
 import type { GoalRepository } from "../goals/repository.ts";
 import { errorResult } from "../mcp/tool-helpers.ts";
 import type { CoreMemoryRepository } from "./core.ts";
@@ -57,19 +57,22 @@ const CORE_SLOTS = [
 	"context",
 ] as const satisfies readonly CoreMemorySlot[];
 
-// Rejects undefined: JSON.stringify(undefined) returns undefined (not a string)
-// and would corrupt a JSONB column if passed through.
-const jsonValueSchema = z.custom<JsonValue>(
-	(value) => {
-		if (value === undefined) return false;
-		try {
-			return typeof JSON.stringify(value) === "string";
-		} catch {
-			return false;
-		}
-	},
-	{ message: "Value must be JSON-serializable" },
-);
+// Accept arbitrary JSON content. We intentionally use `z.unknown()` here
+// rather than `z.custom()` because the Claude Agent SDK ships each tool's
+// input schema to the subprocess as JSON Schema — and `z.custom()` produces
+// no usable JSON Schema output, which makes the subprocess silently drop
+// EVERY tool on the server (not just the one with the custom schema). Found
+// the hard way: updateCore + updateUserModel made all ten memory tools
+// invisible to the model. Runtime validation below rejects `undefined`,
+// which would corrupt a JSONB column.
+const jsonValueSchema = z.unknown().refine((value) => {
+	if (value === undefined) return false;
+	try {
+		return typeof JSON.stringify(value) === "string";
+	} catch {
+		return false;
+	}
+}, "Value must be JSON-serializable") as unknown as z.ZodType<JsonValue>;
 
 // Tool factories use inferred return types — explicit `: SdkMcpToolDefinition`
 // collapses the default generic to `{readonly [x: string]: never}`.
@@ -349,7 +352,8 @@ export function memoryToolList(deps: MemoryDependencies) {
 	];
 	if (deps.goals === undefined) return base;
 	const resolveTrust = deps.resolveToolTrust ?? ((): TrustTier => "owner");
-	return [...base, readGoalsTool({ goals: deps.goals, resolveTrust })];
+	const goalDeps = { goals: deps.goals, resolveTrust };
+	return [...base, readGoalsTool(goalDeps), recordGoalTool(goalDeps)];
 }
 
 // Tool name prefixing follows `mcp__${mapKey}__${toolName}` where `mapKey` is

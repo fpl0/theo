@@ -38,6 +38,16 @@ export class CliGate implements Gate {
 
 	async start(): Promise<void> {
 		if (this.stopped) return;
+		// Ink requires an interactive terminal. Without it, React's reconciler
+		// throws deep in its internals with no clear message. Fail fast so the
+		// operator sees the actual cause.
+		if (process.stdin.isTTY !== true || process.stdout.isTTY !== true) {
+			throw new Error(
+				"CLI gate requires an interactive TTY (stdin and stdout). " +
+					"Run `bun run src/index.ts` directly in a terminal, or use a " +
+					"non-CLI gate for non-TTY deployments.",
+			);
+		}
 		const { render } = await import("ink");
 		const handleExit = (): void => {
 			this.instance?.unmount();

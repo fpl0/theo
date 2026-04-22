@@ -18,7 +18,6 @@
  * outcomes via `recordCorrection()`. Over time the heuristic calibrates.
  */
 
-import { ulid } from "ulid";
 import type { EmbeddingService } from "../memory/embeddings.ts";
 import type { SelfModelRepository } from "../memory/self_model.ts";
 
@@ -88,6 +87,14 @@ export type SessionDecision =
 
 export class SessionManager {
 	private activeSessionId: string | null = null;
+	/**
+	 * SDK-assigned session ID from the first `system/init` message of the
+	 * active session. Required for `Options.resume` on subsequent turns —
+	 * the SDK persists conversations under its own ID, not Theo's internal
+	 * ID, so resuming with `activeSessionId` directly fails with "No
+	 * conversation found".
+	 */
+	private sdkSessionId: string | null = null;
 	private lastActivityAt: number | null = null;
 	private coreMemoryHash: string | null = null;
 	private lastMessageEmbedding: Float32Array | null = null;
@@ -173,15 +180,37 @@ export class SessionManager {
 
 	/**
 	 * Start a new session. Resets depth and activity trackers. Returns the
-	 * new session ID (ULID — sortable, timestamp-embedded).
+	 * new session ID (UUID — required by the Agent SDK's `--resume` flag,
+	 * which rejects any non-UUID value).
 	 */
 	async startSession(core: CoreMemoryHasher): Promise<string> {
-		this.activeSessionId = ulid();
+		this.activeSessionId = crypto.randomUUID();
+		this.sdkSessionId = null;
 		this.lastActivityAt = this.now();
 		this.coreMemoryHash = await core.hash();
 		this.lastMessageEmbedding = null;
 		this.turnCount = 0;
 		return this.activeSessionId;
+	}
+
+	/**
+	 * Record the SDK-assigned session ID from the first `system/init` message.
+	 * Idempotent — the SDK re-emits the same ID on every turn, so overwrites
+	 * are safe. Returns silently if no active session (robust against out-of-
+	 * order init messages during teardown).
+	 */
+	recordSdkSessionId(sdkSessionId: string): void {
+		if (this.activeSessionId === null) return;
+		this.sdkSessionId = sdkSessionId;
+	}
+
+	/**
+	 * The SDK session ID to pass as `Options.resume` on the next turn, or
+	 * null if no SDK conversation has been established yet (first turn of a
+	 * new session).
+	 */
+	getSdkSessionId(): string | null {
+		return this.sdkSessionId;
 	}
 
 	/** Current session ID, or null if no active session. */
@@ -212,6 +241,7 @@ export class SessionManager {
 	releaseSession(): string | null {
 		const released = this.activeSessionId;
 		this.activeSessionId = null;
+		this.sdkSessionId = null;
 		this.lastActivityAt = null;
 		this.coreMemoryHash = null;
 		this.lastMessageEmbedding = null;
