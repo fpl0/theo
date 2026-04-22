@@ -110,6 +110,51 @@ describe("Event type system", () => {
 					return "system.handler.dead_lettered";
 				case "hook.failed":
 					return "hook.failed";
+				// Goals (Phase 12a)
+				case "goal.created":
+					return "goal.created";
+				case "goal.confirmed":
+					return "goal.confirmed";
+				case "goal.priority_changed":
+					return "goal.priority_changed";
+				case "goal.plan_updated":
+					return "goal.plan_updated";
+				case "goal.lease_acquired":
+					return "goal.lease_acquired";
+				case "goal.lease_released":
+					return "goal.lease_released";
+				case "goal.task_started":
+					return "goal.task_started";
+				case "goal.task_progress":
+					return "goal.task_progress";
+				case "goal.task_yielded":
+					return "goal.task_yielded";
+				case "goal.task_completed":
+					return "goal.task_completed";
+				case "goal.task_failed":
+					return "goal.task_failed";
+				case "goal.task_abandoned":
+					return "goal.task_abandoned";
+				case "goal.blocked":
+					return "goal.blocked";
+				case "goal.unblocked":
+					return "goal.unblocked";
+				case "goal.reconsidered":
+					return "goal.reconsidered";
+				case "goal.paused":
+					return "goal.paused";
+				case "goal.resumed":
+					return "goal.resumed";
+				case "goal.cancelled":
+					return "goal.cancelled";
+				case "goal.completed":
+					return "goal.completed";
+				case "goal.quarantined":
+					return "goal.quarantined";
+				case "goal.redacted":
+					return "goal.redacted";
+				case "goal.expired":
+					return "goal.expired";
 				default:
 					return assertNever(event);
 			}

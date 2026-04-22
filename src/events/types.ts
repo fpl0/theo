@@ -9,6 +9,7 @@
  * The type system prevents accidentally skipping persistence for durable events.
  */
 
+import type { GoalEvent } from "./goals.ts";
 import type { EventId } from "./ids.ts";
 
 // ---------------------------------------------------------------------------
@@ -30,6 +31,13 @@ export interface EventMetadata {
 	readonly sessionId?: string | undefined;
 	readonly causeId?: EventId | undefined;
 	readonly gate?: string | undefined;
+	/**
+	 * Effective trust tier propagated down a causation chain (foundation.md
+	 * §7.3). When set, downstream handlers can enforce the tier at write
+	 * boundaries. Stored as the TrustTier string to avoid a cross-module
+	 * import at this base layer.
+	 */
+	readonly goalEffectiveTrust?: string | undefined;
 }
 
 /**
@@ -408,7 +416,9 @@ export type SystemEvent =
 // ---------------------------------------------------------------------------
 
 /** Every handler must handle every variant in its group. */
-export type Event = ChatEvent | MemoryEvent | SchedulerEvent | SystemEvent;
+export type Event = ChatEvent | MemoryEvent | SchedulerEvent | SystemEvent | GoalEvent;
+
+export type { GoalEvent } from "./goals.ts";
 
 // ---------------------------------------------------------------------------
 // Helper Extraction Types

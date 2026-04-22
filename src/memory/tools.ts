@@ -1,14 +1,17 @@
 import {
 	createSdkMcpServer,
 	type McpSdkServerConfigWithInstance,
+	type SdkMcpToolDefinition,
 	tool,
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
+import { readGoalsTool } from "../goals/mcp.ts";
+import type { GoalRepository } from "../goals/repository.ts";
 import { errorResult } from "../mcp/tool-helpers.ts";
 import type { CoreMemoryRepository } from "./core.ts";
 import type { EdgeRepository } from "./graph/edges.ts";
 import type { NodeRepository } from "./graph/nodes.ts";
-import { asNodeId } from "./graph/types.ts";
+import { asNodeId, type TrustTier } from "./graph/types.ts";
 import type { RetrievalService } from "./retrieval.ts";
 import type { SelfModelRepository } from "./self_model.ts";
 import type { SkillRepository } from "./skills.ts";
@@ -23,6 +26,13 @@ export interface MemoryDependencies {
 	readonly userModel: UserModelRepository;
 	readonly selfModel: SelfModelRepository;
 	readonly skills: SkillRepository;
+	/** Present once Phase 12a is wired — read_goals tool uses it. */
+	readonly goals?: GoalRepository;
+	/**
+	 * Resolver that reads the caller's effective trust tier from SDK tool
+	 * call metadata. Defaults to `owner` when not supplied (local CLI turns).
+	 */
+	readonly resolveToolTrust?: (extra: unknown) => TrustTier;
 }
 
 const NODE_KINDS = [
@@ -318,8 +328,16 @@ export function searchSkillsTool(deps: MemoryDependencies) {
 	);
 }
 
+// Tool factories use inferred return types — the array element type is a
+// union of each tool's specific SdkMcpToolDefinition schema, which is what
+// `createSdkMcpServer` wants via its `Array<SdkMcpToolDefinition<any>>` param.
+// Leaving the return type implicit avoids narrowing that breaks under
+// exactOptionalPropertyTypes. Re-export the SDK type so downstream tests can
+// still type their assertions explicitly.
+export type { SdkMcpToolDefinition };
+
 export function memoryToolList(deps: MemoryDependencies) {
-	return [
+	const base = [
 		storeMemoryTool(deps),
 		searchMemoryTool(deps),
 		storeSkillTool(deps),
@@ -329,6 +347,9 @@ export function memoryToolList(deps: MemoryDependencies) {
 		linkMemoriesTool(deps),
 		updateUserModelTool(deps),
 	];
+	if (deps.goals === undefined) return base;
+	const resolveTrust = deps.resolveToolTrust ?? ((): TrustTier => "owner");
+	return [...base, readGoalsTool({ goals: deps.goals, resolveTrust })];
 }
 
 // Tool name prefixing follows `mcp__${mapKey}__${toolName}` where `mapKey` is

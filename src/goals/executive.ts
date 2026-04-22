@@ -1,0 +1,607 @@
+/**
+ * ExecutiveLoop — one executive turn per invocation.
+ *
+ * The executive is an **effect handler** (runs only in live mode, skipped
+ * during replay). One turn follows the sequence:
+ *
+ *   1. Acquire a lease on the highest-priority eligible goal.
+ *   2. Check the plan; if empty or stale, invoke the planner subagent.
+ *   3. Pick the next ready task (dependencies satisfied, pending).
+ *   4. Reconsider: should the executive stay committed? If not, yield.
+ *   5. Emit `goal.task_started` and dispatch to the subagent.
+ *   6. Emit a terminal event (completed / failed / yielded / blocked).
+ *   7. Release the lease.
+ *
+ * Non-determinism (LLM outputs, subagent results) is captured in events
+ * first, so the projection rebuilds deterministically from those events.
+ *
+ * Per-goal budget, poison quarantine, and advisor-aware cost accounting are
+ * all enforced inline; see plan §6, §8, and §13.
+ */
+
+import type {
+	AgentDefinition,
+	McpSdkServerConfigWithInstance,
+	Options,
+	Query,
+	SDKResultError,
+	SDKResultSuccess,
+} from "@anthropic-ai/claude-agent-sdk";
+import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
+import { advisorSettings } from "../chat/subagents.ts";
+import { describeError } from "../errors.ts";
+import type { EventBus } from "../events/bus.ts";
+import type { NodeId } from "../memory/graph/types.ts";
+import type { GoalLease } from "./lease.ts";
+import { shouldReconsider } from "./reconsideration.ts";
+import type { GoalRepository } from "./repository.ts";
+import {
+	DEFAULT_GOAL_BUDGET_USD,
+	DEFAULT_TURN_BUDGET,
+	extractTaskCost,
+	isGoalBudgetExhausted,
+	type TurnBudget,
+} from "./stopping.ts";
+import {
+	asGoalTaskId,
+	type GoalRunnerId,
+	type GoalState,
+	type GoalTask,
+	type GoalTaskId,
+	type GoalTurnId,
+	newGoalTaskId,
+	newGoalTurnId,
+	type PlanStep,
+	POISON_THRESHOLD,
+} from "./types.ts";
+
+// ---------------------------------------------------------------------------
+// Subagent facade
+// ---------------------------------------------------------------------------
+
+/**
+ * Minimal subagent shape the executive knows about. Mirrors
+ * `TheoAgentDefinition` from `src/chat/subagents.ts` but decoupled so tests
+ * can stub it without importing the full catalog.
+ */
+export interface ExecutiveSubagent {
+	readonly model: string;
+	readonly maxTurns: number;
+	readonly systemPromptPrefix: string;
+	readonly advisorModel?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Dispatch types
+// ---------------------------------------------------------------------------
+
+export type QueryFn = (params: { prompt: string; options?: Options }) => Query;
+
+export interface DispatchResult {
+	readonly kind: "completed" | "failed" | "yielded" | "blocked";
+	readonly outcome: string;
+	readonly errorClass?:
+		| "tool_error"
+		| "llm_error"
+		| "validation_error"
+		| "timeout"
+		| "abort"
+		| "internal";
+	readonly tokens: number;
+	readonly costUsd: number;
+	readonly artifactIds: readonly string[];
+}
+
+// ---------------------------------------------------------------------------
+// Planner seam
+// ---------------------------------------------------------------------------
+
+/**
+ * A planner is any function that, given a goal's current state, returns a
+ * new plan. The default planner dispatches to the `planner` subagent via
+ * the SDK; tests pass a synthetic planner that returns a deterministic
+ * plan without touching the network.
+ */
+export type Planner = (goal: GoalState) => Promise<readonly PlanStep[]>;
+
+// ---------------------------------------------------------------------------
+// Dependencies
+// ---------------------------------------------------------------------------
+
+export interface ExecutiveDeps {
+	readonly bus: EventBus;
+	readonly goals: GoalRepository;
+	readonly lease: GoalLease;
+	readonly memoryServer: McpSdkServerConfigWithInstance;
+	readonly subagents: Readonly<Record<string, ExecutiveSubagent>>;
+	/**
+	 * Full Theo subagent catalog passed to the SDK as `options.agents`. Tests
+	 * stub this with an empty object when the planner/coder subagents are
+	 * replaced by inline dispatch fns.
+	 */
+	readonly agents?: Readonly<Record<string, AgentDefinition>>;
+	readonly turnBudget?: TurnBudget;
+	readonly goalBudgetUsd?: number;
+	/** Test seam. Defaults to the real SDK `query()`. */
+	readonly queryFn?: QueryFn;
+	readonly planner?: Planner;
+	readonly now?: () => Date;
+}
+
+export interface ExecutiveContext {
+	readonly runnerId: GoalRunnerId;
+	/** Whether a higher-priority turn is pending; set by the scheduler. */
+	readonly higherPriorityWaiting?: boolean;
+	/** Node ids that are part of a recent contradiction detection. */
+	readonly contradictingNodeIds?: readonly number[];
+	/** True if the goal has an outstanding owner command (pause/priority). */
+	readonly pendingOwnerCommand?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Executive loop
+// ---------------------------------------------------------------------------
+
+export class ExecutiveLoop {
+	private readonly bus: EventBus;
+	private readonly goals: GoalRepository;
+	private readonly lease: GoalLease;
+	private readonly memoryServer: McpSdkServerConfigWithInstance;
+	private readonly subagents: Readonly<Record<string, ExecutiveSubagent>>;
+	private readonly agents: Readonly<Record<string, AgentDefinition>> | undefined;
+	private readonly turnBudget: TurnBudget;
+	private readonly goalBudgetUsd: number;
+	private readonly queryFn: QueryFn;
+	private readonly plannerFn: Planner | null;
+
+	constructor(deps: ExecutiveDeps) {
+		this.bus = deps.bus;
+		this.goals = deps.goals;
+		this.lease = deps.lease;
+		this.memoryServer = deps.memoryServer;
+		this.subagents = deps.subagents;
+		this.agents = deps.agents;
+		this.turnBudget = deps.turnBudget ?? DEFAULT_TURN_BUDGET;
+		this.goalBudgetUsd = deps.goalBudgetUsd ?? DEFAULT_GOAL_BUDGET_USD;
+		this.queryFn = deps.queryFn ?? sdkQuery;
+		this.plannerFn = deps.planner ?? null;
+	}
+
+	/**
+	 * Run one executive turn. No-op when no eligible goal is available.
+	 * Always releases the lease it acquired, even on failure.
+	 */
+	async executeOneTurn(ctx: ExecutiveContext): Promise<void> {
+		const leased = await this.lease.acquire(ctx.runnerId);
+		if (leased === null) return;
+		const goal = leased.state;
+		try {
+			await this.advanceGoal(goal, ctx);
+		} finally {
+			await this.lease.release(goal.nodeId, ctx.runnerId, "normal");
+		}
+	}
+
+	// -------------------------------------------------------------------------
+	// Internal
+	// -------------------------------------------------------------------------
+
+	private async advanceGoal(goal: GoalState, ctx: ExecutiveContext): Promise<void> {
+		// 1. Plan check — if the plan is empty, dispatch the planner before picking a task.
+		if (goal.plan.length === 0) {
+			await this.runPlanner(goal);
+			return; // yield; next tick picks up the new plan
+		}
+
+		// 2. Pick next ready task. If none, try to complete the goal.
+		const task = await this.goals.nextReadyTask(goal.nodeId);
+		if (task === null) {
+			await this.maybeCompleteGoal(goal);
+			return;
+		}
+
+		// 3. Reconsideration gate.
+		const totalCostUsd = await this.goals.totalCostUsd(goal.nodeId);
+		const decision = shouldReconsider({
+			goal,
+			task,
+			higherPriorityWaiting: ctx.higherPriorityWaiting ?? false,
+			contradictingNodeIds: ctx.contradictingNodeIds ?? [],
+			totalCostUsd,
+			goalBudgetUsd: this.goalBudgetUsd,
+			turnsSinceLastReview: 0, // tracked externally; refine in a later phase
+			pendingOwnerCommand: ctx.pendingOwnerCommand ?? false,
+			externalBlocker: goal.blockedReason,
+		});
+		if (decision.reconsider) {
+			await this.bus.emit({
+				type: "goal.reconsidered",
+				version: 1,
+				actor: "theo",
+				data: {
+					nodeId: Number(goal.nodeId),
+					reason: decision.reason,
+					outcome: decision.outcome,
+				},
+				metadata: {},
+			});
+			if (decision.outcome !== "stay_committed") return;
+		}
+
+		// 4. Per-goal budget guard.
+		if (isGoalBudgetExhausted(totalCostUsd, this.goalBudgetUsd)) {
+			await this.bus.emit({
+				type: "goal.blocked",
+				version: 1,
+				actor: "system",
+				data: {
+					nodeId: Number(goal.nodeId),
+					taskId: task.taskId,
+					blocker: { kind: "budget", cap: "goal" },
+				},
+				metadata: {},
+			});
+			return;
+		}
+
+		// 5. Dispatch the task.
+		const turnId = newGoalTurnId();
+		const subagentName = task.subagent ?? "planner";
+		await this.bus.emit({
+			type: "goal.task_started",
+			version: 1,
+			actor: "theo",
+			data: {
+				nodeId: Number(goal.nodeId),
+				taskId: task.taskId,
+				turnId,
+				runnerId: ctx.runnerId,
+				subagent: subagentName,
+				maxTurns: this.turnBudget.maxTurns,
+				maxBudgetUsd: this.turnBudget.maxBudgetUsd,
+				maxDurationMs: this.turnBudget.maxDurationMs,
+			},
+			metadata: { goalEffectiveTrust: goal.effectiveTrust },
+		});
+
+		const result = await this.dispatchSubagent(goal, task, subagentName, turnId);
+
+		// 6. Terminal event.
+		switch (result.kind) {
+			case "completed":
+				await this.bus.emit({
+					type: "goal.task_completed",
+					version: 1,
+					actor: "theo",
+					data: {
+						nodeId: Number(goal.nodeId),
+						taskId: task.taskId,
+						turnId,
+						outcome: result.outcome,
+						artifactIds: result.artifactIds,
+						totalTokens: result.tokens,
+						totalCostUsd: result.costUsd,
+					},
+					metadata: {},
+				});
+				break;
+			case "failed":
+				await this.bus.emit({
+					type: "goal.task_failed",
+					version: 1,
+					actor: "theo",
+					data: {
+						nodeId: Number(goal.nodeId),
+						taskId: task.taskId,
+						turnId,
+						errorClass: result.errorClass ?? "internal",
+						message: result.outcome,
+						recoverable: result.errorClass !== "internal",
+					},
+					metadata: {},
+				});
+				await this.maybeQuarantine(goal.nodeId, task.taskId, result.outcome);
+				break;
+			case "yielded":
+				await this.bus.emit({
+					type: "goal.task_yielded",
+					version: 1,
+					actor: "theo",
+					data: {
+						nodeId: Number(goal.nodeId),
+						taskId: task.taskId,
+						turnId,
+						resumeKey: null,
+						reason: result.errorClass === "timeout" ? "turn_budget_exceeded" : "preempted",
+					},
+					metadata: {},
+				});
+				break;
+			case "blocked":
+				await this.bus.emit({
+					type: "goal.blocked",
+					version: 1,
+					actor: "system",
+					data: {
+						nodeId: Number(goal.nodeId),
+						taskId: task.taskId,
+						blocker: { kind: "external", service: result.outcome },
+					},
+					metadata: {},
+				});
+				break;
+		}
+	}
+
+	private async runPlanner(goal: GoalState): Promise<void> {
+		const planner: Planner =
+			this.plannerFn ?? ((_g: GoalState): Promise<readonly PlanStep[]> => this.defaultPlanner(_g));
+		let plan: readonly PlanStep[];
+		try {
+			plan = await planner(goal);
+		} catch (error) {
+			// Planner failures are logged as an abandonment-style signal — we
+			// don't have a specific event for "plan_generation_failed", so we
+			// mark the goal blocked with a degradation blocker and let the
+			// owner intervene.
+			await this.bus.emit({
+				type: "goal.blocked",
+				version: 1,
+				actor: "system",
+				data: {
+					nodeId: Number(goal.nodeId),
+					taskId: asGoalTaskId("none"),
+					blocker: { kind: "degradation", level: 1 },
+				},
+				metadata: {},
+			});
+			console.warn(`Planner failed for goal ${String(goal.nodeId)}: ${describeError(error)}`);
+			return;
+		}
+
+		if (plan.length === 0) {
+			// Empty plan means the goal is already satisfied or has nothing to do.
+			await this.maybeCompleteGoal(goal);
+			return;
+		}
+
+		const previousPlanHash = goal.plan.length === 0 ? null : await hashPlan(goal.plan);
+		await this.bus.emit({
+			type: "goal.plan_updated",
+			version: 1,
+			actor: "theo",
+			data: {
+				nodeId: Number(goal.nodeId),
+				planVersion: goal.planVersion + 1,
+				plan,
+				reason: goal.plan.length === 0 ? "initial_plan" : "replan",
+				previousPlanHash,
+			},
+			metadata: {},
+		});
+	}
+
+	/**
+	 * Default planner: produce a single "execute" step. Used when no concrete
+	 * planner is wired — tests always override this via `deps.planner`.
+	 */
+	private async defaultPlanner(goal: GoalState): Promise<readonly PlanStep[]> {
+		return [
+			{
+				taskId: newGoalTaskId(),
+				body: `Work on goal #${String(goal.nodeId)}`,
+				dependsOn: [],
+			},
+		];
+	}
+
+	private async dispatchSubagent(
+		goal: GoalState,
+		task: GoalTask,
+		subagentName: string,
+		turnId: GoalTurnId,
+	): Promise<DispatchResult> {
+		const subagent = this.subagents[subagentName];
+		if (subagent === undefined) {
+			return {
+				kind: "failed",
+				outcome: `Unknown subagent "${subagentName}"`,
+				errorClass: "internal",
+				tokens: 0,
+				costUsd: 0,
+				artifactIds: [],
+			};
+		}
+
+		const controller = new AbortController();
+		const timeoutId = setTimeout(() => {
+			controller.abort();
+		}, this.turnBudget.maxDurationMs);
+		if (typeof (timeoutId as { unref?: () => void }).unref === "function") {
+			(timeoutId as { unref?: () => void }).unref?.();
+		}
+
+		try {
+			const systemPrompt = [
+				subagent.systemPromptPrefix,
+				`You are executing task ${String(task.taskId)} for goal ${String(goal.nodeId)}.`,
+				`Trust tier: ${goal.effectiveTrust}.`,
+				task.body,
+			]
+				.filter((s) => s.length > 0)
+				.join("\n\n");
+
+			// External-trust turns run with a restricted tool allowlist.
+			const allowedTools =
+				goal.effectiveTrust === "external" || goal.effectiveTrust === "untrusted"
+					? ["mcp__memory__search_memory", "mcp__memory__read_core"]
+					: ["mcp__memory__*"];
+
+			const settings = advisorSettings(subagent.advisorModel);
+			const options: Options = {
+				model: subagent.model,
+				systemPrompt,
+				settingSources: [],
+				mcpServers: { memory: this.memoryServer },
+				allowedTools,
+				maxTurns: Math.min(subagent.maxTurns, this.turnBudget.maxTurns),
+				maxBudgetUsd: this.turnBudget.maxBudgetUsd,
+				persistSession: false,
+				permissionMode: "bypassPermissions",
+				allowDangerouslySkipPermissions: true,
+				abortController: controller,
+				...(this.agents !== undefined ? { agents: this.agents } : {}),
+				...(settings !== undefined ? { settings } : {}),
+			};
+
+			const generator = this.queryFn({ prompt: task.body, options });
+
+			let responseText = "";
+			let successResult: SDKResultSuccess | null = null;
+			let failure: SDKResultError | null = null;
+			// Used to mark turnId ID linkage in log messages for tests.
+			const _turnSeen: GoalTurnId = turnId;
+			void _turnSeen;
+
+			for await (const message of generator) {
+				if (message.type !== "result") continue;
+				if (message.subtype === "success") {
+					successResult = message;
+					responseText = message.result;
+				} else {
+					failure = message;
+				}
+			}
+
+			if (failure !== null) {
+				const errorClass: DispatchResult["errorClass"] =
+					failure.subtype === "error_max_turns" || failure.subtype === "error_max_budget_usd"
+						? "timeout"
+						: failure.subtype === "error_max_structured_output_retries"
+							? "validation_error"
+							: "internal";
+				return {
+					kind: errorClass === "timeout" ? "yielded" : "failed",
+					outcome: failure.errors.length > 0 ? failure.errors.join("; ") : failure.subtype,
+					errorClass,
+					tokens: 0,
+					costUsd: 0,
+					artifactIds: [],
+				};
+			}
+
+			if (successResult === null) {
+				return {
+					kind: "failed",
+					outcome: "SDK returned no result",
+					errorClass: "internal",
+					tokens: 0,
+					costUsd: 0,
+					artifactIds: [],
+				};
+			}
+
+			const cost = extractTaskCost(successResult, subagent.model);
+			return {
+				kind: "completed",
+				outcome: responseText.slice(0, 500),
+				tokens: cost.tokens,
+				costUsd: cost.costUsd,
+				artifactIds: [],
+			};
+		} catch (error) {
+			if (controller.signal.aborted) {
+				return {
+					kind: "yielded",
+					outcome: "aborted",
+					errorClass: "abort",
+					tokens: 0,
+					costUsd: 0,
+					artifactIds: [],
+				};
+			}
+			return {
+				kind: "failed",
+				outcome: describeError(error),
+				errorClass: "internal",
+				tokens: 0,
+				costUsd: 0,
+				artifactIds: [],
+			};
+		} finally {
+			clearTimeout(timeoutId);
+		}
+	}
+
+	private async maybeCompleteGoal(goal: GoalState): Promise<void> {
+		const tasks = await this.goals.tasks(goal.nodeId);
+		const currentTasks = tasks.filter((t) => t.planVersion === goal.planVersion);
+		if (currentTasks.length === 0) return;
+		const allDone = currentTasks.every((t) => t.status === "completed");
+		if (!allDone) return;
+
+		const totalCostUsd = await this.goals.totalCostUsd(goal.nodeId);
+		await this.bus.emit({
+			type: "goal.completed",
+			version: 1,
+			actor: "theo",
+			data: {
+				nodeId: Number(goal.nodeId),
+				finalOutcome: `Completed plan v${String(goal.planVersion)}`,
+				totalTurns: currentTasks.length,
+				totalCostUsd,
+			},
+			metadata: {},
+		});
+	}
+
+	private async maybeQuarantine(
+		nodeId: NodeId,
+		taskId: GoalTaskId,
+		message: string,
+	): Promise<void> {
+		// Re-read state so we see the just-applied consecutive_failures bump.
+		await this.bus.flush();
+		const state = await this.goals.readState(nodeId);
+		if (state === null) return;
+		if (state.consecutiveFailures < POISON_THRESHOLD) return;
+		await this.bus.emit({
+			type: "goal.quarantined",
+			version: 1,
+			actor: "system",
+			data: {
+				nodeId: Number(nodeId),
+				consecutiveFailures: state.consecutiveFailures,
+				reason: `${state.consecutiveFailures} consecutive failures in task ${String(taskId)}: ${message}`,
+			},
+			metadata: {},
+		});
+		await this.bus.emit({
+			type: "notification.created",
+			version: 1,
+			actor: "system",
+			data: {
+				source: "goal-quarantine",
+				body: `Goal #${String(nodeId)} quarantined after ${state.consecutiveFailures} failures. /audit ${String(nodeId)} for details.`,
+			},
+			metadata: {},
+		});
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+async function hashPlan(plan: readonly PlanStep[]): Promise<string> {
+	const json = JSON.stringify(plan);
+	const bytes = new TextEncoder().encode(json);
+	const hash = await crypto.subtle.digest("SHA-256", bytes);
+	const view = new Uint8Array(hash);
+	let out = "";
+	for (let i = 0; i < view.length; i++) {
+		const byte = view[i] ?? 0;
+		out += byte.toString(16).padStart(2, "0");
+	}
+	return out;
+}
