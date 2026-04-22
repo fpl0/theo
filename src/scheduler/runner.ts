@@ -50,16 +50,7 @@ const SUMMARY_MAX_CHARS = 500;
 /** Poll interval while `stop()` waits for in-flight jobs to drain. */
 const STOP_POLL_INTERVAL_MS = 50;
 
-/**
- * Call `.unref()` on a timer handle if the runtime supports it (Bun and Node
- * both do, but the return type differs). Without this, tests hang on pending
- * interval/timeout handles.
- */
-function unrefTimer(handle: unknown): void {
-	if (typeof handle !== "object" || handle === null) return;
-	const unref = (handle as { unref?: () => void }).unref;
-	if (typeof unref === "function") unref.call(handle);
-}
+import { unrefTimer } from "../util/timers.ts";
 
 class JobTurnError extends Error {
 	constructor(

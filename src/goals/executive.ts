@@ -31,7 +31,7 @@ import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import { advisorSettings } from "../chat/subagents.ts";
 import { describeError } from "../errors.ts";
 import type { EventBus } from "../events/bus.ts";
-import type { NodeId } from "../memory/graph/types.ts";
+import { unrefTimer } from "../util/timers.ts";
 import type { GoalLease } from "./lease.ts";
 import { shouldReconsider } from "./reconsideration.ts";
 import type { GoalRepository } from "./repository.ts";
@@ -47,12 +47,9 @@ import {
 	type GoalRunnerId,
 	type GoalState,
 	type GoalTask,
-	type GoalTaskId,
-	type GoalTurnId,
 	newGoalTaskId,
 	newGoalTurnId,
 	type PlanStep,
-	POISON_THRESHOLD,
 } from "./types.ts";
 
 // ---------------------------------------------------------------------------
@@ -264,7 +261,7 @@ export class ExecutiveLoop {
 			metadata: { goalEffectiveTrust: goal.effectiveTrust },
 		});
 
-		const result = await this.dispatchSubagent(goal, task, subagentName, turnId);
+		const result = await this.dispatchSubagent(goal, task, subagentName);
 
 		// 6. Terminal event.
 		switch (result.kind) {
@@ -300,7 +297,8 @@ export class ExecutiveLoop {
 					},
 					metadata: {},
 				});
-				await this.maybeQuarantine(goal.nodeId, task.taskId, result.outcome);
+				// Quarantine is owned by the poison breaker (handlers.ts) which
+				// reacts to goal.task_failed / goal.task_abandoned.
 				break;
 			case "yielded":
 				await this.bus.emit({
@@ -399,7 +397,6 @@ export class ExecutiveLoop {
 		goal: GoalState,
 		task: GoalTask,
 		subagentName: string,
-		turnId: GoalTurnId,
 	): Promise<DispatchResult> {
 		const subagent = this.subagents[subagentName];
 		if (subagent === undefined) {
@@ -417,9 +414,7 @@ export class ExecutiveLoop {
 		const timeoutId = setTimeout(() => {
 			controller.abort();
 		}, this.turnBudget.maxDurationMs);
-		if (typeof (timeoutId as { unref?: () => void }).unref === "function") {
-			(timeoutId as { unref?: () => void }).unref?.();
-		}
+		unrefTimer(timeoutId);
 
 		try {
 			const systemPrompt = [
@@ -459,10 +454,6 @@ export class ExecutiveLoop {
 			let responseText = "";
 			let successResult: SDKResultSuccess | null = null;
 			let failure: SDKResultError | null = null;
-			// Used to mark turnId ID linkage in log messages for tests.
-			const _turnSeen: GoalTurnId = turnId;
-			void _turnSeen;
-
 			for await (const message of generator) {
 				if (message.type !== "result") continue;
 				if (message.subtype === "success") {
@@ -550,39 +541,6 @@ export class ExecutiveLoop {
 				finalOutcome: `Completed plan v${String(goal.planVersion)}`,
 				totalTurns: currentTasks.length,
 				totalCostUsd,
-			},
-			metadata: {},
-		});
-	}
-
-	private async maybeQuarantine(
-		nodeId: NodeId,
-		taskId: GoalTaskId,
-		message: string,
-	): Promise<void> {
-		// Re-read state so we see the just-applied consecutive_failures bump.
-		await this.bus.flush();
-		const state = await this.goals.readState(nodeId);
-		if (state === null) return;
-		if (state.consecutiveFailures < POISON_THRESHOLD) return;
-		await this.bus.emit({
-			type: "goal.quarantined",
-			version: 1,
-			actor: "system",
-			data: {
-				nodeId: Number(nodeId),
-				consecutiveFailures: state.consecutiveFailures,
-				reason: `${state.consecutiveFailures} consecutive failures in task ${String(taskId)}: ${message}`,
-			},
-			metadata: {},
-		});
-		await this.bus.emit({
-			type: "notification.created",
-			version: 1,
-			actor: "system",
-			data: {
-				source: "goal-quarantine",
-				body: `Goal #${String(nodeId)} quarantined after ${state.consecutiveFailures} failures. /audit ${String(nodeId)} for details.`,
 			},
 			metadata: {},
 		});

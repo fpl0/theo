@@ -15,7 +15,7 @@
  * call `registerGoalHandlers(deps)` once during bus bootstrap.
  */
 
-import type { EventBus } from "../events/bus.ts";
+import { asNodeId } from "../memory/graph/types.ts";
 import { type ProjectionDeps, registerGoalProjection } from "./projection.ts";
 import type { GoalRepository } from "./repository.ts";
 import { POISON_THRESHOLD } from "./types.ts";
@@ -103,7 +103,7 @@ async function handlePossibleQuarantine(
 	// its consecutive_failures bump yet. Give it a few ticks to land.
 	let state: Awaited<ReturnType<GoalRepository["readState"]>> = null;
 	for (let attempt = 0; attempt < POISON_READ_ATTEMPTS; attempt++) {
-		state = await goals.readState(asTypedNodeId(nodeId));
+		state = await goals.readState(asNodeId(nodeId));
 		if (state === null) break;
 		if (state.consecutiveFailures >= POISON_THRESHOLD || state.status === "quarantined") break;
 		await new Promise<void>((resolve) => setTimeout(resolve, POISON_READ_DELAY_MS));
@@ -139,29 +139,4 @@ async function handlePossibleQuarantine(
 		},
 		metadata: { causeId },
 	});
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function asTypedNodeId(n: number): import("../memory/graph/types.ts").NodeId {
-	return n as import("../memory/graph/types.ts").NodeId;
-}
-
-/**
- * Also export bus subscription for a contradiction-driven reconsideration
- * hook. When a `memory.contradiction.detected` event fires for a node
- * referenced in an active goal's plan, the executive should reconsider on
- * the next tick. In the current foundation we don't persistently flag
- * "pending reconsideration" because the executive reads the contradicting
- * node list inline; but registration here documents the wiring.
- */
-export function registerReconsiderationHook(bus: EventBus): void {
-	// No-op stub for now — the executive reads contradiction state from
-	// its `ExecutiveContext.contradictingNodeIds` caller. The scheduler is
-	// responsible for feeding that in on each tick. This function exists
-	// for phase 13 integration where the contradiction handler needs to
-	// signal the executive asynchronously.
-	void bus;
 }

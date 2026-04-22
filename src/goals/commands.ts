@@ -35,10 +35,12 @@ export interface CommandDeps {
 /** Trust tier that the gate grants by default; CLI=owner, Telegram=verified. */
 export type CommandChannel = "cli" | "telegram" | "system";
 
+// Internal system commands run at owner trust — they are triggered by the
+// engine itself (recovery, scheduler housekeeping), never by a remote gate.
 const CHANNEL_TRUST: Record<CommandChannel, TrustTier> = {
 	cli: "owner",
 	telegram: "verified",
-	system: "system" as TrustTier,
+	system: "owner",
 };
 
 /** CLI-only commands — any non-cli caller is rejected with `forbidden`. */

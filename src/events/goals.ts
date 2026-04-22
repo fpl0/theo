@@ -1,7 +1,7 @@
 /**
  * Goal event catalog (Phase 12a).
  *
- * 21 discriminated variants covering the full BDI executive lifecycle:
+ * 22 discriminated variants covering the full BDI executive lifecycle:
  * creation, planning, leasing, task execution, blocking, reconsideration,
  * pause/resume/cancel, completion, quarantine, redaction, expiry.
  *

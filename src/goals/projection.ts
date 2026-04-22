@@ -32,7 +32,8 @@
 import type { Sql, TransactionSql } from "postgres";
 import { asQueryable } from "../db/pool.ts";
 import type { EventBus } from "../events/bus.ts";
-import type { Event, EventOfType } from "../events/types.ts";
+import type { GoalEvent } from "../events/goals.ts";
+import type { EventOfType } from "../events/types.ts";
 import type { BlockReason, GoalOrigin, GoalStatus, PlanStep, TaskStatus } from "./types.ts";
 
 // ---------------------------------------------------------------------------
@@ -90,41 +91,45 @@ export interface ProjectionDeps {
  *
  * Cross-handler replay ordering: the bus replays each handler's queue
  * independently and concurrently. To prevent inter-type races (e.g.,
- * `task_completed` landing before `plan_updated` on replay), every apply
- * function acquires an in-process serialization mutex — this guarantees
- * that only one projection write runs at a time within this process. The
- * transactions are still short and independent; we only serialize the
- * handler bodies, not the SQL.
+ * `task_completed` landing before `plan_updated` on replay) on the same
+ * goal, each apply acquires a per-nodeId promise-chain serializer. Events
+ * on different goals proceed in parallel.
  */
 export function registerGoalProjection(deps: ProjectionDeps): void {
 	const { bus } = deps;
-	const mutex = new AsyncMutex();
+	const locks = new Map<number, Promise<void>>();
 	for (const type of GOAL_EVENT_TYPES) {
 		bus.on(
 			type,
 			async (event, tx) => {
-				await mutex.run(async () => {
-					await dispatchGoalEvent(event, requireTx(tx));
-				});
+				const nodeId = event.data.nodeId;
+				await runSerial(locks, nodeId, () => dispatchGoalEvent(event, requireTx(tx)));
 			},
 			{ id: `${PROJECTION_HANDLER_ID}-${type}`, mode: "decision" },
 		);
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Async mutex — trivially small; a promise-chain serializer.
-// ---------------------------------------------------------------------------
-
-class AsyncMutex {
-	private tail: Promise<void> = Promise.resolve();
-	run<T>(fn: () => Promise<T>): Promise<T> {
-		const next = this.tail.then(fn);
-		this.tail = next.then(
-			() => undefined,
-			() => undefined,
-		);
-		return next;
+/**
+ * Per-key promise-chain serializer. Cleans up the entry after the chain
+ * drains so the map doesn't grow unbounded across a long-lived run.
+ */
+async function runSerial<T>(
+	locks: Map<number, Promise<void>>,
+	key: number,
+	fn: () => Promise<T>,
+): Promise<T> {
+	const prev = locks.get(key) ?? Promise.resolve();
+	const next = prev.then(fn, fn);
+	const tail: Promise<void> = next.then(
+		() => undefined,
+		() => undefined,
+	);
+	locks.set(key, tail);
+	try {
+		return await next;
+	} finally {
+		if (locks.get(key) === tail) locks.delete(key);
 	}
 }
 
@@ -133,7 +138,7 @@ class AsyncMutex {
  * for the switch keeps logic colocated; the bus handler registrations
  * just forward to this function.
  */
-async function dispatchGoalEvent(event: Event, tx: TransactionSql): Promise<void> {
+async function dispatchGoalEvent(event: GoalEvent, tx: TransactionSql): Promise<void> {
 	switch (event.type) {
 		case "goal.created":
 			await applyGoalCreated(event, tx);
@@ -267,9 +272,12 @@ async function dispatchGoalEvent(event: Event, tx: TransactionSql): Promise<void
 				fromStatuses: ["proposed"],
 			});
 			return;
-		default:
-			// Non-goal events fall through — other handler ids run them.
-			return;
+		default: {
+			const _exhaustive: never = event;
+			throw new Error(
+				`Unhandled goal event type in projection dispatch: ${(_exhaustive as { type: string }).type}`,
+			);
+		}
 	}
 }
 

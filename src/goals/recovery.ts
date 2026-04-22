@@ -18,15 +18,8 @@
  */
 
 import type { EventBus } from "../events/bus.ts";
-import { asNodeId } from "../memory/graph/types.ts";
 import type { GoalRepository } from "./repository.ts";
-import {
-	asGoalRunnerId,
-	asGoalTaskId,
-	asGoalTurnId,
-	type GoalRunnerId,
-	type GoalTaskId,
-} from "./types.ts";
+import { asGoalRunnerId, type GoalRunnerId, newGoalTurnId } from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Dependencies
@@ -74,7 +67,9 @@ export async function runRecovery(
 	const dangling = await goals.inProgressTasks();
 	for (const task of dangling) {
 		if (task.lastRunnerId === currentRunnerId) continue;
-		const previousTurnId = task.lastTurnId ?? asGoalTurnId(task.taskId as unknown as string);
+		// No pre-crash turn id survived — mint a synthetic one so downstream
+		// audit can tell crash-recovery events apart from ordinary abandons.
+		const previousTurnId = task.lastTurnId ?? newGoalTurnId();
 		const previousRunnerId = task.lastRunnerId ?? asGoalRunnerId("unknown");
 		await bus.emit({
 			type: "goal.task_abandoned",
@@ -82,7 +77,7 @@ export async function runRecovery(
 			actor: "system",
 			data: {
 				nodeId: Number(task.goalNodeId),
-				taskId: asGoalTaskId(task.taskId as unknown as string) as GoalTaskId,
+				taskId: task.taskId,
 				previousTurnId,
 				previousRunnerId,
 				reason: "crash_recovery",
@@ -105,7 +100,7 @@ export async function runRecovery(
 			version: 1,
 			actor: "system",
 			data: {
-				nodeId: Number(asNodeId(Number(g.nodeId))),
+				nodeId: Number(g.nodeId),
 				runnerId: g.leasedBy,
 				reason: "expiry",
 			},
