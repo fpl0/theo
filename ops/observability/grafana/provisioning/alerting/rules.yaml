@@ -17,12 +17,15 @@ groups:
         data:
           - refId: A
             datasourceUid: prom
+            relativeTimeRange: { from: 900, to: 0 }
             model:
               refId: A
               expr: |
                 absent_over_time(theo_turns_total[15m])
                 and absent_over_time(theo_reflex_dispatched_total[15m])
         for: 15m
+        noDataState: OK
+        execErrState: OK
         labels: { severity: critical }
         annotations:
           summary: "Theo has produced no turns or reflexes in 15 minutes"
@@ -34,8 +37,11 @@ groups:
         data:
           - refId: A
             datasourceUid: prom
+            relativeTimeRange: { from: 600, to: 0 }
             model: { refId: A, expr: "theo_degradation_level_gauge >= 4" }
         for: 5m
+        noDataState: OK
+        execErrState: OK
         labels: { severity: critical }
         annotations:
           summary: "Degradation ladder reached L4 (essential-only)"
@@ -47,10 +53,13 @@ groups:
         data:
           - refId: A
             datasourceUid: prom
+            relativeTimeRange: { from: 600, to: 0 }
             model:
               refId: A
               expr: "rate(theo_autonomy_violations_total[5m]) > 0"
         for: 0m
+        noDataState: OK
+        execErrState: OK
         labels: { severity: critical }
         annotations:
           summary: "Autonomy violation detected"
@@ -62,11 +71,14 @@ groups:
         data:
           - refId: A
             datasourceUid: prom
+            relativeTimeRange: { from: 86400, to: 0 }
             model:
               refId: A
               expr: |
                 sum(increase(theo_cloud_egress_cost_usd_total[1d])) > 1
         for: 0m
+        noDataState: OK
+        execErrState: OK
         labels: { severity: critical }
         annotations:
           summary: "Daily cloud egress cost exceeded budget"
@@ -78,10 +90,13 @@ groups:
         data:
           - refId: A
             datasourceUid: prom
+            relativeTimeRange: { from: 600, to: 0 }
             model:
               refId: A
               expr: "max(theo_bus_handler_lag_seconds) > 300"
         for: 10m
+        noDataState: OK
+        execErrState: OK
         labels: { severity: warning }
         annotations:
           summary: "Handler lag exceeded 5 minutes"
@@ -93,10 +108,13 @@ groups:
         data:
           - refId: A
             datasourceUid: prom
+            relativeTimeRange: { from: 3600, to: 0 }
             model:
               refId: A
               expr: "increase(theo_system_rollback_total[1h]) > 0"
         for: 0m
+        noDataState: OK
+        execErrState: OK
         labels: { severity: critical }
         annotations:
           summary: "Self-update rollback executed"
@@ -108,10 +126,13 @@ groups:
         data:
           - refId: A
             datasourceUid: prom
+            relativeTimeRange: { from: 600, to: 0 }
             model:
               refId: A
               expr: "rate(theo_telemetry_exporter_dropped_total[10m]) > 0"
         for: 10m
+        noDataState: OK
+        execErrState: OK
         labels: { severity: warning }
         annotations:
           summary: "Telemetry exporter dropping spans/metrics"
@@ -123,10 +144,13 @@ groups:
         data:
           - refId: A
             datasourceUid: prom
+            relativeTimeRange: { from: 900, to: 0 }
             model:
               refId: A
               expr: "rate(theo_synthetic_probe_failures_total[15m]) > 0"
         for: 15m
+        noDataState: OK
+        execErrState: OK
         labels: { severity: critical }
         annotations:
           summary: "Synthetic probe failing"
@@ -143,10 +167,13 @@ groups:
         data:
           - refId: A
             datasourceUid: prom
+            relativeTimeRange: { from: 600, to: 0 }
             model:
               refId: A
               expr: "theo:turns:error_rate_5m > (1 - 0.99) * 14.4"
         for: 2m
+        noDataState: OK
+        execErrState: OK
         labels: { severity: critical }
         annotations:
           summary: "Fast burn on turn availability SLO"
@@ -158,10 +185,13 @@ groups:
         data:
           - refId: A
             datasourceUid: prom
+            relativeTimeRange: { from: 600, to: 0 }
             model:
               refId: A
               expr: "theo:turns:error_rate_5m > (1 - 0.99) * 6"
         for: 30m
+        noDataState: OK
+        execErrState: OK
         labels: { severity: warning }
         annotations:
           summary: "Slow burn on turn availability SLO"

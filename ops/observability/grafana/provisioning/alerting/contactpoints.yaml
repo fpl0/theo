@@ -1,22 +1,17 @@
 ---
+# Alert delivery is intentionally deferred. Alert rules still fire and are
+# visible in Grafana's Alerting UI; they just don't escape the process.
+#
+# To enable delivery, replace this stub with a real contact point
+# (telegram/email/webhook/slack/...) and route policies.yaml at it.
 apiVersion: 1
 contactPoints:
   - orgId: 1
-    name: telegram
+    name: noop
     receivers:
-      - uid: telegram
-        type: telegram
+      - uid: noop
+        type: webhook
+        disableResolveMessage: true
         settings:
-          bottoken: ${TELEGRAM_ALERT_BOT_TOKEN}
-          chatid: ${TELEGRAM_ALERT_CHAT_ID}
-          message: |
-            [${severity}] ${alertname}
-            ${summary}
-            ${runbook_url}
-  - orgId: 1
-    name: email
-    receivers:
-      - uid: email
-        type: email
-        settings:
-          addresses: ${ALERT_EMAIL}
+          url: http://127.0.0.1:9/noop
+          httpMethod: POST
