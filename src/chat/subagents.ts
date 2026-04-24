@@ -15,13 +15,7 @@ import type { AgentDefinition } from "@anthropic-ai/claude-agent-sdk";
 /** The model a subagent uses when it also acts as its own advisor. */
 const ADVISOR_OPUS = "claude-opus-4-6";
 
-export type SubagentName =
-	| "main"
-	| "coder"
-	| "researcher"
-	| "writer"
-	| "planner"
-	| "psychologist";
+export type SubagentName = "main" | "coder" | "researcher" | "writer" | "planner" | "psychologist";
 
 /**
  * A Theo subagent definition. Mirrors SDK `AgentDefinition` plus an optional
@@ -171,4 +165,3 @@ export function buildSdkAgentsMap(
 	}
 	return map;
 }
-

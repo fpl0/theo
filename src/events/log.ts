@@ -11,7 +11,6 @@
 import type postgres from "postgres";
 import type { Sql, TransactionSql } from "postgres";
 import { asQueryable } from "../db/pool.ts";
-import type { Actor } from "./types.ts";
 import type { EventId } from "./ids.ts";
 import { newEventId } from "./ids.ts";
 import type { Event, EventMetadata } from "./types.ts";
@@ -19,12 +18,11 @@ import type { UpcasterRegistry } from "./upcasters.ts";
 
 /**
  * Trust tier persisted alongside every event. In Core 1 there are no
- * external trust sources (no webhooks, no autonomous turns), so the tier is
- * a constant function of the actor.
+ * external trust sources (no webhooks, no autonomous turns), so every event
+ * pins to `owner` — the only tier the existing CHECK constraint allows for
+ * a single-owner agent.
  */
-function actorTrust(actor: Actor): "owner" | "system" {
-	return actor === "system" ? "system" : "owner";
-}
+const CORE1_TRUST = "owner";
 
 // ---------------------------------------------------------------------------
 // Read Options
@@ -156,7 +154,7 @@ export function createEventLog(sql: Sql, upcasters: UpcasterRegistry): EventLog 
 			options === undefined ? {} : isTransactionSql(options) ? { tx: options } : options;
 		const tx = opts.tx;
 
-		const effectiveTrust = actorTrust(event.actor);
+		const effectiveTrust = CORE1_TRUST;
 
 		const query = asQueryable(tx ?? sql);
 		await query`

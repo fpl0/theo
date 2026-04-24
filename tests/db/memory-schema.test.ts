@@ -2,7 +2,7 @@
  * Integration tests for the memory schema migration (0003_memory_tables.sql).
  *
  * Verifies all 9 tables (node, edge, episode, episode_node, core_memory,
- * core_memory_changelog, user_model_dimension, self_model_domain, skill),
+ * core_memory_changelog, user_model_dimension, skill),
  * their constraints, triggers, indexes, and ON DELETE behaviors.
  *
  * Requires Docker PostgreSQL running via `just up`.
@@ -24,7 +24,7 @@ beforeAll(async () => {
 	// Schema is set up by `just test-db` before bun test starts.
 	// Clean test data from previous runs (keep tables and seeds intact).
 	// core_memory is excluded — it contains seeded rows verified by tests.
-	await pool.sql`TRUNCATE node, edge, episode, episode_node, core_memory_changelog, user_model_dimension, self_model_domain, skill CASCADE`;
+	await pool.sql`TRUNCATE node, edge, episode, episode_node, core_memory_changelog, user_model_dimension, skill CASCADE`;
 });
 
 afterAll(async () => {
@@ -46,11 +46,10 @@ describe("tables created", () => {
 		"core_memory",
 		"core_memory_changelog",
 		"user_model_dimension",
-		"self_model_domain",
 		"skill",
 	];
 
-	test("all 9 memory tables exist", async () => {
+	test("all 8 memory tables exist", async () => {
 		const rows = await pool.sql`
 			SELECT table_name
 			FROM information_schema.tables
@@ -518,105 +517,6 @@ describe("user_model_dimension", () => {
 	test("CHECK: rejects confidence < 0.0", async () => {
 		try {
 			await pool.sql`INSERT INTO user_model_dimension (name, confidence) VALUES ('test_dim', -1.0)`;
-			expect.unreachable("should have thrown");
-		} catch (e) {
-			expect(e).toBeDefined();
-		}
-	});
-});
-
-// ---------------------------------------------------------------------------
-// Self Model Domain Tests
-// ---------------------------------------------------------------------------
-
-describe("self_model_domain", () => {
-	test("CHECK: rejects correct > predictions", async () => {
-		try {
-			await pool.sql`
-				INSERT INTO self_model_domain (name, predictions, correct)
-				VALUES ('bad_domain', 5, 10)
-			`;
-			expect.unreachable("should have thrown");
-		} catch (e) {
-			expect(e).toBeDefined();
-		}
-	});
-
-	test("CHECK: rejects negative predictions", async () => {
-		try {
-			await pool.sql`
-				INSERT INTO self_model_domain (name, predictions, correct)
-				VALUES ('neg_pred', -1, 0)
-			`;
-			expect.unreachable("should have thrown");
-		} catch (e) {
-			expect(e).toBeDefined();
-		}
-	});
-
-	test("CHECK: rejects negative correct", async () => {
-		try {
-			await pool.sql`
-				INSERT INTO self_model_domain (name, predictions, correct)
-				VALUES ('neg_corr', 5, -1)
-			`;
-			expect.unreachable("should have thrown");
-		} catch (e) {
-			expect(e).toBeDefined();
-		}
-	});
-
-	test("valid predictions and correct are accepted", async () => {
-		const rows = await pool.sql`
-			INSERT INTO self_model_domain (name, predictions, correct)
-			VALUES ('valid_domain', 10, 7)
-			RETURNING predictions, correct
-		`;
-		expect(rows[0]?.["predictions"]).toBe(10);
-		expect(rows[0]?.["correct"]).toBe(7);
-	});
-
-	// Phase 13a: windowed calibration columns
-	test("recent_predictions and recent_correct default to 0", async () => {
-		const rows = await pool.sql`
-			INSERT INTO self_model_domain (name) VALUES ('win_defaults')
-			RETURNING recent_predictions, recent_correct, window_reset_at
-		`;
-		expect(rows[0]?.["recent_predictions"]).toBe(0);
-		expect(rows[0]?.["recent_correct"]).toBe(0);
-		expect(rows[0]?.["window_reset_at"]).toBeInstanceOf(Date);
-	});
-
-	test("CHECK: rejects recent_correct > recent_predictions", async () => {
-		try {
-			await pool.sql`
-				INSERT INTO self_model_domain (name, recent_predictions, recent_correct)
-				VALUES ('win_bad', 3, 5)
-			`;
-			expect.unreachable("should have thrown");
-		} catch (e) {
-			expect(e).toBeDefined();
-		}
-	});
-
-	test("CHECK: rejects negative recent_predictions", async () => {
-		try {
-			await pool.sql`
-				INSERT INTO self_model_domain (name, recent_predictions)
-				VALUES ('win_neg_pred', -1)
-			`;
-			expect.unreachable("should have thrown");
-		} catch (e) {
-			expect(e).toBeDefined();
-		}
-	});
-
-	test("CHECK: rejects negative recent_correct", async () => {
-		try {
-			await pool.sql`
-				INSERT INTO self_model_domain (name, recent_predictions, recent_correct)
-				VALUES ('win_neg_corr', 5, -1)
-			`;
 			expect.unreachable("should have thrown");
 		} catch (e) {
 			expect(e).toBeDefined();

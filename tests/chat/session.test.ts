@@ -280,4 +280,3 @@ describe("SessionManager lifecycle", () => {
 		expect(decision).toEqual({ continue: true, reason: "active" });
 	});
 });
-
