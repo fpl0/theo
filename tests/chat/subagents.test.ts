@@ -7,14 +7,11 @@
 
 import { describe, expect, test } from "bun:test";
 import {
-	buildSchedulerSubagents,
 	buildSdkAgentsMap,
 	SUBAGENTS,
 	type SubagentName,
 	toSdkAgentDefinition,
 } from "../../src/chat/subagents.ts";
-
-const SUBAGENT_NAMES = Object.keys(SUBAGENTS) as SubagentName[];
 
 const MODEL_ALIASES = new Set(["opus", "sonnet", "haiku"]);
 const ADVISOR_ELIGIBLE: ReadonlySet<SubagentName> = new Set<SubagentName>([
@@ -23,41 +20,14 @@ const ADVISOR_ELIGIBLE: ReadonlySet<SubagentName> = new Set<SubagentName>([
 	"coder",
 	"researcher",
 	"writer",
-	"reflector",
 ]);
 
 describe("SUBAGENTS catalog", () => {
-	test("all scoped subagents plus the main generalist are defined", () => {
+	test("Core 1 subagents are defined", () => {
 		const names = Object.keys(SUBAGENTS).sort();
 		expect(names).toEqual(
-			[
-				"coder",
-				"consolidator",
-				"main",
-				"planner",
-				"psychologist",
-				"reflector",
-				"researcher",
-				"scanner",
-				"writer",
-			].sort(),
+			["coder", "main", "planner", "psychologist", "researcher", "writer"].sort(),
 		);
-	});
-
-	test("includes the eight Phase 14 catalog subagents", () => {
-		const phase14 = [
-			"coder",
-			"consolidator",
-			"planner",
-			"psychologist",
-			"reflector",
-			"researcher",
-			"scanner",
-			"writer",
-		] as const;
-		for (const name of phase14) {
-			expect(SUBAGENTS).toHaveProperty(name);
-		}
 	});
 
 	for (const [name, def] of Object.entries(SUBAGENTS)) {
@@ -94,10 +64,7 @@ describe("SUBAGENTS catalog", () => {
 		}
 	});
 
-	test("reflex-speed subagents omit advisorModel", () => {
-		expect(SUBAGENTS.scanner.advisorModel).toBeUndefined();
-		expect(SUBAGENTS.consolidator.advisorModel).toBeUndefined();
-		// Psychologist already runs Opus — no separate advisor.
+	test("psychologist already runs Opus — no separate advisor", () => {
 		expect(SUBAGENTS.psychologist.advisorModel).toBeUndefined();
 	});
 
@@ -105,13 +72,6 @@ describe("SUBAGENTS catalog", () => {
 		for (const name of ADVISOR_ELIGIBLE) {
 			expect(SUBAGENTS[name].advisorModel).toBe("claude-opus-4-6");
 		}
-	});
-
-	test("reflector prompt instructs skill creation and refinement", () => {
-		const prompt = SUBAGENTS.reflector.prompt;
-		expect(prompt).toContain("store_skill");
-		expect(prompt).toContain("parent_id");
-		expect(prompt).toContain("promot");
 	});
 
 	test("psychologist prompt invokes Jungian framework", () => {
@@ -125,16 +85,9 @@ describe("toSdkAgentDefinition", () => {
 	test("strips advisorModel from the definition", () => {
 		const sdk = toSdkAgentDefinition(SUBAGENTS.planner);
 		expect(sdk).not.toHaveProperty("advisorModel");
-		// Core fields are preserved
 		expect(sdk.model).toBe(SUBAGENTS.planner.model);
 		expect(sdk.prompt).toBe(SUBAGENTS.planner.prompt);
 		expect(sdk.description).toBe(SUBAGENTS.planner.description);
-	});
-
-	test("leaves reflex-speed subagents structurally unchanged", () => {
-		const sdk = toSdkAgentDefinition(SUBAGENTS.scanner);
-		expect(sdk).not.toHaveProperty("advisorModel");
-		expect(sdk.model).toBe("haiku");
 	});
 });
 
@@ -150,26 +103,5 @@ describe("SDK agents map", () => {
 		for (const def of Object.values(map)) {
 			expect(def).not.toHaveProperty("advisorModel");
 		}
-	});
-});
-
-describe("buildSchedulerSubagents", () => {
-	test("maps every subagent into scheduler-facing shape", () => {
-		const map = buildSchedulerSubagents();
-		for (const name of SUBAGENT_NAMES) {
-			const entry = map[name];
-			expect(entry).toBeDefined();
-			const e = entry;
-			if (!e) throw new Error("unreachable: entry must exist");
-			expect(typeof e.model).toBe("string");
-			expect(e.maxTurns).toBeGreaterThan(0);
-			expect(e.systemPromptPrefix.length).toBeGreaterThan(0);
-		}
-	});
-
-	test("preserves advisorModel when present on catalog entry", () => {
-		const map = buildSchedulerSubagents();
-		expect(map["planner"]?.advisorModel).toBe("claude-opus-4-6");
-		expect(map["scanner"]?.advisorModel).toBeUndefined();
 	});
 });

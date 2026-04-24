@@ -1,13 +1,13 @@
 /**
  * Engine lifecycle tests.
  *
- * The Engine orchestrates migrations, event bus, scheduler, chat engine, and
- * gate. The tests drive it through its state machine with stub subsystems —
- * real migrations/DB are exercised by integration tests in `tests/db`.
+ * The Engine orchestrates migrations, event bus, chat engine, and gate. The
+ * tests drive it through its state machine with stub subsystems — real
+ * migrations/DB are exercised by integration tests in `tests/db`.
  *
  * Every stub records the call sequence so we can assert:
- *   - startup order: migrate → bus.start → scheduler.start → system.started → gate.start
- *   - shutdown order: gate.stop → scheduler.stop → system.stopped → bus.stop → pool.end
+ *   - startup order: migrate → bus.start → system.started → gate.start
+ *   - shutdown order: gate.stop → system.stopped → bus.stop → pool.end
  *   - stopping flag squashes double-stop from signal races
  *   - pause parks messages; resume drains them in order
  */
@@ -20,7 +20,6 @@ import { Engine, installSignalHandlers } from "../src/engine.ts";
 import type { EventBus } from "../src/events/bus.ts";
 import type { Event } from "../src/events/types.ts";
 import type { Gate } from "../src/gates/types.ts";
-import type { Scheduler } from "../src/scheduler/runner.ts";
 
 // ---------------------------------------------------------------------------
 // Stubs
@@ -104,25 +103,6 @@ function createStubBus(
 	return bus;
 }
 
-function createStubScheduler(recorder: Recorder): Scheduler {
-	return {
-		async start() {
-			recorder.calls.push("scheduler.start");
-		},
-		async stop() {
-			recorder.calls.push("scheduler.stop");
-		},
-		isRunning() {
-			return false;
-		},
-		activeCount() {
-			return 0;
-		},
-		async tick() {},
-		async executeJob() {},
-	} as unknown as Scheduler;
-}
-
 function createStubChatEngine(
 	handler: (body: string, gate: string) => Promise<TurnResult>,
 ): ChatEngine {
@@ -180,7 +160,6 @@ interface Harness {
 	emitted: EmittedEvent[];
 	pool: Pool;
 	bus: EventBus;
-	scheduler: Scheduler;
 	chatEngine: ChatEngine;
 	gate: Gate;
 }
@@ -194,13 +173,12 @@ function buildHarness(opts?: {
 
 	const pool = createStubPool(recorder);
 	const bus = createStubBus(recorder, emitted, { failOnStart: opts?.busFailOnStart ?? false });
-	const scheduler = createStubScheduler(recorder);
 	const chatEngine = createStubChatEngine(
 		opts?.chatHandler ?? (async (body) => ({ ok: true as const, response: `echo: ${body}` })),
 	);
 	const gate = createStubGate(recorder);
-	const engine = new Engine({ pool, bus, scheduler, chatEngine, gate, version: "test" });
-	return { engine, recorder, emitted, pool, bus, scheduler, chatEngine, gate };
+	const engine = new Engine({ pool, bus, chatEngine, gate, version: "test" });
+	return { engine, recorder, emitted, pool, bus, chatEngine, gate };
 }
 
 // Short helper — wait for a predicate with a small bounded timeout.
@@ -231,10 +209,9 @@ describe("Engine.start", () => {
 		// Startup emits system.started
 		expect(h.emitted.map((e) => e.type)).toContain("system.started");
 
-		// Sequence: bus.start < scheduler.start < system.started < gate.start.
+		// Sequence: bus.start < system.started < gate.start.
 		const idx = (c: string): number => h.recorder.calls.indexOf(c);
-		expect(idx("bus.start")).toBeLessThan(idx("scheduler.start"));
-		expect(idx("scheduler.start")).toBeLessThan(idx("bus.emit:system.started"));
+		expect(idx("bus.start")).toBeLessThan(idx("bus.emit:system.started"));
 		expect(idx("bus.emit:system.started")).toBeLessThan(idx("gate.start"));
 
 		await h.engine.stop("test_teardown");
@@ -263,10 +240,9 @@ describe("Engine.stop", () => {
 		await h.engine.stop("SIGTERM");
 		expect(h.engine.state).toBe("stopped");
 
-		// Teardown sequence: gate.stop → scheduler.stop → system.stopped → bus.stop → pool.end
+		// Teardown sequence: gate.stop → system.stopped → bus.stop → pool.end
 		const idx = (c: string): number => h.recorder.calls.indexOf(c);
-		expect(idx("gate.stop")).toBeLessThan(idx("scheduler.stop"));
-		expect(idx("scheduler.stop")).toBeLessThan(idx("bus.emit:system.stopped"));
+		expect(idx("gate.stop")).toBeLessThan(idx("bus.emit:system.stopped"));
 		expect(idx("bus.emit:system.stopped")).toBeLessThan(idx("bus.stop"));
 		expect(idx("bus.stop")).toBeLessThan(idx("pool.end"));
 	});

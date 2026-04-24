@@ -7,15 +7,12 @@ import {
 import type { Sql } from "postgres";
 import { z } from "zod";
 import { countEventsTool, readEventsTool } from "../events/mcp.ts";
-import { readGoalsTool, recordGoalTool } from "../goals/mcp.ts";
-import type { GoalRepository } from "../goals/repository.ts";
 import { errorResult } from "../mcp/tool-helpers.ts";
 import type { CoreMemoryRepository } from "./core.ts";
 import type { EdgeRepository } from "./graph/edges.ts";
 import type { NodeRepository } from "./graph/nodes.ts";
-import { asNodeId, type TrustTier } from "./graph/types.ts";
+import { asNodeId } from "./graph/types.ts";
 import type { RetrievalService } from "./retrieval.ts";
-import type { SelfModelRepository } from "./self_model.ts";
 import type { SkillRepository } from "./skills.ts";
 import type { CoreMemorySlot, JsonValue } from "./types.ts";
 import type { UserModelRepository } from "./user_model.ts";
@@ -26,21 +23,13 @@ export interface MemoryDependencies {
 	readonly coreMemory: CoreMemoryRepository;
 	readonly retrieval: RetrievalService;
 	readonly userModel: UserModelRepository;
-	readonly selfModel: SelfModelRepository;
 	readonly skills: SkillRepository;
-	/** Present once Phase 12a is wired — read_goals tool uses it. */
-	readonly goals?: GoalRepository;
 	/**
 	 * Postgres handle. When provided, the event-log introspection tools
 	 * (`read_events`, `count_events`) are registered. Optional so the
 	 * subset used in unit tests can skip wiring the full pool.
 	 */
 	readonly sql?: Sql;
-	/**
-	 * Resolver that reads the caller's effective trust tier from SDK tool
-	 * call metadata. Defaults to `owner` when not supplied (local CLI turns).
-	 */
-	readonly resolveToolTrust?: (extra: unknown) => TrustTier;
 }
 
 const NODE_KINDS = [
@@ -348,7 +337,6 @@ export function searchSkillsTool(deps: MemoryDependencies) {
 export type { SdkMcpToolDefinition };
 
 export function memoryToolList(deps: MemoryDependencies) {
-	const resolveTrust = deps.resolveToolTrust ?? ((): TrustTier => "owner");
 	const base = [
 		storeMemoryTool(deps),
 		searchMemoryTool(deps),
@@ -359,21 +347,11 @@ export function memoryToolList(deps: MemoryDependencies) {
 		linkMemoriesTool(deps),
 		updateUserModelTool(deps),
 	];
-	const goalTools =
-		deps.goals !== undefined
-			? [
-					readGoalsTool({ goals: deps.goals, resolveTrust }),
-					recordGoalTool({ goals: deps.goals, resolveTrust }),
-				]
-			: [];
 	const eventTools =
 		deps.sql !== undefined
-			? [
-					readEventsTool({ sql: deps.sql, resolveTrust }),
-					countEventsTool({ sql: deps.sql, resolveTrust }),
-				]
+			? [readEventsTool({ sql: deps.sql }), countEventsTool({ sql: deps.sql })]
 			: [];
-	return [...base, ...goalTools, ...eventTools];
+	return [...base, ...eventTools];
 }
 
 // Tool name prefixing follows `mcp__${mapKey}__${toolName}` where `mapKey` is

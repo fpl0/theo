@@ -19,9 +19,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { type CoreMemoryHasher, SessionManager } from "../../src/chat/session.ts";
-import type { Actor } from "../../src/events/types.ts";
 import { EMBEDDING_DIM, type EmbeddingService } from "../../src/memory/embeddings.ts";
-import type { SelfModelDomain, SelfModelRepository } from "../../src/memory/self_model.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -49,37 +47,6 @@ function keyedEmbeddings(map: Record<string, Float32Array>): EmbeddingService {
 	};
 }
 
-interface SelfModelCalls {
-	readonly predictions: string[];
-	readonly outcomes: { domain: string; correct: boolean; actor: Actor }[];
-}
-
-function countingSelfModel(): {
-	readonly repo: SelfModelRepository;
-	readonly calls: SelfModelCalls;
-} {
-	const predictions: string[] = [];
-	const outcomes: { domain: string; correct: boolean; actor: Actor }[] = [];
-	const repo: SelfModelRepository = {
-		async recordPrediction(domain: string): Promise<void> {
-			predictions.push(domain);
-		},
-		async recordOutcome(domain: string, correct: boolean, actor: Actor): Promise<void> {
-			outcomes.push({ domain, correct, actor });
-		},
-		async getCalibration() {
-			return 0;
-		},
-		async getLifetimeCalibration() {
-			return 0;
-		},
-		async getDomain(): Promise<SelfModelDomain | null> {
-			return null;
-		},
-	};
-	return { repo, calls: { predictions, outcomes } };
-}
-
 function hasher(h: string): CoreMemoryHasher {
 	return { hash: async () => h };
 }
@@ -104,8 +71,7 @@ function mutableHasher(initial: string): {
 describe("SessionManager.decide", () => {
 	test("first message: no active session → no_active_session", async () => {
 		let now = 0;
-		const { repo } = countingSelfModel();
-		const mgr = new SessionManager(keyedEmbeddings({}), repo, {
+		const mgr = new SessionManager(keyedEmbeddings({}), {
 			now: () => now,
 		});
 
@@ -121,8 +87,7 @@ describe("SessionManager.decide", () => {
 			first: unitVector(0),
 			second: unitVector(0),
 		});
-		const { repo } = countingSelfModel();
-		const mgr = new SessionManager(embeddings, repo, {
+		const mgr = new SessionManager(embeddings, {
 			inactivityTimeoutMs: 10_000,
 			now: () => now,
 		});
@@ -139,8 +104,7 @@ describe("SessionManager.decide", () => {
 	test("core memory hash changed: rotates session", async () => {
 		let now = 1_000;
 		const embeddings = keyedEmbeddings({ first: unitVector(0) });
-		const { repo } = countingSelfModel();
-		const mgr = new SessionManager(embeddings, repo, {
+		const mgr = new SessionManager(embeddings, {
 			inactivityTimeoutMs: 60_000,
 			now: () => now,
 		});
@@ -163,8 +127,7 @@ describe("SessionManager.decide", () => {
 		let now = 0;
 		const shared = unitVector(0);
 		const embeddings = keyedEmbeddings({ "turn-a": shared, "turn-b": shared });
-		const { repo } = countingSelfModel();
-		const mgr = new SessionManager(embeddings, repo, {
+		const mgr = new SessionManager(embeddings, {
 			inactivityTimeoutMs: 1_000,
 			topicContinuityThreshold: 0.7,
 			now: () => now,
@@ -188,8 +151,7 @@ describe("SessionManager.decide", () => {
 			"turn-a": unitVector(0),
 			"turn-b": unitVector(10), // orthogonal → cosine = 0 < threshold
 		});
-		const { repo } = countingSelfModel();
-		const mgr = new SessionManager(embeddings, repo, {
+		const mgr = new SessionManager(embeddings, {
 			inactivityTimeoutMs: 1_000,
 			topicContinuityThreshold: 0.7,
 			now: () => now,
@@ -210,8 +172,7 @@ describe("SessionManager.decide", () => {
 	test("deep session (≥50 turns) slightly past timeout: deep_session continues", async () => {
 		let now = 0;
 		const embeddings = keyedEmbeddings({ msg: unitVector(0) });
-		const { repo } = countingSelfModel();
-		const mgr = new SessionManager(embeddings, repo, {
+		const mgr = new SessionManager(embeddings, {
 			inactivityTimeoutMs: 1_000,
 			deepSessionThreshold: 50,
 			now: () => now,
@@ -237,8 +198,7 @@ describe("SessionManager.decide", () => {
 			"turn-a": unitVector(0),
 			"turn-b": unitVector(20), // orthogonal → cosine = 0
 		});
-		const { repo } = countingSelfModel();
-		const mgr = new SessionManager(embeddings, repo, {
+		const mgr = new SessionManager(embeddings, {
 			inactivityTimeoutMs: 1_000,
 			deepSessionThreshold: 50,
 			topicContinuityThreshold: 0.7,
@@ -266,8 +226,7 @@ describe("SessionManager.decide", () => {
 
 describe("SessionManager lifecycle", () => {
 	test("startSession returns a UUID and exposes it via getActiveSessionId", async () => {
-		const { repo } = countingSelfModel();
-		const mgr = new SessionManager(keyedEmbeddings({}), repo);
+		const mgr = new SessionManager(keyedEmbeddings({}));
 
 		const id = await mgr.startSession(hasher("H"));
 
@@ -277,8 +236,7 @@ describe("SessionManager lifecycle", () => {
 	});
 
 	test("releaseSession returns the released ID and clears state", async () => {
-		const { repo } = countingSelfModel();
-		const mgr = new SessionManager(keyedEmbeddings({ msg: unitVector(0) }), repo);
+		const mgr = new SessionManager(keyedEmbeddings({ msg: unitVector(0) }));
 
 		const id = await mgr.startSession(hasher("H"));
 		await mgr.recordTurn("msg");
@@ -293,8 +251,7 @@ describe("SessionManager lifecycle", () => {
 	});
 
 	test("releaseSession with no active session returns null", () => {
-		const { repo } = countingSelfModel();
-		const mgr = new SessionManager(keyedEmbeddings({}), repo);
+		const mgr = new SessionManager(keyedEmbeddings({}));
 
 		expect(mgr.releaseSession()).toBeNull();
 	});
@@ -302,8 +259,7 @@ describe("SessionManager lifecycle", () => {
 	test("recordTurn increments turn count and extends inactivity window", async () => {
 		let now = 1_000;
 		const embeddings = keyedEmbeddings({ first: unitVector(0), second: unitVector(0) });
-		const { repo } = countingSelfModel();
-		const mgr = new SessionManager(embeddings, repo, {
+		const mgr = new SessionManager(embeddings, {
 			inactivityTimeoutMs: 10_000,
 			now: () => now,
 		});
@@ -325,37 +281,3 @@ describe("SessionManager lifecycle", () => {
 	});
 });
 
-// ---------------------------------------------------------------------------
-// Self-model calibration side effects
-// ---------------------------------------------------------------------------
-
-describe("SessionManager self-model calibration", () => {
-	test("decide() records a prediction for every genuine decision", async () => {
-		const { repo, calls } = countingSelfModel();
-		const mgr = new SessionManager(keyedEmbeddings({}), repo);
-
-		// No active session — not a decision, so no prediction recorded.
-		await mgr.decide("hi", hasher("H"));
-		expect(calls.predictions).toEqual([]);
-
-		// Now there's an active session: each decide() is a real decision.
-		await mgr.startSession(hasher("H"));
-		await mgr.decide("hi again", hasher("H"));
-		await mgr.decide("still here", hasher("H"));
-
-		expect(calls.predictions).toEqual(["session_management", "session_management"]);
-	});
-
-	test("recordCorrection forwards the outcome to the self-model repo", async () => {
-		const { repo, calls } = countingSelfModel();
-		const mgr = new SessionManager(keyedEmbeddings({}), repo);
-
-		await mgr.recordCorrection(true);
-		await mgr.recordCorrection(false);
-
-		expect(calls.outcomes).toEqual([
-			{ domain: "session_management", correct: true, actor: "user" },
-			{ domain: "session_management", correct: false, actor: "user" },
-		]);
-	});
-});

@@ -108,9 +108,6 @@ function stubSkills(skills: readonly Skill[]): SkillRepository {
 		async recordOutcome() {
 			throw new Error("stubSkills.recordOutcome should not be called");
 		},
-		async promote() {
-			throw new Error("stubSkills.promote should not be called");
-		},
 		async getById() {
 			return null;
 		},
@@ -404,9 +401,6 @@ describe("assembleSystemPrompt option budgets", () => {
 			async recordOutcome() {
 				throw new Error("skills.recordOutcome should not be called");
 			},
-			async promote() {
-				throw new Error("skills.promote should not be called");
-			},
 			async getById() {
 				return null;
 			},
@@ -439,9 +433,6 @@ describe("assembleSystemPrompt option budgets", () => {
 			},
 			async recordOutcome() {
 				throw new Error("skills.recordOutcome should not be called");
-			},
-			async promote() {
-				throw new Error("skills.promote should not be called");
 			},
 			async getById() {
 				return null;

@@ -134,26 +134,6 @@ describe("SkillRepository.findByTrigger", () => {
 		expect(results[0]?.name).toBe("a");
 	});
 
-	test("excludes promoted skills", async () => {
-		const promoted = await repo.create({
-			name: "promoted",
-			trigger: "was promoted",
-			strategy: "legacy",
-		});
-		await repo.promote(promoted.id);
-
-		await repo.create({
-			name: "active",
-			trigger: "was promoted",
-			strategy: "current",
-		});
-
-		const results = await repo.findByTrigger("was promoted", 10);
-		const names = results.map((r) => r.name);
-		expect(names).toContain("active");
-		expect(names).not.toContain("promoted");
-	});
-
 	test("respects the limit argument", async () => {
 		for (let i = 0; i < 5; i++) {
 			await repo.create({
@@ -220,44 +200,10 @@ describe("SkillRepository.recordOutcome", () => {
 		await cleanEventTables(sql);
 		await repo.recordOutcome(skill.id, true);
 		expect(await countEvents("memory.skill.created")).toBe(0);
-		expect(await countEvents("memory.skill.promoted")).toBe(0);
 	});
 
 	test("throws when the skill does not exist", async () => {
 		await expectReject(() => repo.recordOutcome(999_999, true), /not found/);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// promote
-// ---------------------------------------------------------------------------
-
-describe("SkillRepository.promote", () => {
-	test("sets promoted_at and emits memory.skill.promoted", async () => {
-		const skill = await repo.create({
-			name: "star",
-			trigger: "top performer",
-			strategy: "always works",
-		});
-		await cleanEventTables(sql);
-		const promoted = await repo.promote(skill.id);
-		expect(promoted.promotedAt).not.toBeNull();
-		expect(await countEvents("memory.skill.promoted")).toBe(1);
-	});
-
-	test("double-promote is idempotent — promoted_at preserved", async () => {
-		const skill = await repo.create({
-			name: "star",
-			trigger: "top performer",
-			strategy: "always works",
-		});
-		const first = await repo.promote(skill.id);
-		const again = await repo.promote(skill.id);
-		expect(again.promotedAt?.getTime()).toBe(first.promotedAt?.getTime());
-	});
-
-	test("throws when the skill does not exist", async () => {
-		await expectReject(() => repo.promote(999_999), /not found/);
 	});
 });
 

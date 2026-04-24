@@ -13,13 +13,11 @@
  *   - session depth (>50 turns — extend the effective timeout so deep focus
  *     isn't broken by minor pauses)
  *
- * Each decision is recorded as a prediction in the `session_management`
- * self-model domain. User corrections (explicit `/resume` or `/reset`) record
- * outcomes via `recordCorrection()`. Over time the heuristic calibrates.
+ * Decisions are not calibrated against user corrections in Core 1 — the
+ * self-model layer that did that is gone. Heuristic constants stay tunable.
  */
 
 import type { EmbeddingService } from "../memory/embeddings.ts";
-import type { SelfModelRepository } from "../memory/self_model.ts";
 
 // ---------------------------------------------------------------------------
 // Configuration constants
@@ -44,9 +42,6 @@ const DEFAULT_DEEP_SESSION_THRESHOLD = 50;
 
 /** Multiplier applied to the inactivity timeout for deep sessions. */
 const DEEP_SESSION_TIMEOUT_MULTIPLIER = 3;
-
-/** Self-model domain tracking session decision accuracy. */
-const SELF_MODEL_DOMAIN = "session_management";
 
 // ---------------------------------------------------------------------------
 // Repository abstraction — only hash() is needed from core memory
@@ -107,7 +102,6 @@ export class SessionManager {
 
 	constructor(
 		private readonly embeddings: EmbeddingService,
-		private readonly selfModel: SelfModelRepository,
 		config?: SessionManagerConfig,
 	) {
 		this.inactivityTimeoutMs = config?.inactivityTimeoutMs ?? DEFAULT_INACTIVITY_TIMEOUT_MS;
@@ -126,15 +120,7 @@ export class SessionManager {
 	 * @param core - core memory hasher (to detect identity changes)
 	 */
 	async decide(userMessage: string, core: CoreMemoryHasher): Promise<SessionDecision> {
-		const decision = await this.compute(userMessage, core);
-
-		// `no_active_session` is not a decision — there's nothing for the user
-		// to correct. Only record genuine decisions against the self-model.
-		if (decision.reason !== "no_active_session") {
-			await this.selfModel.recordPrediction(SELF_MODEL_DOMAIN, "system");
-		}
-
-		return decision;
+		return this.compute(userMessage, core);
 	}
 
 	/**
@@ -247,15 +233,6 @@ export class SessionManager {
 		this.lastMessageEmbedding = null;
 		this.turnCount = 0;
 		return released;
-	}
-
-	/**
-	 * Record a user correction as the outcome of the previous session
-	 * decision. `correct = true` when the decision matched user intent.
-	 * The self-model domain's calibration adjusts accordingly.
-	 */
-	async recordCorrection(correct: boolean): Promise<void> {
-		await this.selfModel.recordOutcome(SELF_MODEL_DOMAIN, correct, "user");
 	}
 
 	// -------------------------------------------------------------------------

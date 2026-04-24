@@ -10,7 +10,6 @@ import { toVectorLiteral } from "../../src/memory/embeddings.ts";
 import { EdgeRepository } from "../../src/memory/graph/edges.ts";
 import { NodeRepository } from "../../src/memory/graph/nodes.ts";
 import { RetrievalService } from "../../src/memory/retrieval.ts";
-import { createSelfModelRepository } from "../../src/memory/self_model.ts";
 import { createSkillRepository } from "../../src/memory/skills.ts";
 import {
 	createMemoryServer,
@@ -55,10 +54,9 @@ beforeAll(async () => {
 	const coreMemory = new CoreMemoryRepository(sql, bus);
 	const retrieval = new RetrievalService(sql, embeddings, nodes);
 	const userModel = createUserModelRepository(sql, bus);
-	const selfModel = createSelfModelRepository(sql, bus);
 	const skills = createSkillRepository(sql, embeddings, bus);
 
-	deps = { nodes, edges, coreMemory, retrieval, userModel, selfModel, skills };
+	deps = { nodes, edges, coreMemory, retrieval, userModel, skills };
 });
 
 beforeEach(async () => {

@@ -90,8 +90,6 @@ export interface SkillRepository {
 	findByTrigger(query: string, limit: number): Promise<readonly Skill[]>;
 	/** Increment attempt count; increment success count when success is true. */
 	recordOutcome(id: number, success: boolean): Promise<Skill>;
-	/** Mark a skill as promoted to the persona. Returns the updated row. */
-	promote(id: number): Promise<Skill>;
 	/** Return a single skill by id, or null if none exists. */
 	getById(id: number): Promise<Skill | null>;
 }
@@ -186,32 +184,6 @@ export function createSkillRepository(
 		return rowToSkill(row);
 	}
 
-	async function promote(id: number): Promise<Skill> {
-		// Idempotent — promoting an already-promoted skill is a no-op; the
-		// partial update preserves the original promoted_at.
-		const rows = await sql<Record<string, unknown>[]>`
-			UPDATE skill
-			SET promoted_at = COALESCE(promoted_at, now())
-			WHERE id = ${id}
-			RETURNING ${sql.unsafe(SKILL_COLUMNS)}
-		`;
-		const row = rows[0];
-		if (row === undefined) {
-			throw new Error(`skill #${String(id)} not found`);
-		}
-		const skill = rowToSkill(row);
-
-		await bus.emit({
-			type: "memory.skill.promoted",
-			version: 1,
-			actor: "system",
-			data: { skillId: skill.id, promotedTo: "persona" },
-			metadata: {},
-		});
-
-		return skill;
-	}
-
 	async function getById(id: number): Promise<Skill | null> {
 		const rows = await sql<Record<string, unknown>[]>`
 			SELECT ${sql.unsafe(SKILL_COLUMNS)}
@@ -222,5 +194,5 @@ export function createSkillRepository(
 		return row === undefined ? null : rowToSkill(row);
 	}
 
-	return { create, findByTrigger, recordOutcome, promote, getById };
+	return { create, findByTrigger, recordOutcome, getById };
 }

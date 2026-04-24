@@ -9,23 +9,14 @@
  * The type system prevents accidentally skipping persistence for durable events.
  */
 
-import type { GoalEvent } from "./goals.ts";
 import type { EventId } from "./ids.ts";
-import type {
-	DegradationEvent,
-	EgressEvent,
-	IdeationEvent,
-	ProposalEvent,
-	ReflexEvent,
-	WebhookEvent,
-} from "./reflexes.ts";
 
 // ---------------------------------------------------------------------------
 // Core Event Interface
 // ---------------------------------------------------------------------------
 
 /** Actor who caused the event. */
-export type Actor = "user" | "theo" | "scheduler" | "system";
+export type Actor = "user" | "theo" | "system";
 
 /** Role of a message in a conversation. */
 export type MessageRole = "user" | "assistant";
@@ -39,13 +30,6 @@ export interface EventMetadata {
 	readonly sessionId?: string | undefined;
 	readonly causeId?: EventId | undefined;
 	readonly gate?: string | undefined;
-	/**
-	 * Effective trust tier propagated down a causation chain (foundation.md
-	 * §7.3). When set, downstream handlers can enforce the tier at write
-	 * boundaries. Stored as the TrustTier string to avoid a cross-module
-	 * import at this base layer.
-	 */
-	readonly goalEffectiveTrust?: string | undefined;
 }
 
 /**
@@ -209,91 +193,15 @@ export interface CoreUpdatedData {
 	readonly changedBy: Actor;
 }
 
-export interface ContradictionDetectedData {
-	readonly nodeId: number;
-	readonly conflictId: number;
-	readonly explanation: string;
-}
-
-/**
- * Decision event: classification was requested. Stores the candidate pair and
- * acts as the deterministic anchor for the effect handler. On replay, a
- * decision handler sees this event but the actual LLM call is skipped.
- */
-export interface ContradictionRequestedData {
-	readonly nodeId: number;
-	readonly candidateId: number;
-}
-
-/**
- * Effect event: the LLM classifier answered. Written by the effect handler
- * after the classification call succeeds (or fails — `contradicts: false` is
- * emitted for failure paths). Downstream decision handlers read this event to
- * adjust confidence and create the contradicts edge.
- */
-export interface ContradictionClassifiedData {
-	readonly nodeId: number;
-	readonly candidateId: number;
-	readonly contradicts: boolean;
-	readonly explanation: string;
-}
-
-/** Decision event: summarization of one session's episodes was requested. */
-export interface EpisodeSummarizeRequestedData {
-	readonly sessionId: string;
-	readonly episodeIds: readonly number[];
-}
-
-/** Effect event: the summarizer answered. The consolidation decision handler
- *  persists the summary episode and updates `superseded_by`. */
-export interface EpisodeSummarizedData {
-	readonly sessionId: string;
-	readonly episodeIds: readonly number[];
-	readonly summary: string;
-}
-
 export interface UserModelUpdatedData {
 	readonly dimension: string;
 	readonly confidence: number;
-}
-
-export interface SelfModelUpdatedData {
-	readonly domain: string;
-	readonly calibration: number;
-	readonly correct?: boolean | undefined;
 }
 
 export interface SkillCreatedData {
 	readonly skillId: number;
 	readonly name: string;
 	readonly trigger: string;
-}
-
-export interface SkillPromotedData {
-	readonly skillId: number;
-	readonly promotedTo: "persona";
-}
-
-export interface NodeDecayedData {
-	readonly nodeCount: number;
-	readonly minImportanceAfter: number;
-}
-
-export interface PatternSynthesizedData {
-	readonly patternNodeId: number;
-	readonly sourceNodeIds: readonly number[];
-	readonly kind: "pattern" | "principle";
-}
-
-export interface NodeMergedData {
-	readonly keptId: number;
-	readonly mergedId: number;
-}
-
-export interface NodeImportancePropagatedData {
-	readonly nodeId: number;
-	readonly boostDelta: number;
-	readonly hopsTraversed: number;
 }
 
 export interface NodeConfidenceAdjustedData {
@@ -313,74 +221,10 @@ export type MemoryEvent =
 	| TheoEvent<"memory.edge.expired", EdgeExpiredData>
 	| TheoEvent<"memory.episode.created", EpisodeCreatedData>
 	| TheoEvent<"memory.core.updated", CoreUpdatedData>
-	| TheoEvent<"memory.contradiction.detected", ContradictionDetectedData>
-	| TheoEvent<"contradiction.requested", ContradictionRequestedData>
-	| TheoEvent<"contradiction.classified", ContradictionClassifiedData>
-	| TheoEvent<"episode.summarize_requested", EpisodeSummarizeRequestedData>
-	| TheoEvent<"episode.summarized", EpisodeSummarizedData>
 	| TheoEvent<"memory.user_model.updated", UserModelUpdatedData>
-	| TheoEvent<"memory.self_model.updated", SelfModelUpdatedData>
 	| TheoEvent<"memory.skill.created", SkillCreatedData>
-	| TheoEvent<"memory.skill.promoted", SkillPromotedData>
-	| TheoEvent<"memory.node.decayed", NodeDecayedData>
-	| TheoEvent<"memory.pattern.synthesized", PatternSynthesizedData>
-	| TheoEvent<"memory.node.merged", NodeMergedData>
-	| TheoEvent<"memory.node.importance.propagated", NodeImportancePropagatedData>
 	| TheoEvent<"memory.node.confidence_adjusted", NodeConfidenceAdjustedData>
 	| TheoEvent<"memory.node.accessed", NodeAccessedData>;
-
-// ---------------------------------------------------------------------------
-// Scheduler Events
-// ---------------------------------------------------------------------------
-
-export interface JobCreatedData {
-	readonly jobId: string;
-	readonly name: string;
-	readonly cron: string | null;
-}
-
-export interface JobTriggeredData {
-	readonly jobId: string;
-	readonly jobName: string;
-	readonly executionId: string;
-}
-
-export interface JobCompletedData {
-	readonly jobId: string;
-	readonly jobName: string;
-	readonly executionId: string;
-	readonly durationMs: number;
-	readonly summary: string;
-	readonly tokensUsed: number | null;
-	readonly costUsd: number | null;
-}
-
-export interface JobFailedData {
-	readonly jobId: string;
-	readonly jobName: string;
-	readonly executionId: string;
-	readonly durationMs: number;
-	readonly errorType: TurnErrorType;
-	readonly message: string;
-}
-
-export interface JobCancelledData {
-	readonly jobId: string;
-	readonly jobName: string;
-}
-
-export interface NotificationCreatedData {
-	readonly source: string;
-	readonly body: string;
-}
-
-export type SchedulerEvent =
-	| TheoEvent<"job.created", JobCreatedData>
-	| TheoEvent<"job.triggered", JobTriggeredData>
-	| TheoEvent<"job.completed", JobCompletedData>
-	| TheoEvent<"job.failed", JobFailedData>
-	| TheoEvent<"job.cancelled", JobCancelledData>
-	| TheoEvent<"notification.created", NotificationCreatedData>;
 
 // ---------------------------------------------------------------------------
 // System Events
@@ -392,45 +236,6 @@ export interface SystemStartedData {
 
 export interface SystemStoppedData {
 	readonly reason: string;
-}
-
-export interface SystemRollbackData {
-	readonly fromCommit: string;
-	readonly toCommit: string;
-	readonly reason: string;
-}
-
-/**
- * Degradation ladder healing — the autonomic self-restoration counterpart
- * to `degradation.level_changed`. Emitted when the healing timer (Phase 15)
- * observes that the conditions that forced a degradation have cleared for
- * a sustained window.
- */
-export interface SystemDegradationHealedData {
-	readonly previousLevel: number;
-	readonly newLevel: number;
-	readonly reason: string;
-}
-
-/**
- * Emitted when the self-update path refuses to auto-merge because a SLO's
- * error budget is exhausted. The bot opens/holds the PR; no merge occurs.
- */
-export interface SelfUpdateBlockedData {
-	readonly slo: string;
-	readonly budgetRemainingRatio: number;
-	readonly reason: string;
-}
-
-/**
- * Result of one synthetic probe turn — the "canary" self-test Theo issues
- * on a schedule to detect alive-but-stuck failures that `launchd` misses.
- */
-export interface SyntheticProbeCompletedData {
-	readonly probeId: string;
-	readonly ok: boolean;
-	readonly durationMs: number;
-	readonly reason?: string | undefined;
 }
 
 export interface HandlerDeadLetteredData {
@@ -448,10 +253,6 @@ export interface HookFailedData {
 export type SystemEvent =
 	| TheoEvent<"system.started", SystemStartedData>
 	| TheoEvent<"system.stopped", SystemStoppedData>
-	| TheoEvent<"system.rollback", SystemRollbackData>
-	| TheoEvent<"system.degradation.healed", SystemDegradationHealedData>
-	| TheoEvent<"self_update.blocked", SelfUpdateBlockedData>
-	| TheoEvent<"synthetic.probe.completed", SyntheticProbeCompletedData>
 	| TheoEvent<"system.handler.dead_lettered", HandlerDeadLetteredData>
 	| TheoEvent<"hook.failed", HookFailedData>;
 
@@ -460,28 +261,7 @@ export type SystemEvent =
 // ---------------------------------------------------------------------------
 
 /** Every handler must handle every variant in its group. */
-export type Event =
-	| ChatEvent
-	| MemoryEvent
-	| SchedulerEvent
-	| SystemEvent
-	| GoalEvent
-	| WebhookEvent
-	| ReflexEvent
-	| IdeationEvent
-	| ProposalEvent
-	| EgressEvent
-	| DegradationEvent;
-
-export type { GoalEvent } from "./goals.ts";
-export type {
-	DegradationEvent,
-	EgressEvent,
-	IdeationEvent,
-	ProposalEvent,
-	ReflexEvent,
-	WebhookEvent,
-} from "./reflexes.ts";
+export type Event = ChatEvent | MemoryEvent | SystemEvent;
 
 // ---------------------------------------------------------------------------
 // Helper Extraction Types

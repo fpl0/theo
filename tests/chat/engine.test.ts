@@ -27,7 +27,6 @@ import type { CoreMemoryRepository } from "../../src/memory/core.ts";
 import { EMBEDDING_DIM, type EmbeddingService } from "../../src/memory/embeddings.ts";
 import type { EpisodicRepository } from "../../src/memory/episodic.ts";
 import type { RetrievalService } from "../../src/memory/retrieval.ts";
-import type { SelfModelRepository } from "../../src/memory/self_model.ts";
 import type { SkillRepository } from "../../src/memory/skills.ts";
 import type { CoreMemorySlot, JsonValue } from "../../src/memory/types.ts";
 import type { UserModelRepository } from "../../src/memory/user_model.ts";
@@ -178,26 +177,7 @@ function stubSkills(): SkillRepository {
 		async recordOutcome() {
 			throw new Error("stubSkills.recordOutcome should not be called");
 		},
-		async promote() {
-			throw new Error("stubSkills.promote should not be called");
-		},
 		async getById() {
-			return null;
-		},
-	};
-}
-
-function stubSelfModel(): SelfModelRepository {
-	return {
-		async recordPrediction(): Promise<void> {},
-		async recordOutcome(): Promise<void> {},
-		async getCalibration() {
-			return 0;
-		},
-		async getLifetimeCalibration() {
-			return 0;
-		},
-		async getDomain() {
 			return null;
 		},
 	};
@@ -482,8 +462,7 @@ function buildEngine(overrides?: {
 } {
 	const bus = createStubBus();
 	const embeddings = stubEmbeddings();
-	const selfModel = stubSelfModel();
-	const sessions = new SessionManager(embeddings, selfModel, {
+	const sessions = new SessionManager(embeddings, {
 		inactivityTimeoutMs: 60_000,
 	});
 	const core =
@@ -541,7 +520,6 @@ describe("ChatEngine.handleMessage — success path", () => {
 			"session.created",
 			"turn.started",
 			"turn.completed",
-			"cloud_egress.turn",
 		]);
 	});
 

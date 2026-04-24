@@ -17,7 +17,6 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import type { EventBus } from "../events/bus.ts";
 import type { CoreMemoryRepository } from "../memory/core.ts";
-import { recordCloudEgressTurn } from "../memory/egress.ts";
 import type { EpisodicRepository } from "../memory/episodic.ts";
 import type { TrustTier } from "../memory/graph/types.ts";
 import { assembleSystemPrompt, type ContextDependencies } from "./context.ts";
@@ -420,7 +419,7 @@ export class ChatEngine {
 		}
 
 		const totalTokens = inputTokens + outputTokens;
-		const completed = await this.bus.emit({
+		await this.bus.emit({
 			type: "turn.completed",
 			version: 1,
 			actor: "theo",
@@ -434,19 +433,6 @@ export class ChatEngine {
 				costUsd,
 			},
 			metadata: { sessionId, gate },
-		});
-
-		// Cloud-egress audit parity (interactive turns). The egress filter does
-		// not gate interactive turns (consent not required), but the audit record
-		// still captures spend for `/cloud-audit` rollups by turn class.
-		await recordCloudEgressTurn(this.bus, {
-			subagent: "main",
-			model: this.config.model ?? DEFAULT_MODEL,
-			inputTokens,
-			outputTokens,
-			costUsd,
-			turnClass: "interactive",
-			causeEventId: completed.id,
 		});
 
 		// Record the turn in the session manager — updates activity clock,

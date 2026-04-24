@@ -11,12 +11,20 @@
 import type postgres from "postgres";
 import type { Sql, TransactionSql } from "postgres";
 import { asQueryable } from "../db/pool.ts";
-import type { TrustTier } from "../memory/graph/types.ts";
-import { computeEffectiveTrust } from "../memory/trust.ts";
+import type { Actor } from "./types.ts";
 import type { EventId } from "./ids.ts";
 import { newEventId } from "./ids.ts";
 import type { Event, EventMetadata } from "./types.ts";
 import type { UpcasterRegistry } from "./upcasters.ts";
+
+/**
+ * Trust tier persisted alongside every event. In Core 1 there are no
+ * external trust sources (no webhooks, no autonomous turns), so the tier is
+ * a constant function of the actor.
+ */
+function actorTrust(actor: Actor): "owner" | "system" {
+	return actor === "system" ? "system" : "owner";
+}
 
 // ---------------------------------------------------------------------------
 // Read Options
@@ -32,18 +40,6 @@ export interface ReadOptions {
 /** Options for writing an event. */
 export interface AppendOptions {
 	readonly tx?: TransactionSql;
-	/**
-	 * Override effective trust for this event. Used by owner commands that
-	 * promote a proposal-origin event (e.g., `/approve` elevating an
-	 * ideation proposal to `owner` for the resulting `goal.confirmed`).
-	 */
-	readonly effectiveTrustOverride?: TrustTier;
-	/**
-	 * Seed tier — overrides `actorTrust(event.actor)` as the starting point
-	 * of the min-walk. Used by the webhook gate to emit at `external`
-	 * regardless of the actor field.
-	 */
-	readonly seedTier?: TrustTier;
 }
 
 // ---------------------------------------------------------------------------
@@ -160,12 +156,7 @@ export function createEventLog(sql: Sql, upcasters: UpcasterRegistry): EventLog 
 			options === undefined ? {} : isTransactionSql(options) ? { tx: options } : options;
 		const tx = opts.tx;
 
-		const effectiveTrust = await computeEffectiveTrust(tx ?? sql, event.actor, event.metadata, {
-			...(opts.effectiveTrustOverride !== undefined
-				? { override: opts.effectiveTrustOverride }
-				: {}),
-			...(opts.seedTier !== undefined ? { seedTier: opts.seedTier } : {}),
-		});
+		const effectiveTrust = actorTrust(event.actor);
 
 		const query = asQueryable(tx ?? sql);
 		await query`

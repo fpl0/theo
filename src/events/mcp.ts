@@ -7,24 +7,17 @@
  * happened yesterday?" or "how many turns have I had?" requires a direct
  * read.
  *
- * Trust-gated to `owner`/`owner_confirmed` because the event stream can
- * contain arbitrary message bodies, goal text, and memory payloads — a
- * lower-tier turn should never see raw event data.
+ * Single-owner agent: every interactive turn runs at owner trust, so the
+ * tools are unconditionally available.
  */
 
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import type { Sql } from "postgres";
 import { z } from "zod";
 import { errorResult } from "../mcp/tool-helpers.ts";
-import type { TrustTier } from "../memory/graph/types.ts";
 
 export interface EventToolDeps {
 	readonly sql: Sql;
-	readonly resolveTrust: (extra: unknown) => TrustTier;
-}
-
-function canReadEvents(tier: TrustTier): boolean {
-	return tier === "owner" || tier === "owner_confirmed";
 }
 
 /** Trim a JSON payload to a short, scannable preview. */
@@ -38,33 +31,19 @@ export function readEventsTool(deps: EventToolDeps) {
 	return tool(
 		"read_events",
 		"Read recent entries from the event log — Theo's immutable record of " +
-			"everything that has happened (chat turns, memory mutations, scheduler " +
-			"ticks, goal transitions, system lifecycle). Returns id, type, actor, " +
-			"and timestamp in reverse-chronological order. Set `includeData=true` " +
-			"to also include a short JSON preview of each event's payload. Use " +
-			"`types` to filter by exact event type names (e.g. `turn.completed`, " +
-			"`memory.node.created`). Only owner-tier turns may call this tool.",
+			"everything that has happened (chat turns, memory mutations, system " +
+			"lifecycle). Returns id, type, actor, and timestamp in reverse- " +
+			"chronological order. Set `includeData=true` to also include a short " +
+			"JSON preview of each event's payload. Use `types` to filter by exact " +
+			"event type names (e.g. `turn.completed`, `memory.node.created`).",
 		{
 			limit: z.number().int().min(1).max(100).default(20),
 			types: z.array(z.string().min(1)).optional(),
 			sinceIso: z.string().min(1).optional(),
 			includeData: z.boolean().default(false),
 		},
-		async ({ limit, types, sinceIso, includeData }, extra) => {
+		async ({ limit, types, sinceIso, includeData }) => {
 			try {
-				const trust = deps.resolveTrust(extra);
-				if (!canReadEvents(trust)) {
-					return {
-						content: [
-							{
-								type: "text",
-								text:
-									`Refused: read_events requires trust tier owner or owner_confirmed; ` +
-									`this turn runs at ${trust}.`,
-							},
-						],
-					};
-				}
 				const typeFilter =
 					types !== undefined && types.length > 0
 						? deps.sql`AND type = ANY(${types as string[]})`
@@ -106,26 +85,13 @@ export function countEventsTool(deps: EventToolDeps) {
 			"and optionally scoped to events after `sinceIso`. Returns a total " +
 			"count plus per-group counts when `groupBy` is set. Use this to " +
 			"answer questions like 'how many turns this week?' or 'what kinds " +
-			"of events happened today?'. Only owner-tier turns may call this tool.",
+			"of events happened today?'.",
 		{
 			groupBy: z.enum(["type", "actor"]).optional(),
 			sinceIso: z.string().min(1).optional(),
 		},
-		async ({ groupBy, sinceIso }, extra) => {
+		async ({ groupBy, sinceIso }) => {
 			try {
-				const trust = deps.resolveTrust(extra);
-				if (!canReadEvents(trust)) {
-					return {
-						content: [
-							{
-								type: "text",
-								text:
-									`Refused: count_events requires trust tier owner or owner_confirmed; ` +
-									`this turn runs at ${trust}.`,
-							},
-						],
-					};
-				}
 				const sinceFilter =
 					sinceIso !== undefined ? deps.sql`AND timestamp >= ${new Date(sinceIso)}` : deps.sql``;
 				const totalRow = await deps.sql<Array<{ n: string }>>`

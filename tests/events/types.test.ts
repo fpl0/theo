@@ -56,169 +56,23 @@ describe("Event type system", () => {
 					return "memory.episode.created";
 				case "memory.core.updated":
 					return "memory.core.updated";
-				case "memory.contradiction.detected":
-					return "memory.contradiction.detected";
-				case "contradiction.requested":
-					return "contradiction.requested";
-				case "contradiction.classified":
-					return "contradiction.classified";
-				case "episode.summarize_requested":
-					return "episode.summarize_requested";
-				case "episode.summarized":
-					return "episode.summarized";
 				case "memory.user_model.updated":
 					return "memory.user_model.updated";
-				case "memory.self_model.updated":
-					return "memory.self_model.updated";
 				case "memory.skill.created":
 					return "memory.skill.created";
-				case "memory.skill.promoted":
-					return "memory.skill.promoted";
-				case "memory.node.decayed":
-					return "memory.node.decayed";
-				case "memory.pattern.synthesized":
-					return "memory.pattern.synthesized";
-				case "memory.node.merged":
-					return "memory.node.merged";
-				case "memory.node.importance.propagated":
-					return "memory.node.importance.propagated";
 				case "memory.node.confidence_adjusted":
 					return "memory.node.confidence_adjusted";
 				case "memory.node.accessed":
 					return "memory.node.accessed";
-				// Scheduler
-				case "job.created":
-					return "job.created";
-				case "job.triggered":
-					return "job.triggered";
-				case "job.completed":
-					return "job.completed";
-				case "job.failed":
-					return "job.failed";
-				case "job.cancelled":
-					return "job.cancelled";
-				case "notification.created":
-					return "notification.created";
 				// System
 				case "system.started":
 					return "system.started";
 				case "system.stopped":
 					return "system.stopped";
-				case "system.rollback":
-					return "system.rollback";
-				case "system.degradation.healed":
-					return "system.degradation.healed";
-				case "self_update.blocked":
-					return "self_update.blocked";
-				case "synthetic.probe.completed":
-					return "synthetic.probe.completed";
 				case "system.handler.dead_lettered":
 					return "system.handler.dead_lettered";
 				case "hook.failed":
 					return "hook.failed";
-				// Goals (Phase 12a)
-				case "goal.created":
-					return "goal.created";
-				case "goal.confirmed":
-					return "goal.confirmed";
-				case "goal.priority_changed":
-					return "goal.priority_changed";
-				case "goal.plan_updated":
-					return "goal.plan_updated";
-				case "goal.lease_acquired":
-					return "goal.lease_acquired";
-				case "goal.lease_released":
-					return "goal.lease_released";
-				case "goal.task_started":
-					return "goal.task_started";
-				case "goal.task_progress":
-					return "goal.task_progress";
-				case "goal.task_yielded":
-					return "goal.task_yielded";
-				case "goal.task_completed":
-					return "goal.task_completed";
-				case "goal.task_failed":
-					return "goal.task_failed";
-				case "goal.task_abandoned":
-					return "goal.task_abandoned";
-				case "goal.blocked":
-					return "goal.blocked";
-				case "goal.unblocked":
-					return "goal.unblocked";
-				case "goal.reconsidered":
-					return "goal.reconsidered";
-				case "goal.paused":
-					return "goal.paused";
-				case "goal.resumed":
-					return "goal.resumed";
-				case "goal.cancelled":
-					return "goal.cancelled";
-				case "goal.completed":
-					return "goal.completed";
-				case "goal.quarantined":
-					return "goal.quarantined";
-				case "goal.redacted":
-					return "goal.redacted";
-				case "goal.expired":
-					return "goal.expired";
-				// Webhooks (Phase 13b)
-				case "webhook.received":
-					return "webhook.received";
-				case "webhook.verified":
-					return "webhook.verified";
-				case "webhook.rejected":
-					return "webhook.rejected";
-				case "webhook.rate_limited":
-					return "webhook.rate_limited";
-				case "webhook.secret_rotated":
-					return "webhook.secret_rotated";
-				case "webhook.secret_grace_expired":
-					return "webhook.secret_grace_expired";
-				// Reflexes (Phase 13b)
-				case "reflex.triggered":
-					return "reflex.triggered";
-				case "reflex.thought":
-					return "reflex.thought";
-				case "reflex.suppressed":
-					return "reflex.suppressed";
-				// Ideation (Phase 13b)
-				case "ideation.scheduled":
-					return "ideation.scheduled";
-				case "ideation.proposed":
-					return "ideation.proposed";
-				case "ideation.duplicate_suppressed":
-					return "ideation.duplicate_suppressed";
-				case "ideation.budget_exceeded":
-					return "ideation.budget_exceeded";
-				case "ideation.backoff_extended":
-					return "ideation.backoff_extended";
-				// Proposals (Phase 13b)
-				case "proposal.requested":
-					return "proposal.requested";
-				case "proposal.drafted":
-					return "proposal.drafted";
-				case "proposal.approved":
-					return "proposal.approved";
-				case "proposal.rejected":
-					return "proposal.rejected";
-				case "proposal.executed":
-					return "proposal.executed";
-				case "proposal.expired":
-					return "proposal.expired";
-				case "proposal.redacted":
-					return "proposal.redacted";
-				// Egress (Phase 13b)
-				case "policy.autonomous_cloud_egress.enabled":
-					return "policy.autonomous_cloud_egress.enabled";
-				case "policy.autonomous_cloud_egress.disabled":
-					return "policy.autonomous_cloud_egress.disabled";
-				case "policy.egress_sensitivity.updated":
-					return "policy.egress_sensitivity.updated";
-				case "cloud_egress.turn":
-					return "cloud_egress.turn";
-				// Degradation (Phase 13b)
-				case "degradation.level_changed":
-					return "degradation.level_changed";
 				default:
 					return assertNever(event);
 			}

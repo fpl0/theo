@@ -16,10 +16,7 @@ import type { ChatEngine } from "../../chat/engine.ts";
 import type { EventBus } from "../../events/bus.ts";
 import type { Gate } from "../types.ts";
 import { App } from "./app.tsx";
-import type { OperatorDeps } from "./operator.ts";
 
-// Structural slice of Ink's Instance. Only the two methods we actually call
-// are modeled so we don't pin on internal details of the ink package.
 interface InkInstance {
 	readonly waitUntilExit: () => Promise<unknown>;
 	readonly unmount: () => void;
@@ -33,14 +30,10 @@ export class CliGate implements Gate {
 	constructor(
 		private readonly engine: ChatEngine,
 		private readonly bus: EventBus,
-		private readonly operator?: OperatorDeps,
 	) {}
 
 	async start(): Promise<void> {
 		if (this.stopped) return;
-		// Ink requires an interactive terminal. Without it, React's reconciler
-		// throws deep in its internals with no clear message. Fail fast so the
-		// operator sees the actual cause.
 		if (process.stdin.isTTY !== true || process.stdout.isTTY !== true) {
 			throw new Error(
 				"CLI gate requires an interactive TTY (stdin and stdout). " +
@@ -57,7 +50,6 @@ export class CliGate implements Gate {
 				engine: this.engine,
 				bus: this.bus,
 				onExit: handleExit,
-				...(this.operator !== undefined ? { operator: this.operator } : {}),
 			}),
 		);
 		this.instance = instance;
