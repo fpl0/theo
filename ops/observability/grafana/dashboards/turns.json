@@ -22,7 +22,7 @@
 			"datasource": { "type": "prometheus", "uid": "prom" },
 			"gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
 			"targets": [
-				{ "refId": "A", "expr": "sum(increase(theo_cost_usd[1d]))" }
+				{ "refId": "A", "expr": "sum(increase(theo_cost_usd_total[1d]))" }
 			]
 		},
 		{
@@ -32,7 +32,7 @@
 			"datasource": { "type": "prometheus", "uid": "prom" },
 			"gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
 			"targets": [
-				{ "refId": "A", "expr": "sum(rate(theo_tokens_input[5m]))" }
+				{ "refId": "A", "expr": "sum(rate(theo_tokens_input_total[5m]))" }
 			]
 		},
 		{
@@ -42,7 +42,7 @@
 			"datasource": { "type": "prometheus", "uid": "prom" },
 			"gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
 			"targets": [
-				{ "refId": "A", "expr": "sum(rate(theo_tokens_output[5m]))" }
+				{ "refId": "A", "expr": "sum(rate(theo_tokens_output_total[5m]))" }
 			]
 		},
 		{

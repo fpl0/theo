@@ -90,7 +90,7 @@ export async function initTelemetry(
 	let otlp: OtlpExporterBundle | null = null;
 	if (isOtlpEnabled()) {
 		try {
-			otlp = initOtlpExporters(loadOtlpConfig(), metrics);
+			otlp = initOtlpExporters(loadOtlpConfig(), metrics, resource);
 			// Prime the OTel API cache so the span-bridge has a hot handle
 			// before the first `withSpan` fires.
 			await primeOtelApiCache();

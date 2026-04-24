@@ -14,7 +14,7 @@
 			"targets": [
 				{
 					"refId": "A",
-					"expr": "sum by (model, role) (rate(theo_cost_usd[5m]))"
+					"expr": "sum by (model, role) (rate(theo_cost_usd_total[5m]))"
 				}
 			]
 		},

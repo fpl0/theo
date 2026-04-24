@@ -21,6 +21,7 @@
 import { metrics, trace } from "@opentelemetry/api";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { Resource } from "@opentelemetry/resources";
 import {
 	AggregationTemporality,
 	MeterProvider,
@@ -33,6 +34,7 @@ import {
 	type SpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import type { InitializedMetrics } from "./metrics.ts";
+import type { ResourceAttributes } from "./resource.ts";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -139,9 +141,16 @@ class CountingSpanProcessor implements SpanProcessor {
 export function initOtlpExporters(
 	config: OtlpExporterConfig,
 	theoMetrics: InitializedMetrics,
+	resource?: ResourceAttributes,
 ): OtlpExporterBundle {
 	const traceUrl = `${config.endpoint.replace(/\/$/u, "")}/v1/traces`;
 	const metricUrl = `${config.endpoint.replace(/\/$/u, "")}/v1/metrics`;
+
+	// Attach Theo's resource attributes (service.name, deployment.environment,
+	// service.version, instance id) to every exported signal. Without a
+	// resource the OTel SDK falls back to `service.name = unknown_service:...`,
+	// which makes every dashboard filter by service impossible.
+	const otlpResource = resource !== undefined ? new Resource({ ...resource }) : Resource.default();
 
 	const spanExporter = new OTLPTraceExporter({ url: traceUrl });
 	const batchProcessor = new BatchSpanProcessor(spanExporter, {
@@ -156,6 +165,7 @@ export function initOtlpExporters(
 
 	const tracerProvider = new BasicTracerProvider({
 		spanProcessors: [countingProcessor],
+		resource: otlpResource,
 	});
 	trace.setGlobalTracerProvider(tracerProvider);
 
@@ -172,7 +182,10 @@ export function initOtlpExporters(
 		exportIntervalMillis: config.metricExportIntervalMillis,
 		exportTimeoutMillis: config.exportTimeoutMillis,
 	});
-	const meterProvider = new MeterProvider({ readers: [metricReader] });
+	const meterProvider = new MeterProvider({
+		readers: [metricReader],
+		resource: otlpResource,
+	});
 	metrics.setGlobalMeterProvider(meterProvider);
 
 	return {

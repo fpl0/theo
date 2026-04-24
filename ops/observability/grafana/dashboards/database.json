@@ -1,0 +1,268 @@
+{
+	"title": "Theo — Database",
+	"uid": "theo-database",
+	"schemaVersion": 39,
+	"version": 1,
+	"refresh": "30s",
+	"time": { "from": "now-24h", "to": "now" },
+	"panels": [
+		{
+			"id": 1,
+			"type": "stat",
+			"title": "Events (total)",
+			"datasource": { "type": "grafana-postgresql-datasource", "uid": "postgres" },
+			"gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+			"options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+			"targets": [
+				{ "refId": "A", "rawSql": "SELECT count(*)::bigint AS value FROM events", "format": "table" }
+			]
+		},
+		{
+			"id": 2,
+			"type": "stat",
+			"title": "Memory nodes",
+			"datasource": { "type": "grafana-postgresql-datasource", "uid": "postgres" },
+			"gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+			"options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+			"targets": [
+				{ "refId": "A", "rawSql": "SELECT count(*)::bigint AS value FROM node", "format": "table" }
+			]
+		},
+		{
+			"id": 3,
+			"type": "stat",
+			"title": "Episodes",
+			"datasource": { "type": "grafana-postgresql-datasource", "uid": "postgres" },
+			"gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+			"options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+			"targets": [
+				{ "refId": "A", "rawSql": "SELECT count(*)::bigint AS value FROM episode", "format": "table" }
+			]
+		},
+		{
+			"id": 4,
+			"type": "stat",
+			"title": "Goals (active)",
+			"datasource": { "type": "grafana-postgresql-datasource", "uid": "postgres" },
+			"gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+			"options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+			"targets": [
+				{ "refId": "A", "rawSql": "SELECT count(*)::bigint AS value FROM goal_state WHERE status IN ('active','blocked','proposed')", "format": "table" }
+			]
+		},
+		{
+			"id": 5,
+			"type": "stat",
+			"title": "Pending proposals",
+			"datasource": { "type": "grafana-postgresql-datasource", "uid": "postgres" },
+			"gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+			"options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+			"targets": [
+				{ "refId": "A", "rawSql": "SELECT count(*)::bigint AS value FROM proposal WHERE status = 'pending'", "format": "table" }
+			]
+		},
+		{
+			"id": 6,
+			"type": "stat",
+			"title": "Scheduled jobs",
+			"datasource": { "type": "grafana-postgresql-datasource", "uid": "postgres" },
+			"gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
+			"options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+			"targets": [
+				{ "refId": "A", "rawSql": "SELECT count(*)::bigint AS value FROM scheduled_job WHERE enabled = true", "format": "table" }
+			]
+		},
+		{
+			"id": 10,
+			"type": "timeseries",
+			"title": "Events / minute (by type, top 10)",
+			"datasource": { "type": "grafana-postgresql-datasource", "uid": "postgres" },
+			"gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+			"targets": [
+				{
+					"refId": "A",
+					"format": "time_series",
+					"rawSql": "SELECT date_trunc('minute', timestamp) AS time, type AS metric, count(*)::int AS value\nFROM events\nWHERE timestamp > $__timeFrom() AND timestamp < $__timeTo()\n  AND type IN (SELECT type FROM events WHERE timestamp > $__timeFrom() GROUP BY type ORDER BY count(*) DESC LIMIT 10)\nGROUP BY 1, 2\nORDER BY 1"
+				}
+			]
+		},
+		{
+			"id": 11,
+			"type": "bargauge",
+			"title": "Event types (total in range)",
+			"datasource": { "type": "grafana-postgresql-datasource", "uid": "postgres" },
+			"gridPos": { "x": 0, "y": 12, "w": 12, "h": 10 },
+			"options": { "orientation": "horizontal", "displayMode": "gradient", "reduceOptions": { "calcs": ["lastNotNull"] } },
+			"targets": [
+				{
+					"refId": "A",
+					"format": "table",
+					"rawSql": "SELECT type, count(*)::int AS count FROM events\nWHERE timestamp > $__timeFrom() AND timestamp < $__timeTo()\nGROUP BY type\nORDER BY count DESC\nLIMIT 20"
+				}
+			]
+		},
+		{
+			"id": 12,
+			"type": "table",
+			"title": "Handler cursor lag",
+			"datasource": { "type": "grafana-postgresql-datasource", "uid": "postgres" },
+			"gridPos": { "x": 12, "y": 12, "w": 12, "h": 10 },
+			"description": "Lag between a handler's cursor and the newest event in the log. Large values mean the handler is falling behind.",
+			"fieldConfig": {
+				"defaults": { "custom": { "align": "left" } },
+				"overrides": [
+					{
+						"matcher": { "id": "byName", "options": "lag_seconds" },
+						"properties": [
+							{ "id": "unit", "value": "s" },
+							{ "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
+							{ "id": "color", "value": { "mode": "continuous-GrYlRd" } }
+						]
+					}
+				]
+			},
+			"targets": [
+				{
+					"refId": "A",
+					"format": "table",
+					"rawSql": "WITH head AS (SELECT max(id) AS id FROM events)\nSELECT hc.handler_id,\n       hc.cursor,\n       (SELECT id FROM head) AS head_cursor,\n       EXTRACT(EPOCH FROM (now() - hc.updated_at))::int AS lag_seconds,\n       hc.updated_at\nFROM handler_cursors hc\nORDER BY lag_seconds DESC"
+				}
+			]
+		},
+		{
+			"id": 20,
+			"type": "piechart",
+			"title": "Nodes by kind",
+			"datasource": { "type": "grafana-postgresql-datasource", "uid": "postgres" },
+			"gridPos": { "x": 0, "y": 22, "w": 8, "h": 8 },
+			"options": { "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] } },
+			"targets": [
+				{
+					"refId": "A",
+					"format": "table",
+					"rawSql": "SELECT kind, count(*)::int AS count FROM node GROUP BY kind ORDER BY count DESC"
+				}
+			]
+		},
+		{
+			"id": 21,
+			"type": "piechart",
+			"title": "Goals by status",
+			"datasource": { "type": "grafana-postgresql-datasource", "uid": "postgres" },
+			"gridPos": { "x": 8, "y": 22, "w": 8, "h": 8 },
+			"options": { "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] } },
+			"targets": [
+				{
+					"refId": "A",
+					"format": "table",
+					"rawSql": "SELECT status, count(*)::int AS count FROM goal_state GROUP BY status ORDER BY count DESC"
+				}
+			]
+		},
+		{
+			"id": 22,
+			"type": "piechart",
+			"title": "Events by trust tier",
+			"datasource": { "type": "grafana-postgresql-datasource", "uid": "postgres" },
+			"gridPos": { "x": 16, "y": 22, "w": 8, "h": 8 },
+			"options": { "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] } },
+			"targets": [
+				{
+					"refId": "A",
+					"format": "table",
+					"rawSql": "SELECT effective_trust AS trust, count(*)::int AS count\nFROM events\nWHERE timestamp > $__timeFrom() AND timestamp < $__timeTo()\nGROUP BY effective_trust\nORDER BY count DESC"
+				}
+			]
+		},
+		{
+			"id": 30,
+			"type": "table",
+			"title": "Recent events (last 50)",
+			"datasource": { "type": "grafana-postgresql-datasource", "uid": "postgres" },
+			"gridPos": { "x": 0, "y": 30, "w": 24, "h": 10 },
+			"fieldConfig": { "defaults": { "custom": { "align": "left" } } },
+			"targets": [
+				{
+					"refId": "A",
+					"format": "table",
+					"rawSql": "SELECT timestamp, type, actor, effective_trust AS trust, id, data\nFROM events\nORDER BY timestamp DESC\nLIMIT 50"
+				}
+			]
+		},
+		{
+			"id": 40,
+			"type": "table",
+			"title": "Active goals",
+			"datasource": { "type": "grafana-postgresql-datasource", "uid": "postgres" },
+			"gridPos": { "x": 0, "y": 40, "w": 12, "h": 8 },
+			"fieldConfig": { "defaults": { "custom": { "align": "left" } } },
+			"targets": [
+				{
+					"refId": "A",
+					"format": "table",
+					"rawSql": "SELECT gs.node_id,\n       n.body AS goal,\n       gs.status,\n       gs.origin,\n       gs.owner_priority AS priority,\n       gs.consecutive_failures AS failures,\n       gs.last_worked_at,\n       gs.blocked_reason\nFROM goal_state gs\nJOIN node n ON n.id = gs.node_id\nWHERE gs.status IN ('proposed','active','blocked')\nORDER BY gs.owner_priority DESC, gs.last_worked_at NULLS FIRST\nLIMIT 50"
+				}
+			]
+		},
+		{
+			"id": 41,
+			"type": "table",
+			"title": "Scheduled jobs",
+			"datasource": { "type": "grafana-postgresql-datasource", "uid": "postgres" },
+			"gridPos": { "x": 12, "y": 40, "w": 12, "h": 8 },
+			"fieldConfig": { "defaults": { "custom": { "align": "left" } } },
+			"targets": [
+				{
+					"refId": "A",
+					"format": "table",
+					"rawSql": "SELECT name, cron, agent, enabled, last_run_at, next_run_at FROM scheduled_job ORDER BY next_run_at NULLS LAST LIMIT 50"
+				}
+			]
+		},
+		{
+			"id": 50,
+			"type": "table",
+			"title": "Event log partitions",
+			"datasource": { "type": "grafana-postgresql-datasource", "uid": "postgres" },
+			"gridPos": { "x": 0, "y": 48, "w": 12, "h": 8 },
+			"fieldConfig": {
+				"defaults": {
+					"custom": { "align": "left" },
+					"unit": "bytes"
+				},
+				"overrides": [
+					{ "matcher": { "id": "byName", "options": "partition" }, "properties": [{ "id": "unit", "value": "none" }] },
+					{ "matcher": { "id": "byName", "options": "rows" }, "properties": [{ "id": "unit", "value": "none" }] }
+				]
+			},
+			"targets": [
+				{
+					"refId": "A",
+					"format": "table",
+					"rawSql": "SELECT c.relname AS partition,\n       pg_total_relation_size(c.oid) AS size_bytes,\n       (SELECT reltuples::bigint FROM pg_class WHERE oid = c.oid) AS rows\nFROM pg_inherits i\nJOIN pg_class c ON c.oid = i.inhrelid\nJOIN pg_class p ON p.oid = i.inhparent\nWHERE p.relname = 'events'\nORDER BY c.relname DESC"
+				}
+			]
+		},
+		{
+			"id": 51,
+			"type": "table",
+			"title": "Largest tables",
+			"datasource": { "type": "grafana-postgresql-datasource", "uid": "postgres" },
+			"gridPos": { "x": 12, "y": 48, "w": 12, "h": 8 },
+			"fieldConfig": {
+				"defaults": { "custom": { "align": "left" }, "unit": "bytes" },
+				"overrides": [
+					{ "matcher": { "id": "byName", "options": "table" }, "properties": [{ "id": "unit", "value": "none" }] },
+					{ "matcher": { "id": "byName", "options": "rows" }, "properties": [{ "id": "unit", "value": "none" }] }
+				]
+			},
+			"targets": [
+				{
+					"refId": "A",
+					"format": "table",
+					"rawSql": "SELECT c.relname AS \"table\",\n       pg_total_relation_size(c.oid) AS size_bytes,\n       c.reltuples::bigint AS rows\nFROM pg_class c\nJOIN pg_namespace n ON n.oid = c.relnamespace\nWHERE n.nspname = 'public' AND c.relkind IN ('r','p')\nORDER BY pg_total_relation_size(c.oid) DESC\nLIMIT 20"
+				}
+			]
+		}
+	]
+}

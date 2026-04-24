@@ -47,8 +47,19 @@ export class TelemetryProjector {
 			// Chat
 			// -----------------------------------------------------------------
 			case "message.received":
+				this.deps.logger.log("info", "chat", "message.received", {
+					session_id: event.metadata.sessionId,
+					gate: event.metadata.gate,
+					channel: event.data.channel,
+					body: event.data.body,
+				});
 				return;
 			case "turn.started":
+				this.deps.logger.log("info", "chat", "turn.started", {
+					session_id: event.data.sessionId,
+					gate: event.metadata.gate,
+					prompt: event.data.prompt,
+				});
 				return;
 			case "turn.completed": {
 				const gate = asGate(event.metadata.gate ?? "unknown", "theo.turns.total");
@@ -57,12 +68,29 @@ export class TelemetryProjector {
 				m.inputTokens.add(event.data.inputTokens, { gate });
 				m.outputTokens.add(event.data.outputTokens, { gate });
 				m.costCounter.add(event.data.costUsd, { gate });
+				this.deps.logger.log("info", "chat", "turn.completed", {
+					session_id: event.data.sessionId,
+					gate: event.metadata.gate,
+					response: event.data.responseBody,
+					duration_ms: event.data.durationMs,
+					input_tokens: event.data.inputTokens,
+					output_tokens: event.data.outputTokens,
+					total_tokens: event.data.totalTokens,
+					cost_usd: event.data.costUsd,
+				});
 				return;
 			}
 			case "turn.failed": {
 				const gate = asGate(event.metadata.gate ?? "unknown", "theo.turns.total");
 				m.turnCounter.add(1, { gate, status: "failed" });
 				m.turnDuration.record(event.data.durationMs, { gate });
+				this.deps.logger.log("warn", "chat", "turn.failed", {
+					session_id: event.data.sessionId,
+					gate: event.metadata.gate,
+					error_type: event.data.errorType,
+					errors: event.data.errors,
+					duration_ms: event.data.durationMs,
+				});
 				return;
 			}
 			case "session.created":

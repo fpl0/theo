@@ -67,6 +67,14 @@ observe-up:
 observe-down:
     docker compose -f ops/observability/docker-compose.yaml down
 
+# Open Grafana in the default browser (requires `just observe-up` first)
+observe:
+    @open http://localhost:3000 || xdg-open http://localhost:3000 || echo "Open http://localhost:3000 manually"
+
+# Full dev: postgres + observability stack + agent. Grafana at http://localhost:3000.
+dev-full: up observe-up
+    exec bun run src/index.ts
+
 # Install Theo as a launchd agent (creates workspace, seeds healthy_commit, loads plist)
 install:
     bash ops/install.sh

@@ -53,7 +53,7 @@
 			"targets": [
 				{
 					"refId": "A",
-					"expr": "sum(increase(theo_cost_usd[1d]))"
+					"expr": "sum(increase(theo_cost_usd_total[1d]))"
 				}
 			]
 		},
