@@ -10,7 +10,7 @@
  * so tests can exercise the logic without mounting React.
  */
 
-import { Box } from "ink";
+import { Box, Static } from "ink";
 import type React from "react";
 import { useCallback } from "react";
 import type { ChatEngine } from "../../chat/engine.ts";
@@ -149,13 +149,24 @@ export function App({ engine, bus, onExit, operator }: AppProps): React.JSX.Elem
 	const workspace = process.env["THEO_WORKSPACE"];
 	const environment = process.env["THEO_ENV"];
 
+	// The header is rendered inside Ink's `<Static>` so it prints exactly
+	// once and then settles into native terminal scrollback. Without this,
+	// every re-render that grew the tree past the viewport pushed the old
+	// header up as scrollback AND drew a fresh header in the new viewport,
+	// leading to a stacked-banner effect.
+	const headerItems = [{ id: "header", workspace, environment }];
 	return (
 		<Box flexDirection="column" height="100%">
-			<Header
-				{...(workspace !== undefined ? { workspace } : {})}
-				{...(environment !== undefined ? { environment } : {})}
-			/>
-			<Box flexDirection="column" flexGrow={1} paddingX={1} paddingTop={1}>
+			<Static items={headerItems}>
+				{(item) => (
+					<Header
+						key={item.id}
+						{...(item.workspace !== undefined ? { workspace: item.workspace } : {})}
+						{...(item.environment !== undefined ? { environment: item.environment } : {})}
+					/>
+				)}
+			</Static>
+			<Box flexDirection="column" flexGrow={1} paddingX={1}>
 				<MessageList messages={messages} />
 			</Box>
 			<StatusBar state={state} sessionId={sessionId} stats={stats} />

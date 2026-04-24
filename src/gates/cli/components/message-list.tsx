@@ -3,8 +3,9 @@
  *
  * Renders every `DisplayMessage` as a block: a colored prompt glyph, the
  * role-appropriate text, and any tool calls nested underneath (assistant
- * rows only). Turn boundaries are marked with a thin dim rule so the eye
- * can pick out where one exchange ends and the next begins.
+ * rows only). Turn boundaries are implicit — the role glyphs (›/◆) are
+ * enough for the eye to pick out who said what, and an extra separator
+ * row would waste vertical space in a terminal that's already scarce.
  *
  * Ink clips the top of this list naturally when the terminal scrolls —
  * we do not attempt to own a scrollback viewport, since that fights with
@@ -25,29 +26,9 @@ export interface MessageListProps {
 export function MessageList({ messages }: MessageListProps): React.JSX.Element {
 	return (
 		<Box flexDirection="column">
-			{messages.map((msg, idx) => {
-				const prev = idx > 0 ? messages[idx - 1] : undefined;
-				const needsSeparator =
-					prev !== undefined && prev.role === "assistant" && msg.role === "user";
-				return (
-					<Box key={msg.id} flexDirection="column">
-						{needsSeparator ? <TurnSeparator /> : null}
-						<MessageRow message={msg} />
-					</Box>
-				);
-			})}
-		</Box>
-	);
-}
-
-/**
- * A thin faded rule between turns. Keeps visual density low while still
- * giving the reader somewhere to pause between user → assistant exchanges.
- */
-function TurnSeparator(): React.JSX.Element {
-	return (
-		<Box marginY={0} paddingLeft={2}>
-			<Text color={theme.separator}>· · ·</Text>
+			{messages.map((msg) => (
+				<MessageRow key={msg.id} message={msg} />
+			))}
 		</Box>
 	);
 }

@@ -338,8 +338,7 @@ function describeHint(state: TuiState, isEmpty: boolean): string {
 		case "error":
 			return `error: ${state.message} — type to retry`;
 		case "processing":
-			return "thinking…  · Ctrl+C to interrupt";
 		case "streaming":
-			return "streaming…  · Ctrl+C to interrupt";
+			return "Ctrl+C to interrupt";
 	}
 }

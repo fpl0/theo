@@ -50,18 +50,6 @@ export function StatusBar({ state, sessionId, stats }: StatusBarProps): React.JS
 					<Chip label="tok" value={formatTokens(stats.inputTokens + stats.outputTokens)} />
 				</>
 			) : null}
-			{state.phase === "streaming" ? (
-				<>
-					<ChipSeparator />
-					<Text color={theme.phase.streamingFg}>streaming…</Text>
-				</>
-			) : null}
-			{state.phase === "processing" ? (
-				<>
-					<ChipSeparator />
-					<Text color={theme.phase.workingFg}>thinking…</Text>
-				</>
-			) : null}
 			{state.phase === "error" ? (
 				<>
 					<ChipSeparator />
