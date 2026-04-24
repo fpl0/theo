@@ -90,17 +90,37 @@ describe("loadConfig invalid input", () => {
 		expect(paths).toContain("DATABASE_URL");
 	});
 
-	test("empty ANTHROPIC_API_KEY is rejected (must be unset or non-empty)", () => {
+	test("empty ANTHROPIC_API_KEY is coerced to unset (parent-shell inheritance)", () => {
+		// Claude Code exports ANTHROPIC_API_KEY="" into every subprocess.
+		// Treating empty as unset is the user's actual intent; rejecting it
+		// would make the OAuth-token auth path unusable from that environment.
 		const result = loadConfig({
 			DATABASE_URL: "postgresql://u:p@localhost:5432/d",
 			ANTHROPIC_API_KEY: "",
 		});
-		expect(result.ok).toBe(false);
-		if (result.ok) return;
-		expect(result.error.code).toBe("CONFIG_INVALID");
-		if (result.error.code !== "CONFIG_INVALID") return;
-		const paths = result.error.issues.map((i) => i.path);
-		expect(paths).toContain("ANTHROPIC_API_KEY");
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.ANTHROPIC_API_KEY).toBeUndefined();
+	});
+
+	test("whitespace-only ANTHROPIC_API_KEY is coerced to unset", () => {
+		const result = loadConfig({
+			DATABASE_URL: "postgresql://u:p@localhost:5432/d",
+			ANTHROPIC_API_KEY: "   \t\n ",
+		});
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.ANTHROPIC_API_KEY).toBeUndefined();
+	});
+
+	test("empty CLAUDE_CODE_OAUTH_TOKEN is coerced to unset", () => {
+		const result = loadConfig({
+			DATABASE_URL: "postgresql://u:p@localhost:5432/d",
+			CLAUDE_CODE_OAUTH_TOKEN: "",
+		});
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
 	});
 
 	test("unset ANTHROPIC_API_KEY is accepted (OAuth fallback)", () => {

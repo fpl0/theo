@@ -18,6 +18,15 @@ const DEFAULT_IDLE_TIMEOUT = 30;
 /** Default connection timeout in seconds. */
 const DEFAULT_CONNECT_TIMEOUT = 10;
 
+/**
+ * Coerce empty or whitespace-only strings to `undefined` so an inherited
+ * `FOO=""` env var is treated as "unset" rather than "set to empty".
+ */
+function blankToUndefined(value: unknown): unknown {
+	if (typeof value === "string" && value.trim() === "") return undefined;
+	return value;
+}
+
 /** Schema for environment-based configuration. Exported for direct use in tests. */
 export const configSchema = z.object({
 	// Required
@@ -30,13 +39,19 @@ export const configSchema = z.object({
 	//    interactive Claude Code user. Avoids the host-user cloud-MCP bleed.
 	// 3. Both unset → SDK falls back to whoever is `claude login`-ed.
 	//    Only useful for quick local dev.
-	// Empty strings are rejected explicitly — they'd override a working auth
-	// path and cause silent 401s.
-	ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY, if set, must be non-empty").optional(),
-	CLAUDE_CODE_OAUTH_TOKEN: z
-		.string()
-		.min(1, "CLAUDE_CODE_OAUTH_TOKEN, if set, must be non-empty")
-		.optional(),
+	// Empty/whitespace-only strings are coerced to undefined before validation.
+	// Claude Code exports `ANTHROPIC_API_KEY=""` into every subprocess, so any
+	// user running Theo from inside a Claude Code session would otherwise hit a
+	// spurious config error. Treating "" as "not set" matches user intent; the
+	// schema still rejects genuine misconfigurations like whitespace payloads.
+	ANTHROPIC_API_KEY: z.preprocess(
+		blankToUndefined,
+		z.string().min(1, "ANTHROPIC_API_KEY, if set, must be non-empty").optional(),
+	),
+	CLAUDE_CODE_OAUTH_TOKEN: z.preprocess(
+		blankToUndefined,
+		z.string().min(1, "CLAUDE_CODE_OAUTH_TOKEN, if set, must be non-empty").optional(),
+	),
 
 	// Optional with defaults -- pool tuning
 	DB_POOL_MAX: z.coerce.number().default(DEFAULT_POOL_MAX),
