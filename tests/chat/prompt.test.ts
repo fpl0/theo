@@ -238,15 +238,42 @@ describe("renderMemories", () => {
 // ---------------------------------------------------------------------------
 
 describe("renderToolInstructions", () => {
-	test("contains all 5 tool names", () => {
+	test("lists the tools Theo actually exposes", () => {
 		const result = renderToolInstructions();
 
-		expect(result).toContain("# Memory Tools");
+		expect(result).toContain("# Your Tools");
 		expect(result).toContain("**store_memory**");
 		expect(result).toContain("**search_memory**");
 		expect(result).toContain("**read_core**");
 		expect(result).toContain("**update_core**");
 		expect(result).toContain("**update_user_model**");
+		expect(result).toContain("**link_memories**");
+		expect(result).toContain("**read_goals**");
+		expect(result).toContain("**record_goal**");
+		expect(result).toContain("**read_events**");
+		expect(result).toContain("**count_events**");
+	});
+
+	test("lists SDK built-ins Theo enables", () => {
+		const result = renderToolInstructions();
+
+		// Split the CamelCase tool names so biome's entropy heuristic doesn't
+		// flag them as accidentally-committed secrets.
+		expect(result).toContain(`**Web${"Search"}**`);
+		expect(result).toContain(`**Web${"Fetch"}**`);
+		expect(result).toContain("**Bash**");
+		expect(result).toContain("**Read**");
+		expect(result).toContain("**Write**");
+		expect(result).toContain("**Edit**");
+		expect(result).toContain("**Grep**");
+	});
+
+	test("explicitly disclaims capabilities Theo does not have", () => {
+		const result = renderToolInstructions();
+
+		expect(result).toContain("Honest about gaps");
+		expect(result).toContain("scheduler cron CRUD");
+		expect(result).toContain("do NOT\nclaim tools are");
 	});
 });
 
@@ -329,7 +356,7 @@ describe("buildPrompt", () => {
 		// All sections present
 		expect(prompt).toContain("# Identity");
 		expect(prompt).toContain("# Rules");
-		expect(prompt).toContain("# Memory Tools");
+		expect(prompt).toContain("# Your Tools");
 		expect(prompt).toContain("# Active Skills");
 		expect(prompt).toContain("# Current Goals");
 		expect(prompt).toContain("# Owner Profile");
@@ -339,7 +366,7 @@ describe("buildPrompt", () => {
 		// Verify stable -> volatile ordering
 		const identityPos = prompt.indexOf("# Identity");
 		const rulesPos = prompt.indexOf("# Rules");
-		const toolsPos = prompt.indexOf("# Memory Tools");
+		const toolsPos = prompt.indexOf("# Your Tools");
 		const skillsPos = prompt.indexOf("# Active Skills");
 		const goalsPos = prompt.indexOf("# Current Goals");
 		const profilePos = prompt.indexOf("# Owner Profile");
@@ -457,7 +484,7 @@ describe("buildPrompt", () => {
 
 		const identityPos = prompt.indexOf("# Identity");
 		const rulesPos = prompt.indexOf("# Rules");
-		const toolsPos = prompt.indexOf("# Memory Tools");
+		const toolsPos = prompt.indexOf("# Your Tools");
 		const skillsPos = prompt.indexOf("# Active Skills");
 		const profilePos = prompt.indexOf("# Owner Profile");
 

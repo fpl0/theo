@@ -4,7 +4,9 @@ import {
 	type SdkMcpToolDefinition,
 	tool,
 } from "@anthropic-ai/claude-agent-sdk";
+import type { Sql } from "postgres";
 import { z } from "zod";
+import { countEventsTool, readEventsTool } from "../events/mcp.ts";
 import { readGoalsTool, recordGoalTool } from "../goals/mcp.ts";
 import type { GoalRepository } from "../goals/repository.ts";
 import { errorResult } from "../mcp/tool-helpers.ts";
@@ -28,6 +30,12 @@ export interface MemoryDependencies {
 	readonly skills: SkillRepository;
 	/** Present once Phase 12a is wired — read_goals tool uses it. */
 	readonly goals?: GoalRepository;
+	/**
+	 * Postgres handle. When provided, the event-log introspection tools
+	 * (`read_events`, `count_events`) are registered. Optional so the
+	 * subset used in unit tests can skip wiring the full pool.
+	 */
+	readonly sql?: Sql;
 	/**
 	 * Resolver that reads the caller's effective trust tier from SDK tool
 	 * call metadata. Defaults to `owner` when not supplied (local CLI turns).
@@ -340,6 +348,7 @@ export function searchSkillsTool(deps: MemoryDependencies) {
 export type { SdkMcpToolDefinition };
 
 export function memoryToolList(deps: MemoryDependencies) {
+	const resolveTrust = deps.resolveToolTrust ?? ((): TrustTier => "owner");
 	const base = [
 		storeMemoryTool(deps),
 		searchMemoryTool(deps),
@@ -350,10 +359,21 @@ export function memoryToolList(deps: MemoryDependencies) {
 		linkMemoriesTool(deps),
 		updateUserModelTool(deps),
 	];
-	if (deps.goals === undefined) return base;
-	const resolveTrust = deps.resolveToolTrust ?? ((): TrustTier => "owner");
-	const goalDeps = { goals: deps.goals, resolveTrust };
-	return [...base, readGoalsTool(goalDeps), recordGoalTool(goalDeps)];
+	const goalTools =
+		deps.goals !== undefined
+			? [
+					readGoalsTool({ goals: deps.goals, resolveTrust }),
+					recordGoalTool({ goals: deps.goals, resolveTrust }),
+				]
+			: [];
+	const eventTools =
+		deps.sql !== undefined
+			? [
+					readEventsTool({ sql: deps.sql, resolveTrust }),
+					countEventsTool({ sql: deps.sql, resolveTrust }),
+				]
+			: [];
+	return [...base, ...goalTools, ...eventTools];
 }
 
 // Tool name prefixing follows `mcp__${mapKey}__${toolName}` where `mapKey` is

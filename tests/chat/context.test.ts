@@ -230,7 +230,7 @@ describe("assembleSystemPrompt guards", () => {
 
 		expect(prompt.length).toBeGreaterThanOrEqual(50);
 		expect(prompt).toContain("# Rules");
-		expect(prompt).toContain("# Memory Tools");
+		expect(prompt).toContain("# Your Tools");
 	});
 
 	test("error message format: guard mentions 'too short' and 'onboarding'", async () => {

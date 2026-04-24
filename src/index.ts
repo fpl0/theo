@@ -152,6 +152,7 @@ const memoryServer = createMemoryServer({
 	selfModel,
 	skills,
 	goals,
+	sql: pool.sql,
 });
 
 // ---------------------------------------------------------------------------

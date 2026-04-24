@@ -216,6 +216,7 @@ export class ChatEngine {
 			// enumeration into the model's tool list; the explicit entries
 			// document which tools the memory server exposes.
 			allowedTools: [
+				// Theo's in-process MCP memory/goal/event tools.
 				"mcp__memory__*",
 				"mcp__memory__store_memory",
 				"mcp__memory__search_memory",
@@ -227,30 +228,33 @@ export class ChatEngine {
 				"mcp__memory__update_user_model",
 				"mcp__memory__read_goals",
 				"mcp__memory__record_goal",
-			],
-			// Deliberately omit `tools` — the docstring says `tools: []` disables
-			// only built-in tools, but in practice it also blocks in-process
-			// MCP tools from being enumerated. Rely on `disallowedTools` to
-			// strip built-ins while keeping the MCP channel open.
-			disallowedTools: [
+				"mcp__memory__read_events",
+				"mcp__memory__count_events",
+				// Claude Agent SDK built-ins. Theo is a single-owner agent —
+				// trust lives at the system boundary, not at tool granularity,
+				// so every generally-useful built-in is enabled.
 				"Bash",
 				"BashOutput",
-				"Edit",
+				"KillShell",
 				"Read",
 				"Write",
+				"Edit",
 				"Glob",
 				"Grep",
-				"WebFetch",
 				"WebSearch",
-				"Task",
+				"WebFetch",
 				"TodoWrite",
 				"NotebookEdit",
-				"KillShell",
+				"Task",
+			],
+			// Block only the Claude-Code-specific meta tools that don't map to
+			// Theo's runtime. Everything else stays open so the owner's agent
+			// is maximally capable.
+			disallowedTools: [
 				"SlashCommand",
-				// "ExitPlanMode" is Claude Code's plan-mode tool. Theo doesn't
-				// use plan mode, but we still strip it defensively. Built from
-				// parts so the `noSecrets` entropy heuristic doesn't false-
-				// positive on the CamelCase identifier.
+				// Claude Code's plan-mode tool — Theo doesn't run a plan-mode
+				// handshake. Built from parts so the `noSecrets` entropy
+				// heuristic doesn't false-positive on the CamelCase identifier.
 				`Exit${"Plan"}Mode`,
 				"Skill",
 			],
