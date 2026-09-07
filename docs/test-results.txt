@@ -1,0 +1,6 @@
+..............................s......................................... [ 84%]
+.s...........                                                            [100%]
+=========================== short test summary info ============================
+SKIPPED [1] tests/test_operational_boundaries.py:238: Host refuses UID transitions; real OS boundary requires target-host verification
+SKIPPED [1] tests/test_supervisor.py:19: Host denies Unix server sockets; supervisor/core integration requires a service-capable host
+83 passed, 2 skipped in 36.33s

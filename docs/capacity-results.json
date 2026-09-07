@@ -1,0 +1,21 @@
+{
+  "fixture": {
+    "memories": 20000,
+    "messages": 250000,
+    "synthetic": true
+  },
+  "platform": "Linux-6.18.35-x86_64-with-glibc2.39",
+  "machine": "x86_64",
+  "python": "3.14.6",
+  "sqlite": "3.53.1",
+  "population_seconds": 65.68500608500108,
+  "retrieval": "FTS + graph; embeddings absent (not the full warm-vector acceptance gate)",
+  "context_runs": 50,
+  "context_p50_ms": 108.34298400004627,
+  "context_p95_ms": 156.2903140002163,
+  "context_max_ms": 447.20802799929515,
+  "backup_verify_seconds": 2.5344297730007384,
+  "restore_quarantine_seconds": 1.24268109500008,
+  "live_model_calls": 0,
+  "target_mac_qualified": false
+}

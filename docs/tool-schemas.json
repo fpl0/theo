@@ -1,0 +1,1610 @@
+[
+  {
+    "name": "send_message",
+    "baseline": true,
+    "description": "Queue an owner message; committed means queued, never sent.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "maxLength": 100000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "reply_to": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reply To"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "role": {
+          "default": "progress",
+          "enum": [
+            "final",
+            "progress"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "MessageArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "reply",
+    "baseline": true,
+    "description": "Queue a reply retaining its message reference.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "maxLength": 100000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "reply_to": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reply To"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "role": {
+          "default": "progress",
+          "enum": [
+            "final",
+            "progress"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "MessageArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "forward",
+    "baseline": true,
+    "description": "Forward an existing Telegram message through the action ledger.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "message_id": {
+          "title": "Message Id",
+          "type": "integer"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "from_chat_id": {
+          "title": "From Chat Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "message_id",
+        "from_chat_id"
+      ],
+      "title": "ForwardArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "edit_message",
+    "baseline": true,
+    "description": "Edit an exact Telegram message.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "message_id": {
+          "title": "Message Id",
+          "type": "integer"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "text": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "message_id",
+        "text"
+      ],
+      "title": "EditArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "delete_message",
+    "baseline": true,
+    "description": "Request reviewed deletion of a Telegram message.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "message_id": {
+          "title": "Message Id",
+          "type": "integer"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        }
+      },
+      "required": [
+        "message_id"
+      ],
+      "title": "MessageIdArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "pin",
+    "baseline": true,
+    "description": "Pin an existing Telegram message.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "message_id": {
+          "title": "Message Id",
+          "type": "integer"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        }
+      },
+      "required": [
+        "message_id"
+      ],
+      "title": "MessageIdArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "send_photo",
+    "baseline": true,
+    "description": "Send a registered, validated photo.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "caption": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Caption"
+        },
+        "reply_to": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reply To"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        }
+      },
+      "required": [
+        "artifact_id"
+      ],
+      "title": "MediaArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "send_document",
+    "baseline": true,
+    "description": "Deliver a registered artifact.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "caption": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Caption"
+        },
+        "reply_to": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reply To"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        }
+      },
+      "required": [
+        "artifact_id"
+      ],
+      "title": "MediaArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "send_voice",
+    "baseline": true,
+    "description": "Deliver an existing local voice artifact.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "caption": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Caption"
+        },
+        "reply_to": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reply To"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        }
+      },
+      "required": [
+        "artifact_id"
+      ],
+      "title": "MediaArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "send_video",
+    "baseline": true,
+    "description": "Deliver a registered video.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "caption": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Caption"
+        },
+        "reply_to": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reply To"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        }
+      },
+      "required": [
+        "artifact_id"
+      ],
+      "title": "MediaArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "send_location",
+    "baseline": true,
+    "description": "Deliver geographic coordinates.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "latitude": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Latitude",
+          "type": "number"
+        },
+        "longitude": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Longitude",
+          "type": "number"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        }
+      },
+      "required": [
+        "latitude",
+        "longitude"
+      ],
+      "title": "LocationArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "send_poll",
+    "baseline": true,
+    "description": "Create a Telegram poll.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "question": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 12,
+          "minItems": 2,
+          "title": "Options",
+          "type": "array"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        }
+      },
+      "required": [
+        "question",
+        "options"
+      ],
+      "title": "PollArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "send_buttons",
+    "baseline": true,
+    "description": "Send URL buttons; approval callbacks are host-owned.",
+    "inputSchema": {
+      "$defs": {
+        "Button": {
+          "additionalProperties": false,
+          "properties": {
+            "text": {
+              "maxLength": 64,
+              "minLength": 1,
+              "title": "Text",
+              "type": "string"
+            },
+            "url": {
+              "title": "Url",
+              "type": "string"
+            }
+          },
+          "required": [
+            "text",
+            "url"
+          ],
+          "title": "Button",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "maxLength": 100000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "reply_to": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reply To"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "role": {
+          "default": "progress",
+          "enum": [
+            "final",
+            "progress"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "buttons": {
+          "items": {
+            "$ref": "#/$defs/Button"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "title": "Buttons",
+          "type": "array"
+        }
+      },
+      "required": [
+        "text",
+        "buttons"
+      ],
+      "title": "ButtonsArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "react",
+    "baseline": true,
+    "description": "React to a specific message.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "message_id": {
+          "title": "Message Id",
+          "type": "integer"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "emoji": {
+          "title": "Emoji",
+          "type": "string"
+        }
+      },
+      "required": [
+        "message_id",
+        "emoji"
+      ],
+      "title": "ReactionArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "get_reactions",
+    "baseline": true,
+    "description": "Read reactions observed by the bot; absence is unknown.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "message_id": {
+          "title": "Message Id",
+          "type": "integer"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        }
+      },
+      "required": [
+        "message_id"
+      ],
+      "title": "MessageIdArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "schedule_task",
+    "baseline": true,
+    "description": "Persist a reminder before promising it.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "due_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Due At"
+        },
+        "cron": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cron"
+        },
+        "interval_seconds": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Interval Seconds"
+        },
+        "timezone": {
+          "default": "Europe/Dublin",
+          "title": "Timezone",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "ScheduleArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "list_tasks",
+    "baseline": true,
+    "description": "List persisted schedules.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "Empty",
+      "type": "object"
+    }
+  },
+  {
+    "name": "delete_task",
+    "baseline": true,
+    "description": "Cancel a schedule without deleting its history.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "IdArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "remember",
+    "baseline": true,
+    "description": "Save an inference or propose a reviewed correction; no silent overwrite.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "minLength": 1,
+          "title": "Body",
+          "type": "string"
+        },
+        "kind": {
+          "default": "episode",
+          "enum": [
+            "entity",
+            "episode",
+            "procedure",
+            "insight",
+            "preference"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "source_message_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Message Id"
+        },
+        "target_memory_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Memory Id"
+        },
+        "expected_revision": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Revision"
+        }
+      },
+      "required": [
+        "body"
+      ],
+      "title": "RememberArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "recall",
+    "baseline": true,
+    "description": "Search current active SQLite memory.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "query": {
+          "title": "Query",
+          "type": "string"
+        },
+        "limit": {
+          "default": 20,
+          "maximum": 50,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "title": "RecallArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "forget",
+    "baseline": true,
+    "description": "Archive a memory with recoverable history.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "IdArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "recall_conversation",
+    "baseline": true,
+    "description": "Read canonical messages in this conversation.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "default": 30,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "title": "ConversationArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "connect",
+    "baseline": true,
+    "description": "Link memories with typed evidence.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "target_id": {
+          "title": "Target Id",
+          "type": "string"
+        },
+        "relation": {
+          "title": "Relation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "target_id",
+        "relation"
+      ],
+      "title": "ConnectArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "restore",
+    "baseline": true,
+    "description": "Restore an archived memory or prior revision.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Revision"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "RestoreArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "bulk_memory",
+    "baseline": true,
+    "description": "Store a bounded batch with individual results.",
+    "inputSchema": {
+      "$defs": {
+        "RememberArgs": {
+          "additionalProperties": false,
+          "properties": {
+            "body": {
+              "minLength": 1,
+              "title": "Body",
+              "type": "string"
+            },
+            "kind": {
+              "default": "episode",
+              "enum": [
+                "entity",
+                "episode",
+                "procedure",
+                "insight",
+                "preference"
+              ],
+              "title": "Kind",
+              "type": "string"
+            },
+            "source_message_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Source Message Id"
+            },
+            "target_memory_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Target Memory Id"
+            },
+            "expected_revision": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Expected Revision"
+            }
+          },
+          "required": [
+            "body"
+          ],
+          "title": "RememberArgs",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "memories": {
+          "items": {
+            "$ref": "#/$defs/RememberArgs"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Memories",
+          "type": "array"
+        }
+      },
+      "required": [
+        "memories"
+      ],
+      "title": "BulkArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "memory_history",
+    "baseline": true,
+    "description": "Read complete immutable revisions.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "IdArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "review_corrections",
+    "baseline": true,
+    "description": "List correction proposals for owner review; the model cannot approve.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "Empty",
+      "type": "object"
+    }
+  },
+  {
+    "name": "pin_attention",
+    "baseline": true,
+    "description": "Persist a contextual attention pin.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Body",
+          "type": "string"
+        },
+        "expires_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expires At"
+        }
+      },
+      "required": [
+        "body"
+      ],
+      "title": "AttentionArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "unpin_attention",
+    "baseline": true,
+    "description": "Remove a contextual attention pin.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "IdArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "get_cost_report",
+    "baseline": true,
+    "description": "Inspect nullable token usage and included allowance pool state.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "Empty",
+      "type": "object"
+    }
+  },
+  {
+    "name": "log_deep_work_quality",
+    "baseline": true,
+    "description": "Record a subjective rating alongside host-observed run outcomes.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "rating": {
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Rating",
+          "type": "integer"
+        },
+        "rationale": {
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rating",
+        "rationale"
+      ],
+      "title": "QualityArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "browse",
+    "baseline": true,
+    "description": "Read a public web source as untrusted evidence.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "screenshot": {
+          "default": false,
+          "title": "Screenshot",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "title": "BrowseArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "delegate",
+    "baseline": true,
+    "description": "Create a durable child job with a final-report obligation.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "task": {
+          "maxLength": 50000,
+          "minLength": 1,
+          "title": "Task",
+          "type": "string"
+        },
+        "deadline_seconds": {
+          "default": 1800,
+          "maximum": 5400,
+          "minimum": 60,
+          "title": "Deadline Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "task"
+      ],
+      "title": "DelegateArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "goal_create",
+    "baseline": false,
+    "description": "Create a structured outcome and executable plan.",
+    "inputSchema": {
+      "$defs": {
+        "GoalStep": {
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "next_action": {
+              "title": "Next Action",
+              "type": "string"
+            },
+            "capabilities": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Capabilities",
+              "type": "array"
+            }
+          },
+          "required": [
+            "title",
+            "next_action"
+          ],
+          "title": "GoalStep",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "criteria": {
+          "title": "Criteria",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/GoalStep"
+          },
+          "title": "Steps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "title",
+        "criteria"
+      ],
+      "title": "GoalArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "goal_update",
+    "baseline": false,
+    "description": "Transition a goal with evidence and dependency checks.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "active",
+            "blocked",
+            "paused",
+            "completed",
+            "abandoned"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence"
+        },
+        "blocker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Blocker"
+        }
+      },
+      "required": [
+        "id",
+        "status"
+      ],
+      "title": "GoalUpdateArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "step_complete",
+    "baseline": false,
+    "description": "Complete one plan step with outcome evidence.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "evidence": {
+          "title": "Evidence",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "evidence"
+      ],
+      "title": "StepArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "fact_propose",
+    "baseline": false,
+    "description": "Propose a fact revision for explicit owner review.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "subject": {
+          "title": "Subject",
+          "type": "string"
+        },
+        "predicate": {
+          "title": "Predicate",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        },
+        "source_message_id": {
+          "title": "Source Message Id",
+          "type": "string"
+        },
+        "expected_revision": {
+          "default": 0,
+          "title": "Expected Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "subject",
+        "predicate",
+        "value",
+        "source_message_id"
+      ],
+      "title": "FactArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "artifact_register",
+    "baseline": false,
+    "description": "Validate and hash an actual workspace file.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "description"
+      ],
+      "title": "ArtifactArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "action_status",
+    "baseline": false,
+    "description": "Inspect committed, pending, delivered or uncertain action state.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "IdArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "file_read",
+    "baseline": false,
+    "description": "Read a bounded text file inside this job's workspace.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "FileReadArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "file_write",
+    "baseline": false,
+    "description": "Write a draft inside this job's isolated workspace.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "content": {
+          "maxLength": 1000000,
+          "title": "Content",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "content"
+      ],
+      "title": "FileWriteArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "command_run",
+    "baseline": false,
+    "description": "Execute an argument array within the verified OS boundary and workspace.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Argv",
+          "type": "array"
+        },
+        "timeout_seconds": {
+          "default": 60,
+          "maximum": 300,
+          "minimum": 1,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "argv"
+      ],
+      "title": "CommandArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "voice_create",
+    "baseline": false,
+    "description": "Create a voice artifact using local macOS speech and FFmpeg.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "maxLength": 10000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "voice": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Voice"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "VoiceArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "skill_propose",
+    "baseline": false,
+    "description": "Propose a versioned skill without activating it or expanding grants.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "body": {
+          "title": "Body",
+          "type": "string"
+        },
+        "triggers": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Triggers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "body",
+        "triggers"
+      ],
+      "title": "SkillArgs",
+      "type": "object"
+    }
+  }
+]
