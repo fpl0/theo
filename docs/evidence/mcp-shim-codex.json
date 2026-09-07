@@ -1,0 +1,11 @@
+{
+  "backend": "codex",
+  "model": "gpt-5.6-sol",
+  "marker": "theo-mcp-probe-2e767364a046",
+  "exit_code": 0,
+  "memory_revisions": 1,
+  "marker_persisted": true,
+  "mcp_version": "2.1.1",
+  "stdout_tail": "DONE\n",
+  "stderr_tail": "Reading additional input from stdin...\nOpenAI Codex v0.153.4\n--------\nworkdir: /private/var/folders/31/gv8kv3z96s9_nkn48b9nbswc0000gn/T/theo-probe-ppk1h77e/workspace\nmodel: gpt-5.6-sol\nprovider: openai\napproval: on-request\nsandbox: workspace-write [workdir, /tmp, $TMPDIR]\nreasoning effort: none\nreasoning summaries: none\nsession id: 01a07d7b-6a8b-7200-883a-2660de926a6b\n--------\nuser\nCall the MCP tool theo/remember exactly once with body set to 'theo-mcp-probe-2e767364a046'. Then call theo/recall with query set to 'probe'. Reply with only the word DONE.\nwarning: `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\nwarning: `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\nmcp: theo/remember started\nmcp: theo/remember (completed)\nmcp: theo/recall started\nmcp: theo/recall (completed)\ncodex\nDONE\ntokens used\n10,511\n"
+}

@@ -49,6 +49,19 @@ Exit codes: **0** all four passed; **1** an executed case failed; **2** setup fa
 
 This covers the real text, memory and document path. It does **not** qualify seven-day operation, OS isolation, crash recovery, unauthorized-user rejection, voice transcription, image understanding or quota exhaustion. Those remain separate acceptance gates. A passing suite is not a production qualification override.
 
+## Native MCP shim probe
+
+The Telegram suite above needs a running daemon and a Telegram user session. `scripts/mcp_shim_probe.py` is a narrower check for the shim alone: it starts a throwaway broker on a real Unix socket, lets a real native app spawn `python -m theo.mcp_shim`, and passes only if a model-invoked `remember` reached SQLite. The grant is restricted to `remember`/`recall`, so the run cannot execute commands, send messages or touch an existing assistant. It does consume one included run on the account you select.
+
+```sh
+uv run python scripts/mcp_shim_probe.py --backend claude --model YOUR_INCLUDED_MODEL \
+  --output docs/evidence/mcp-shim-claude.json
+uv run python scripts/mcp_shim_probe.py --backend codex --model YOUR_INCLUDED_MODEL \
+  --output docs/evidence/mcp-shim-codex.json
+```
+
+Both were executed here on 7 September 2026 against `mcp` 2.1.1 while migrating the shim to the 2.x server API. Claude Code and Codex each discovered the tools, called them and persisted the run's marker; the captured reports are [mcp-shim-claude.json](evidence/mcp-shim-claude.json) and [mcp-shim-codex.json](evidence/mcp-shim-codex.json). Codex needs `--approve-for-me`, because `codex exec` otherwise refuses MCP tool calls under its default approval policy rather than asking. This probe covers the tool channel only. It is not Telegram evidence, not an isolation gate and not a production qualification.
+
 ## Small local model experiment
 
 On 7 September 2026, actual CPU inference ran here using [Qwen2.5-0.5B-Instruct Q4_K_M](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF), model revision `9217f5db79a29953eb74d5343926648285ec7e67`, with `llama-cpp-python==0.3.35`. No hosted model API was called.
