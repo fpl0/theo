@@ -21,7 +21,7 @@ uv run theo memory search "concise"
 uv run theo status
 ```
 
-Python 3.14.6 is selected by `.python-version`. `uv.lock` pins the dependency graph. These commands do not call a model or send a Telegram message. macOS state defaults to `~/Library/Application Support/Theo`; Linux uses the XDG data directory. Put `--data-root /absolute/path` **before** the subcommand to select an isolated root.
+Python 3.14 is selected by `.python-version`. `uv.lock` pins the dependency graph. These commands do not call a model or send a Telegram message. macOS state defaults to `~/Library/Application Support/Theo`; Linux uses the XDG data directory. Put `--data-root /absolute/path` **before** the subcommand to select an isolated root.
 
 For development:
 

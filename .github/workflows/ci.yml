@@ -52,7 +52,7 @@ jobs:
       - name: Verify installed package and bundled migrations
         shell: bash
         run: |
-          uv venv "$RUNNER_TEMP/theo-wheel" --python 3.14.6
+          uv venv "$RUNNER_TEMP/theo-wheel" --python 3.14
           uv pip install --python "$RUNNER_TEMP/theo-wheel/bin/python" --no-deps dist/*.whl
           cd "$RUNNER_TEMP"
           "$RUNNER_TEMP/theo-wheel/bin/python" -c 'from importlib.resources import files; import theo; assert len(list(files("theo").joinpath("migrations").iterdir())) >= 2; print("Installed package and migrations verified")'
