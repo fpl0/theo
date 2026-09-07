@@ -32,6 +32,8 @@ uv run pyright
 
 Tests use temporary databases, synthetic data and native-protocol subprocess fixtures. They do not log in, call paid services, contact model accounts or modify an existing assistant. Host-restricted OS tests report explicit skips.
 
+For real **Telegram → Theo → native model → Telegram** tests, use the [live test guide](docs/live-testing.md). It includes a runnable four-case suite, JSON/JUnit reports, and the results of an actual small local model experiment (1/4 initial checks passed).
+
 ## Connect a native runtime
 
 1. Follow [the operator guide](docs/operations.md) to create a separate runner home, install a readable worker shim and verify the real OS boundary. A working directory alone is insufficient. Generated code remains unavailable without the qualified Mac sandbox.

@@ -1,0 +1,120 @@
+{
+  "scope": "real local inference; in-process core and broker; local delivery sink",
+  "telegram_tested": false,
+  "native_codex_tested": false,
+  "model_file": "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+  "model_sha256": "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db",
+  "python": "3.14.6",
+  "llama_cpp_python": "0.3.35",
+  "settings": {
+    "n_ctx": 8192,
+    "n_threads": 4,
+    "temperature": 0,
+    "seed": 42
+  },
+  "cases": [
+    {
+      "name": "identity",
+      "prompt": "What is your name? Answer with your name only.",
+      "output": "Theo.",
+      "error": null,
+      "checks": {
+        "completed": true,
+        "single_terminal": true,
+        "single_delivery": true,
+        "answer": true,
+        "tool_committed": true
+      },
+      "passed": true
+    },
+    {
+      "name": "canonical_memory",
+      "prompt": "What is the access phrase for project Juniper?",
+      "output": "",
+      "error": "Native adapter failure: KeyError",
+      "checks": {
+        "completed": false,
+        "single_terminal": true,
+        "single_delivery": true,
+        "answer": false,
+        "tool_committed": true
+      },
+      "passed": false
+    },
+    {
+      "name": "remember_tool",
+      "prompt": "Use the remember tool to save this synthetic fact: Project Birch has mascot violet-lynx-284. Then acknowledge it.",
+      "output": "",
+      "error": "Native adapter failure: KeyError",
+      "checks": {
+        "completed": false,
+        "single_terminal": true,
+        "single_delivery": true,
+        "answer": true,
+        "tool_committed": false
+      },
+      "passed": false
+    },
+    {
+      "name": "recall_tool",
+      "prompt": "Use the recall tool to search Birch, then tell me its mascot.",
+      "output": "",
+      "error": "Native adapter failure: KeyError",
+      "checks": {
+        "completed": false,
+        "single_terminal": true,
+        "single_delivery": true,
+        "answer": false,
+        "tool_committed": false
+      },
+      "passed": false
+    }
+  ],
+  "generations": [
+    {
+      "run_id": "6688eb62-deaa-491e-ac77-9a9f574f19da",
+      "raw": "{\"answer\":\"Theo.\"}",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 414,
+        "completion_tokens": 7,
+        "total_tokens": 421
+      },
+      "seconds": 5.824
+    },
+    {
+      "run_id": "b5b1939d-7ca6-4dbc-89bf-4b034095696a",
+      "raw": "{\"commitments\":[],\"facts\":[],\"goals\":[],\"pending_actions\":[],\"pins\":[]}",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 522,
+        "completion_tokens": 19,
+        "total_tokens": 541
+      },
+      "seconds": 2.628
+    },
+    {
+      "run_id": "a9b2bfcd-b67e-4ac1-bb52-f2d82436aac2",
+      "raw": "{\"commitments\":[],\"facts\":[],\"goals\":[],\"pending_actions\":[],\"pins\":[]}\n",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 672,
+        "completion_tokens": 19,
+        "total_tokens": 691
+      },
+      "seconds": 6.351
+    },
+    {
+      "run_id": "6928b8ac-8ce8-4897-96b1-61cff84f1872",
+      "raw": "{\"commitments\":[],\"facts\":[],\"goals\":[],\"pending_actions\":[],\"pins\":[]}\n",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 780,
+        "completion_tokens": 19,
+        "total_tokens": 799
+      },
+      "seconds": 3.876
+    }
+  ],
+  "passed": false
+}

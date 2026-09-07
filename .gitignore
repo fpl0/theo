@@ -15,3 +15,7 @@ workspaces/
 .DS_Store
 coverage.xml
 .coverage
+e2e-results/
+*.session
+*.session-journal
+*.gguf
