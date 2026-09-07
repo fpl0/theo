@@ -1,0 +1,19 @@
+{
+  "version": "0.1.0",
+  "source_commit": "2b210397823f805be631c871c8377f84df7714f0",
+  "release_id": "0.1.0-2b21039",
+  "lock_sha256": "9428bb7f4cb18372d6e50c3e6a4d95e829aff7d7d08fc5594f5781f30716c42b",
+  "schema_min": 2,
+  "schema_max": 2,
+  "hashed_files": 2364,
+  "installed_environment_canary": [
+    "init passed",
+    "doctor JSON passed"
+  ],
+  "native_inference_calls": 0,
+  "service_activated": false,
+  "mac_qualified": false,
+  "published_equivalent_source_commit": "7a0a6998c88e5e857db71ec34451fd3e1dd34ff3",
+  "validated_source_tree": "7cf0ff3cf389aea35138a373e039fc8ce8a1613b",
+  "publication_note": "GitHub app publication has different commit metadata; its source tree exactly matches the locally validated commit."
+}

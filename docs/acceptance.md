@@ -8,6 +8,7 @@
 |---|---|---|
 | Deterministic suite | 83 passed, 2 explicit host skips | Python 3.14.6, Linux x86_64; zero model-account calls |
 | Static types | Pyright strict: zero errors/warnings | Application source |
+| Installed release | Locked non-editable environment built from commit `2b21039`; init/doctor canary passed | [Release evidence](release-verification.json); no service activation |
 | Formatting/lint | Ruff check and format | Application, scripts, tests |
 | Native transports | Four actual adapters exercised against native-protocol subprocess fixtures | Claude streaming CLI; Codex App Server; Cursor/Grok official ACP SDK |
 | Native installed schema | Codex CLI `0.151.0-alpha.2`: version/help and generated App Server schema inspected | No login, account inference or provider canary |
