@@ -16,6 +16,8 @@ dependencies = [
   "pypdf>=6,<7",
   "sqlite-vec>=0.1.6,<0.2",
   "psutil>=7,<8",
+  "rich>=14,<15",
+  "prompt-toolkit>=3.0.50,<4",
 ]
 
 [project.optional-dependencies]

@@ -48,9 +48,11 @@ def parser() -> argparse.ArgumentParser:
     sub.add_parser("serve")
     sub.add_parser("status")
     chat = sub.add_parser("chat")
-    chat.add_argument("text")
+    chat.add_argument("text", nargs="?", help="Omit to open the interactive terminal")
     chat.add_argument("--backend", choices=BACKENDS)
     chat.add_argument("--model")
+    chat.add_argument("--session", default="default", help="Interactive conversation name")
+    chat.add_argument("--attach", type=Path, action="append", default=[])
     accounts = sub.add_parser("accounts").add_subparsers(dest="operation", required=True)
     accounts.add_parser("list")
     quota = accounts.add_parser("quota")
@@ -259,6 +261,11 @@ async def execute(args: argparse.Namespace) -> Any:
             await serve(db, settings, telegram_token())
             return None
         if args.command == "chat":
+            if args.text is None:
+                from theo.terminal import interactive
+
+                await interactive(db, settings, args.session, args.backend, args.model, args.attach)
+                return None
             conversation = await db.conversation(owner, "local", owner)
             if args.backend:
                 if not args.model:
@@ -267,8 +274,11 @@ async def execute(args: argparse.Namespace) -> Any:
                     "UPDATE conversations SET backend=?,model=? WHERE id=?",
                     (args.backend, args.model, conversation),
                 )
+            from theo.terminal import attachment_parts
+
+            parts = await attachment_parts(db, settings, args.attach)
             job = await Jobs(db, owner).ingest(
-                conversation, "local", uid(), {"source": "operator_cli"}, args.text
+                conversation, "local", uid(), {"source": "operator_cli"}, args.text, parts
             )
             return {
                 "job_id": job,

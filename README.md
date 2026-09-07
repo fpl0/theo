@@ -39,6 +39,10 @@ CI runs these checks plus distribution builds and an installed-package check on 
 
 For real **Telegram → Theo → native model → Telegram** tests, use the [live test guide](docs/live-testing.md). It includes a runnable four-case suite, JSON/JUnit reports, and the results of an actual small local model experiment (1/4 initial checks passed).
 
+## Interactive terminal
+
+With Theo running, open a second terminal and run `uv run theo chat`. Paste or drag file paths, attach images with `/attach`, and read live Markdown/code output. Named sessions resume with `--session work`; Ctrl+C cancels a turn and `/quit` leaves the assistant running. See the [terminal guide](docs/terminal.md) for setup, attachments and commands.
+
 ## Connect a native runtime
 
 1. Follow [the operator guide](docs/operations.md) to create a separate runner home, install a readable worker shim and verify the real OS boundary. A working directory alone is insufficient. Generated code remains unavailable without the qualified Mac sandbox.

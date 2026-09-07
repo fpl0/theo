@@ -100,6 +100,8 @@ class Jobs:
         payload: Json,
         text: str,
         parts: list[Json] | None = None,
+        *,
+        require_idle: bool = False,
     ) -> str | None:
         def commit(db: sqlite3.Connection) -> str | None:
             changed = db.execute(
@@ -108,6 +110,14 @@ class Jobs:
             ).rowcount
             if not changed:
                 return None
+            if (
+                require_idle
+                and db.execute(
+                    "SELECT 1 FROM jobs WHERE owner_id=? AND conversation_id=? AND status NOT IN ('completed','failed','cancelled') LIMIT 1",
+                    (self.owner, conversation),
+                ).fetchone()
+            ):
+                raise Denied("This conversation has unfinished work. Use /wait or /cancel first.")
             message = self.db.append_message(
                 db,
                 self.owner,

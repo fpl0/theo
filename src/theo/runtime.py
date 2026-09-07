@@ -57,6 +57,7 @@ class Coordinator:
         self.telegram = telegram
         self.embeddings = Embeddings(db, self.owner)
         self.active: dict[str, tuple[NativeBackend | None, str]] = {}
+        self.run_tasks: dict[str, asyncio.Task[None]] = {}
 
     async def run_job(self, job: Json) -> None:
         payload = json.loads(job["payload"])
@@ -82,6 +83,9 @@ class Coordinator:
             ),
         )
         self.active[job["id"]] = (None, run_id)
+        task = asyncio.current_task()
+        if task:
+            self.run_tasks[job["id"]] = task
         context: Json | None = None
         heartbeat: asyncio.Task[None] | None = None
         try:
@@ -178,6 +182,7 @@ class Coordinator:
                 outcome = ExecutionOutcome(
                     status=Outcome.FAILED, error="Native runtime produced no terminal event"
                 )
+                preview_remaining = 100000
                 async for event in backend.events(request):
                     if event.kind == "terminal":
                         outcome = ExecutionOutcome.model_validate(event.payload)
@@ -187,6 +192,12 @@ class Coordinator:
                         if event.kind != "text_delta"
                         else {"characters": len(str(event.payload.get("text", "")))}
                     )
+                    # Local clients can tail bounded, visible answer text. Never
+                    # persist reasoning or credentials; other channels keep counts.
+                    if event.kind == "text_delta" and conversation["channel"] == "local":
+                        preview = str(event.payload.get("text", ""))[:preview_remaining]
+                        preview_remaining -= len(preview)
+                        event_payload = {"text": preview, "preview": True}
                     await self.db.execute(
                         "INSERT OR IGNORE INTO run_events VALUES(?,?,?,?,?,?,?)",
                         (
@@ -212,6 +223,10 @@ class Coordinator:
                     ExecutionOutcome(status=Outcome.INTERRUPTED, error="Deliberate shutdown"),
                     context,
                 )
+            await self.db.execute(
+                "UPDATE runs SET status=CASE WHEN EXISTS(SELECT 1 FROM jobs WHERE id=? AND status='cancelled') THEN 'cancelled' ELSE 'interrupted' END,ended_at=? WHERE id=? AND status='running'",
+                (job["id"], self.db.clock(), run_id),
+            )
             raise
         except Denied:
             await self.db.execute(
@@ -229,6 +244,7 @@ class Coordinator:
                     context,
                 )
         finally:
+            self.run_tasks.pop(job["id"], None)
             self.broker.revoke(run_id)
             if heartbeat:
                 heartbeat.cancel()
@@ -370,6 +386,27 @@ class Coordinator:
                 self.broker.revoke(run_id)
                 if backend:
                     await backend.cancel()
+                task = self.run_tasks.get(child)
+                if task and task is not asyncio.current_task():
+                    task.cancel()
+
+    async def reconcile_cancellations(self) -> None:
+        """Apply cancellations committed by a separate local operator process."""
+        for job_id in list(self.active):
+            row = await self.db.one(
+                "SELECT status FROM jobs WHERE id=? AND owner_id=?", (job_id, self.owner)
+            )
+            active = self.active.get(job_id)
+            if active and row and row["status"] == "cancelled":
+                _, run_id = active
+                self.broker.revoke(run_id)
+                await self.db.execute(
+                    "UPDATE runs SET status='cancelled',ended_at=? WHERE id=? AND status='running'",
+                    (self.db.clock(), run_id),
+                )
+                task = self.run_tasks.get(job_id)
+                if task:
+                    task.cancel()
 
     async def commands(self) -> None:
         jobs = await self.db.read(
@@ -602,6 +639,7 @@ async def serve(db: Database, settings: Settings, token: str | None = None) -> N
     try:
         while not stop.is_set():
             await coordinator.commands()
+            await coordinator.reconcile_cancellations()
             await Scheduler(db, settings.owner_id).tick()
             await Scheduler(db, settings.owner_id).deliver_reminders(settings)
             background_paused = await db.control(settings.owner_id, "background_paused") == "true"
