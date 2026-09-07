@@ -74,4 +74,6 @@ Telegram requires the exact numeric owner and chat IDs in configuration and the 
 
 Under the hood it is Python on SQLite, with reasoning supplied by Claude Code, Codex App Server, Cursor ACP or Grok ACP over their native protocols. Read [architecture and decisions](docs/architecture.md), [operations](docs/operations.md), [compatibility](docs/compatibility.json), [performance measurements](docs/capacity-results.json) and [remaining qualification work](docs/acceptance.md).
 
+Claims here are meant to be checkable. [Captured evidence](docs/evidence/) holds the raw terminal recordings and JSON reports behind the testing statements above.
+
 A read-only importer brings across a snapshot from an earlier assistant, Luke. That source was inspected as reference evidence only; Theo imports none of its modules and requires none of its files. A fixed 30-case behavioural evaluation pack measures answer quality.
