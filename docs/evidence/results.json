@@ -1,0 +1,172 @@
+{
+  "recorded_at": "2026-09-07T15:19:40.630636+00:00",
+  "source_commit": "bf2eb498fc16a2c2eb58f665bc1deebb84eb9d17",
+  "model_revision": "9217f5db79a29953eb74d5343926648285ec7e67",
+  "model_sha256": "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db",
+  "runtime": "llama-cpp-python 0.3.35, Python 3.14.6, CPU, 4 threads",
+  "runs": [
+    {
+      "id": "c9387ebd-3e1f-4c3d-93ea-fa89ff484b59",
+      "job_id": "73f71279-0aaf-4868-a1e4-6ea2224ce405",
+      "backend": "local-gguf-experiment",
+      "model": "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+      "status": "completed",
+      "output": "I am Theo, a warm, candid, and capable personal companion.",
+      "error": null,
+      "started_at": 1788793998.758634,
+      "ended_at": 1788794004.831789,
+      "request": {
+        "message_id": "16a853a6-648f-4a12-9664-ea835537d9ec",
+        "parts": [],
+        "text": "What is your name? Answer in one short sentence."
+      },
+      "events": [
+        {
+          "kind": "started",
+          "count": 1
+        },
+        {
+          "kind": "terminal",
+          "count": 1
+        },
+        {
+          "kind": "text_delta",
+          "count": 14
+        }
+      ],
+      "delivery": [
+        {
+          "status": "succeeded",
+          "receipt": "{\"channel\":\"local_stdout\",\"message_id\":\"70ba7678-b639-4d9f-af07-437228f17696\"}"
+        }
+      ]
+    },
+    {
+      "id": "381fa218-5cb7-4d9c-8c35-e537bfb89898",
+      "job_id": "68c77836-3530-4a7f-9e32-3058eac05273",
+      "backend": "local-gguf-experiment",
+      "model": "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+      "status": "completed",
+      "output": "cobalt-otter-26fa75ff",
+      "error": null,
+      "started_at": 1788794069.303897,
+      "ended_at": 1788794075.45411,
+      "request": {
+        "message_id": "3121a3ab-be9a-4858-9a7f-293a9354bddb",
+        "parts": [
+          {
+            "artifact_id": "953bfcc9-ff0b-4886-bdc7-4c53fe7036d3",
+            "kind": "document",
+            "metadata": {
+              "mime": "text/plain",
+              "name": "proof-note.txt",
+              "size": 98
+            },
+            "text": "Synthetic test document.\nverification_code=cobalt-otter-26fa75ff\nProject delivery day is Tuesday.\n"
+          }
+        ],
+        "text": "Read the attached file. Reply with only its verification_code value."
+      },
+      "events": [
+        {
+          "kind": "started",
+          "count": 1
+        },
+        {
+          "kind": "terminal",
+          "count": 1
+        },
+        {
+          "kind": "text_delta",
+          "count": 12
+        }
+      ],
+      "delivery": [
+        {
+          "status": "succeeded",
+          "receipt": "{\"channel\":\"local_stdout\",\"message_id\":\"761700a2-d856-4762-9791-01496d7dbec2\"}"
+        }
+      ]
+    },
+    {
+      "id": "4d207273-b2da-46be-b5f5-de32903647db",
+      "job_id": "60c3775d-d269-4a1d-9444-854fc3f7bc53",
+      "backend": "local-gguf-experiment",
+      "model": "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+      "status": "completed",
+      "output": "Add(a, b) -> c\n```python\ndef add(a, b):\n    return a + b\n```",
+      "error": null,
+      "started_at": 1788794249.824682,
+      "ended_at": 1788794253.828714,
+      "request": {
+        "message_id": "407ace6f-1f7d-47e5-9b62-fc00eebd5aa3",
+        "parts": [],
+        "text": "Show a Markdown heading and a Python code block defining add(a, b). Keep it brief."
+      },
+      "events": [
+        {
+          "kind": "started",
+          "count": 1
+        },
+        {
+          "kind": "terminal",
+          "count": 1
+        },
+        {
+          "kind": "text_delta",
+          "count": 24
+        }
+      ],
+      "delivery": [
+        {
+          "status": "succeeded",
+          "receipt": "{\"channel\":\"local_stdout\",\"message_id\":\"48e259e7-1296-4633-9d52-b6d2d1167550\"}"
+        }
+      ]
+    },
+    {
+      "id": "67210937-df94-41d5-a571-a324ae5939ea",
+      "job_id": "2f605c6b-0d03-4564-8ee1-452efeb092f5",
+      "backend": "local-gguf-experiment",
+      "model": "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+      "status": "completed",
+      "output": "cobalt-otter-26fa75ff",
+      "error": null,
+      "started_at": 1788794311.485152,
+      "ended_at": 1788794314.543638,
+      "request": {
+        "message_id": "577d54fc-b0cd-420a-bc47-f03a88fb3c9d",
+        "parts": [],
+        "text": "What was the verification_code in my attached document? Reply only with that value."
+      },
+      "events": [
+        {
+          "kind": "started",
+          "count": 1
+        },
+        {
+          "kind": "terminal",
+          "count": 1
+        },
+        {
+          "kind": "text_delta",
+          "count": 12
+        }
+      ],
+      "delivery": [
+        {
+          "status": "succeeded",
+          "receipt": "{\"channel\":\"local_stdout\",\"message_id\":\"28abe0dc-f722-41c3-8d1a-f50441a229be\"}"
+        }
+      ]
+    }
+  ],
+  "checks": {
+    "identity": true,
+    "document_exact_match": true,
+    "code_block": true,
+    "requested_markdown_heading": false,
+    "resume_exact_match": true
+  },
+  "scope": "Actual terminal, Coordinator, Jobs, SQLite and Delivery with experimental text-only local GGUF backend. Not production supervisor, broker socket, Telegram, native Codex, tool use or vision."
+}

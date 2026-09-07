@@ -1,0 +1,36 @@
+╭────────────────────────────────────────────── Theo ──────────────────────────────────────────────╮
+│                                                                                                  │
+│  local-gguf-experiment / qwen2.5-0.5b-instruct-q4_k_m.gguf                                       │
+│  Conversation: default                                                                           │
+│  Paste a file path or ask anything. /help for commands.                                          │
+│                                                                                                  │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+You                                                                                                 
+What is your name? Answer in one short sentence.                                                    
+Theo                                                                                                
+I am Theo, a warm, candid, and capable personal companion.                                          
+You                                                                                                 
+Read the attached file. Reply with only its verification_code value.                                
+Theo                                                                                                
+cobalt-otter-26fa75ff                                                                               
+You                                                                                                 
+Show a Markdown heading and a Python code block defining add(a, b). Keep it brief.                  
+Theo                                                                                                
+Add(a, b) -> c                                                                                      
+                                                                                                    
+                                                                                                    
+ def add(a, b):                                                                                     
+     return a + b                                                                                   
+                                                                                                    
+You › What was the verification_code in my attached document? Reply only with that value.           
+You                                                                                                 
+What was the verification_code in my attached document? Reply only with that value.                 
+╭────────────────────────────────────────────── Theo ──────────────────────────────────────────────╮
+│                                                                                                  │
+│  completed · delivery succeeded                                                                  │
+│  cobalt-otter-26fa75ff                                                                           │
+│                                                                                                  │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+You › /quit                                                                                         
+Disconnected. Theo is still running.                                                                
+                                                                                                    
