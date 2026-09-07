@@ -61,21 +61,26 @@ async def shim(db, conversation, settings, tmp_path):
         )
     )
     await broker.listen(socket_path)
+
+    def parameters(environment: dict[str, str] | None = None) -> StdioServerParameters:
+        base = dict(os.environ) if environment is None else dict(environment)
+        return StdioServerParameters(
+            command=sys.executable,
+            args=["-m", "theo.mcp_shim"],
+            env={**base, "THEO_TOOL_SOCKET": str(socket_path), "THEO_TOOL_TOKEN": token},
+        )
+
     try:
         # Each test enters the client itself: an anyio cancel scope must be
         # exited by the task that entered it, which a yielding fixture cannot do.
-        yield StdioServerParameters(
-            command=sys.executable,
-            args=["-m", "theo.mcp_shim"],
-            env={**os.environ, "THEO_TOOL_SOCKET": str(socket_path), "THEO_TOOL_TOKEN": token},
-        )
+        yield parameters
     finally:
         await broker.close()
         shutil.rmtree(socket_root, ignore_errors=True)
 
 
 async def test_shim_lists_only_granted_tools_with_wire_schemas(shim):
-    async with Client(shim) as client:
+    async with Client(shim()) as client:
         tools = (await client.list_tools()).tools
     assert {tool.name for tool in tools} == GRANTED
     remember = next(tool for tool in tools if tool.name == "remember")
@@ -84,7 +89,7 @@ async def test_shim_lists_only_granted_tools_with_wire_schemas(shim):
 
 
 async def test_shim_round_trips_a_tool_call_and_reports_failure(shim):
-    async with Client(shim) as client:
+    async with Client(shim()) as client:
         stored = await client.call_tool("remember", {"body": "Theo prefers direct answers."})
         invalid = await client.call_tool("remember", {"body": ""})
     assert stored.is_error is False
@@ -94,7 +99,25 @@ async def test_shim_round_trips_a_tool_call_and_reports_failure(shim):
 
 
 async def test_shim_refuses_a_tool_outside_the_run_grant(shim):
-    async with Client(shim) as client:
+    async with Client(shim()) as client:
         result = await client.call_tool("command_run", {"command": "echo hello"})
     assert result.is_error is True
     assert json.loads(result.content[0].text)["status"] == "denied"
+
+
+async def test_shim_carries_no_database_path_or_channel_credential(shim):
+    """`docs/architecture.md` claims the shim holds neither. Take everything else away."""
+    scrubbed = {
+        "PATH": os.environ.get("PATH", ""),
+        # Decoys. The shim reads only its socket and token, so a run that still
+        # works here cannot have reached for a data root or a channel secret.
+        "THEO_DATA_ROOT": "/nonexistent/decoy-root",
+        "THEO_TELEGRAM_TOKEN": "000000:DECOY_MUST_NOT_BE_READ",
+        "THEO_HEALTH_TOKEN": "decoy-must-not-be-read",
+    }
+    async with Client(shim(scrubbed)) as client:
+        tools = (await client.list_tools()).tools
+        result = await client.call_tool("remember", {"body": "scrubbed environment probe"})
+    assert {tool.name for tool in tools} == GRANTED
+    assert result.is_error is False
+    assert json.loads(result.content[0].text)["status"] == "committed"
