@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+dist/
+build/
+*.egg-info/
+.env*
+!*.example
+*.sqlite*
+data/
+workspaces/
+.DS_Store
+coverage.xml
+.coverage
