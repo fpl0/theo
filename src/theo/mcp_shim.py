@@ -7,12 +7,12 @@ from typing import Any
 
 from mcp import types
 from mcp.server import Server
+from mcp.server.context import ServerRequestContext
 from mcp.server.stdio import stdio_server
 
 
 async def main() -> None:
     path, token = os.environ["THEO_TOOL_SOCKET"], os.environ["THEO_TOOL_TOKEN"]
-    server = Server("theo")
 
     async def rpc(payload: dict[str, Any]) -> dict[str, Any]:
         reader, writer = await asyncio.open_unix_connection(path, limit=1024 * 1024)
@@ -25,20 +25,28 @@ async def main() -> None:
             writer.close()
             await writer.wait_closed()
 
-    @server.list_tools()
-    async def list_tools() -> list[types.Tool]:
+    async def list_tools(
+        _context: ServerRequestContext[Any],
+        _params: types.PaginatedRequestParams | None,
+    ) -> types.ListToolsResult:
         result = await rpc({"method": "list"})
-        return [types.Tool.model_validate(item) for item in result.get("tools", [])]
-
-    @server.call_tool()
-    async def call_tool(name: str, arguments: dict[str, Any]) -> types.CallToolResult:
-        result = await rpc({"method": "call", "name": name, "arguments": arguments})
-        return types.CallToolResult(
-            content=[types.TextContent(type="text", text=json.dumps(result, ensure_ascii=False))],
-            isError=result.get("error") is not None,
+        return types.ListToolsResult(
+            tools=[types.Tool.model_validate(item) for item in result.get("tools", [])]
         )
 
-    _ = (list_tools, call_tool)  # Registered callbacks are retained by the MCP server.
+    async def call_tool(
+        _context: ServerRequestContext[Any],
+        params: types.CallToolRequestParams,
+    ) -> types.CallToolResult:
+        result = await rpc(
+            {"method": "call", "name": params.name, "arguments": params.arguments or {}}
+        )
+        return types.CallToolResult(
+            content=[types.TextContent(type="text", text=json.dumps(result, ensure_ascii=False))],
+            is_error=result.get("error") is not None,
+        )
+
+    server = Server("theo", on_list_tools=list_tools, on_call_tool=call_tool)
     async with stdio_server() as (reader, writer):
         await server.run(reader, writer, server.create_initialization_options())
 

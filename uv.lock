@@ -796,7 +796,7 @@ name = "mlx"
 version = "0.32.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "mlx-metal" },
+    { name = "mlx-metal", marker = "sys_platform == 'darwin'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/35/c8/d4f7c648d6ea7baee986047ca30647a5733df5b9c77bb0a262dc5aca0843/mlx-0.32.2-cp314-cp314-macosx_14_0_arm64.whl", hash = "sha256:c99e3b6451bb4a55071cf19594f564435bd88de77008f377e611a40a8bbfb328", size = 622061, upload-time = "2026-08-25T10:32:18.571Z" },
@@ -1707,7 +1707,7 @@ requires-dist = [
     { name = "croniter", specifier = ">=6,<7" },
     { name = "fastembed", marker = "extra == 'embeddings'", specifier = ">=0.7,<1" },
     { name = "httpx", extras = ["socks"], specifier = ">=0.28,<1" },
-    { name = "mcp", specifier = ">=1.20,<3" },
+    { name = "mcp", specifier = ">=2.1,<3" },
     { name = "mlx-whisper", marker = "platform_machine == 'arm64' and sys_platform == 'darwin' and extra == 'speech'", specifier = ">=0.4,<1" },
     { name = "pillow", specifier = ">=11,<13" },
     { name = "playwright", marker = "extra == 'browser'", specifier = ">=1.55,<2" },
