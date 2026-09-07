@@ -6,6 +6,7 @@
 
 import argparse
 import asyncio
+import contextlib
 import io
 import json
 import os
@@ -32,7 +33,9 @@ class Observer:
         self.path, self.owner = root / "theo.sqlite3", owner
 
     def rows(self, sql, args=()):
-        with sqlite3.connect(self.path.resolve().as_uri() + "?mode=ro", uri=True) as db:
+        with contextlib.closing(
+            sqlite3.connect(self.path.resolve().as_uri() + "?mode=ro", uri=True)
+        ) as db:
             db.row_factory = sqlite3.Row
             db.execute("PRAGMA query_only=ON")
             return [dict(row) for row in db.execute(sql, args)]

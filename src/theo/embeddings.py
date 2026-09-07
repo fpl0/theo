@@ -108,7 +108,7 @@ class Embeddings:
 
         def search() -> list[Json]:
             module: Any = importlib.import_module("sqlite_vec")
-            connection = sqlite3.connect(f"file:{self.db.path}?mode=ro", uri=True)
+            connection = sqlite3.connect(self.db.path.as_uri() + "?mode=ro", uri=True)
             connection.row_factory = sqlite3.Row
             try:
                 connection.enable_load_extension(True)

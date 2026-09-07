@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import contextlib
 import hashlib
 import json
 import os
@@ -28,18 +29,16 @@ def file_hash(path: Path) -> str:
 
 async def snapshot_database(db: Database, destination: Path) -> None:
     def backup() -> None:
-        source = sqlite3.connect(f"file:{db.path}?mode=ro", uri=True)
-        target = sqlite3.connect(destination)
-        try:
+        with (
+            contextlib.closing(sqlite3.connect(db.path.as_uri() + "?mode=ro", uri=True)) as source,
+            contextlib.closing(sqlite3.connect(destination)) as target,
+        ):
             source.backup(target, pages=256, sleep=0.01)
             result = target.execute("PRAGMA integrity_check").fetchone()
             if result != ("ok",):
                 raise ValueError("Snapshot integrity check failed")
             if target.execute("PRAGMA foreign_key_check").fetchone():
                 raise ValueError("Snapshot foreign key check failed")
-        finally:
-            target.close()
-            source.close()
         destination.chmod(0o600)
 
     await asyncio.to_thread(backup)
@@ -104,7 +103,9 @@ async def backup_verify(path: Path) -> Json:
             or file_hash(path / "theo.sqlite3") != manifest["database_sha256"]
         ):
             raise ValueError("Backup manifest/database checksum mismatch")
-        connection = sqlite3.connect(f"file:{path / 'theo.sqlite3'}?mode=ro", uri=True)
+        connection = sqlite3.connect(
+            (path / "theo.sqlite3").resolve().as_uri() + "?mode=ro", uri=True
+        )
         try:
             if (
                 connection.execute("PRAGMA integrity_check").fetchone() != ("ok",)

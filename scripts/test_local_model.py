@@ -103,12 +103,14 @@ async def run(args):
         chat_format="chatml",
         verbose=False,
     )
+    with args.model.open("rb") as stream:
+        model_hash = hashlib.file_digest(stream, "sha256").hexdigest()
     report = {
         "scope": "real local inference; in-process core and broker; local delivery sink",
         "telegram_tested": False,
         "native_codex_tested": False,
         "model_file": args.model.name,
-        "model_sha256": hashlib.file_digest(args.model.open("rb"), "sha256").hexdigest(),
+        "model_sha256": model_hash,
         "python": platform.python_version(),
         "llama_cpp_python": importlib.metadata.version("llama-cpp-python"),
         "settings": {"n_ctx": 8192, "n_threads": 4, "temperature": 0, "seed": 42},

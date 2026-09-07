@@ -65,7 +65,7 @@ class Database:
     async def read(self, sql: str, args: Sequence[Any] = ()) -> list[Json]:
         # A bounded connection per read on the default pool never shares the writer connection.
         def query() -> list[Json]:
-            db = sqlite3.connect(f"file:{self.path}?mode=ro", uri=True, timeout=5)
+            db = sqlite3.connect(self.path.as_uri() + "?mode=ro", uri=True, timeout=5)
             try:
                 db.row_factory = sqlite3.Row
                 db.execute("PRAGMA query_only=ON")

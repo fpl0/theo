@@ -86,11 +86,16 @@ class RpcProcess:
         request_id = self.sequence
         future: asyncio.Future[Json] = asyncio.get_running_loop().create_future()
         self.pending[request_id] = future
-        await self.send({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params})
         try:
-            return await asyncio.wait_for(future, timeout)
+            async with asyncio.timeout(timeout):
+                await self.send(
+                    {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params}
+                )
+                return await future
         finally:
             self.pending.pop(request_id, None)
+            if not future.done():
+                future.cancel()
 
     async def _read(self) -> None:
         assert self.process and self.process.stdout

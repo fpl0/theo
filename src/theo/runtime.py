@@ -7,6 +7,7 @@ import json
 import os
 import signal
 import sqlite3
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
@@ -503,8 +504,22 @@ async def serve(db: Database, settings: Settings, token: str | None = None) -> N
         lock.close()
         raise Denied("Theo already has a daemon for this data root") from None
     broker = ToolBroker(db, settings)
-    socket_path = (settings.worker_home or db.root.parent) / ("theo-" + uid()[:8]) / "broker.sock"
-    await broker.listen(socket_path)
+    # Darwin's sockaddr_un has a 104-byte path limit. Data roots and the default
+    # macOS temporary directory can both exceed it. A private /tmp directory is
+    # safe for host-only mode; configured workers retain their own home boundary.
+    socket_path = (
+        Path(tempfile.mkdtemp(prefix="theo-", dir=settings.worker_home or "/tmp")) / "broker.sock"
+    )
+    try:
+        if len(os.fsencode(socket_path)) >= 104:
+            raise Denied("Native runner home is too long for a portable Unix socket path")
+        await broker.listen(socket_path)
+    except BaseException:
+        await broker.close()
+        socket_path.unlink(missing_ok=True)
+        socket_path.parent.rmdir()
+        lock.close()
+        raise
     telegram = (
         Telegram(db, settings, token)
         if token

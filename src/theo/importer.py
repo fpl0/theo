@@ -51,7 +51,7 @@ def inspect_snapshot(source: Path) -> Json:
     for name in files:
         if not name.endswith((".db", ".sqlite", ".sqlite3")):
             continue
-        db = sqlite3.connect(f"file:{source / name}?mode=ro&immutable=1", uri=True)
+        db = sqlite3.connect((source / name).resolve().as_uri() + "?mode=ro&immutable=1", uri=True)
         db.row_factory = sqlite3.Row
         try:
             tables = {

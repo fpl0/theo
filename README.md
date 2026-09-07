@@ -1,5 +1,7 @@
 # Theo
 
+[![Quality checks](https://github.com/fpl0/theo/actions/workflows/ci.yml/badge.svg)](https://github.com/fpl0/theo/actions/workflows/ci.yml)
+
 Theo is a new Python personal assistant built from ADR-0001 (7 September 2026). SQLite owns its memory and work history. Native subscription applications provide reasoning: Claude Code, Codex App Server, Cursor ACP and Grok ACP. The application contains no metered model API fallback.
 
 **Status: implementation with deterministic integration tests; not production-qualified.** Native account canaries, target Mac isolation/service tests, local model assets, live behavioural grades and a genuine seven-day soak remain required. See the [acceptance report](docs/acceptance.md) and [requirement matrix](docs/requirements.md). Theo starts with no eligible accounts and background autonomy paused.
@@ -24,6 +26,7 @@ Python 3.14.6 is selected by `.python-version`. `uv.lock` pins the dependency gr
 For development:
 
 ```sh
+uv sync --locked --extra browser --extra embeddings
 uv run pytest -q
 uv run ruff check src tests scripts
 uv run ruff format --check src tests scripts
@@ -31,6 +34,8 @@ uv run pyright
 ```
 
 Tests use temporary databases, synthetic data and native-protocol subprocess fixtures. They do not log in, call paid services, contact model accounts or modify an existing assistant. Host-restricted OS tests report explicit skips.
+
+CI runs these checks plus distribution builds and an installed-package check on standard Linux and macOS GitHub runners. It uses no paid model services, persistent caches or artifact uploads, and skips if the repository becomes private. See [quality practices and review findings](docs/code-quality.md).
 
 For real **Telegram → Theo → native model → Telegram** tests, use the [live test guide](docs/live-testing.md). It includes a runnable four-case suite, JSON/JUnit reports, and the results of an actual small local model experiment (1/4 initial checks passed).
 

@@ -1,29 +1,58 @@
-name: Deterministic checks
+name: Quality checks
+
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
 permissions:
   contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  THEO_TEST_OFFLINE: "1"
+  HF_HUB_OFFLINE: "1"
+  HF_HUB_DISABLE_TELEMETRY: "1"
+  DO_NOT_TRACK: "1"
+
 jobs:
   check:
+    # Standard runners are free while public; skip if visibility changes.
+    if: github.event.repository.private == false
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-14]
+        os: [ubuntu-24.04, macos-14]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          enable-cache: true
-      - run: uv sync --frozen --extra browser --extra embeddings
-      - run: uv run ruff check src tests scripts
-      - run: uv run ruff format --check src tests scripts
-      - run: uv run pyright
-      - run: uv run pytest -q
-        env:
-          THEO_TEST_OFFLINE: "1"
-          HF_HUB_OFFLINE: "1"
-          HF_HUB_DISABLE_TELEMETRY: "1"
-          DO_NOT_TRACK: "1"
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.11.33"
+          enable-cache: false
+      - name: Validate lock and install dependencies
+        run: uv sync --locked --extra browser --extra embeddings
+      - name: Lint
+        run: uv run --no-sync ruff check src tests scripts
+      - name: Format
+        run: uv run --no-sync ruff format --check src tests scripts
+      - name: Strict type checking
+        run: uv run --no-sync pyright
+      - name: Offline tests
+        run: uv run --no-sync pytest -q
+      - name: Build wheel and source distribution
+        run: uv build
+      - name: Verify installed package and bundled migrations
+        shell: bash
+        run: |
+          uv venv "$RUNNER_TEMP/theo-wheel" --python 3.14.6
+          uv pip install --python "$RUNNER_TEMP/theo-wheel/bin/python" --no-deps dist/*.whl
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/theo-wheel/bin/python" -c 'from importlib.resources import files; import theo; assert len(list(files("theo").joinpath("migrations").iterdir())) >= 2; print("Installed package and migrations verified")'

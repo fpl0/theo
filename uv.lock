@@ -1565,6 +1565,7 @@ source = { editable = "." }
 dependencies = [
     { name = "agent-client-protocol" },
     { name = "aiogram" },
+    { name = "aiohttp" },
     { name = "croniter" },
     { name = "httpx", extra = ["socks"] },
     { name = "mcp" },
@@ -1600,6 +1601,7 @@ dev = [
 requires-dist = [
     { name = "agent-client-protocol", specifier = ">=0.7,<1" },
     { name = "aiogram", specifier = ">=3.22,<4" },
+    { name = "aiohttp", specifier = ">=3.14,<4" },
     { name = "croniter", specifier = ">=6,<7" },
     { name = "fastembed", marker = "extra == 'embeddings'", specifier = ">=0.7,<1" },
     { name = "httpx", extras = ["socks"], specifier = ">=0.28,<1" },
