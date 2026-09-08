@@ -4,7 +4,7 @@
 
 Use the README's locked install first. The core works without eagerly loading browser or ML packages. Target deployment is an awake Apple Silicon Mac with owner-verified encrypted storage. `--encrypted-storage` is an operator attestation; it does not enable FileVault or encrypt SQLite itself.
 
-Create a runner home outside the protected data root, with separate `tmp` and `workspaces` directories. Keep its native subscription logins there. Install a second locked Theo environment for the MCP shim in an OS-readable, non-writable runtime location outside the data root, such as an operator-managed `/opt/theo-worker`. Set `worker_python` to that environment's Python. The shim must be executable by the native worker even when the protected core/release directory is unreadable.
+Create a runner home outside the protected data root, with separate `tmp` and `workspaces` directories. Keep its native subscription logins there. Install a second locked Theo environment for the MCP shim in an OS-readable, non-writable runtime location outside the data root, such as an operator-managed `/opt/theo-worker`. Set `worker_python` to that environment's Python. The shim must be executable by the native worker even when the protected core/release directory is unreadable. Upgrade that environment from the same lock as the core whenever dependencies change: the shim runs there, not in the core environment, so a stale worker keeps an older `mcp` and fails at run start.
 
 Export the existing JSON configuration, edit it locally, and apply it with:
 
