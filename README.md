@@ -2,9 +2,27 @@
 
 [![Quality checks](https://github.com/fpl0/theo/actions/workflows/ci.yml/badge.svg)](https://github.com/fpl0/theo/actions/workflows/ci.yml)
 
-Theo is a new Python personal assistant built from ADR-0001 (7 September 2026). SQLite owns its memory and work history. Native subscription applications provide reasoning: Claude Code, Codex App Server, Cursor ACP and Grok ACP. The application contains no metered model API fallback.
+Theo is a personal assistant you run yourself.
+
+It remembers what you tell it, and lets you correct it when it gets something wrong. It takes on work that outlives a single conversation, survives a restart in the middle of it, and tells you honestly whether it finished. It reaches you on Telegram or in your terminal, keeps track of what you asked for and when it is due, and asks before it acts in the world on your behalf.
+
+Everything it knows lives in one SQLite database on your machine. Its thinking comes from native subscription apps you already pay for, so there is no metered model API and no per-token bill.
 
 **Status: implementation with deterministic integration tests; not production-qualified.** Native account canaries, target Mac isolation/service tests, local model assets, live behavioural grades and a genuine seven-day soak remain required. See the [acceptance report](docs/acceptance.md) and [requirement matrix](docs/requirements.md). Theo starts with no eligible accounts and background autonomy paused.
+
+## What Theo can do
+
+**Remember you accurately.** Memory is revisioned rather than overwritten, so a correction is recorded as a correction and you can see what it used to think. Facts carry the period they were true for. Search combines full-text with optional local vectors, and every answer can show you the exact context it was built from.
+
+**Finish what it starts.** Work is durable: a job survives a restart, a crash or a cancelled run, and picks up where it left off. Long tasks split into child jobs. When a run cannot finish because an account is out of quota or needs a login, Theo says that instead of inventing a result.
+
+**Act on your behalf, with a check.** It reads and writes files in a scoped workspace, runs commands, keeps artifacts, creates voice notes and tracks goals. Actions that reach the outside world go through a durable approval step, and delivery is receipted, so a send whose outcome is uncertain gets reconciled rather than blindly retried. [Tool catalogue](docs/tools.md).
+
+**Reach you where you are.** Telegram handles text, photos, documents and voice, and the terminal client gives you the same assistant locally. Reminders and schedules are timezone- and DST-aware and fire whether or not a model is available.
+
+**Work on its own, within limits.** Bounded autonomy loops let it make progress between your messages, and a separate critic decides whether anything is worth interrupting you about.
+
+**Stay recoverable.** Online backups, quarantined restores, staged immutable releases, code rollback and an independent supervisor, all driven from the CLI. Your data exports in structured form.
 
 ## Start locally
 
@@ -52,14 +70,10 @@ With Theo running, open a second terminal and run `uv run theo chat`. Paste or d
 
 Telegram requires the exact numeric owner and chat IDs in configuration and the bot token in macOS Keychain service `theo.telegram` or `THEO_TELEGRAM_TOKEN`. Inbound updates are committed before the next polling acknowledgement. Local CLI conversations stay local even when Telegram is configured.
 
-## What is implemented
+## Going deeper
 
-- Revisioned SQLite memory, reviewed corrections, facts with validity intervals, FTS, optional local vectors, graph links, canonical checkpoints and inspectable context snapshots.
-- Durable parent/child jobs, per-conversation serialization, lease generations, cancellation, quota/auth waiting states and truthful final-report obligations.
-- All 33 baseline tool handlers plus scoped files, commands, artifacts, local voice creation, goals, fact proposals and reviewed skills. [Tool catalogue](docs/tools.md).
-- Telegram text and rich media, input retention and local extraction, durable action approvals, chunk receipts and uncertain-send reconciliation.
-- Timezone-aware schedules, DST rules, reminders independent of model capacity, eleven bounded autonomy loops and a separate critic for optional outreach.
-- CLI administration, online backups, quarantined restores, immutable release builder/staging, compatible code rollback, an independent supervisor and optional narrow health alerts.
-- Read-only Luke snapshot import, structured exports and a fixed 30-case behavioural evaluation pack.
+Under the hood it is Python on SQLite, with reasoning supplied by Claude Code, Codex App Server, Cursor ACP or Grok ACP over their native protocols. Read [architecture and decisions](docs/architecture.md), [operations](docs/operations.md), [compatibility](docs/compatibility.json), [performance measurements](docs/capacity-results.json) and [remaining qualification work](docs/acceptance.md).
 
-Read [architecture and decisions](docs/architecture.md), [operations](docs/operations.md), [compatibility](docs/compatibility.json), [performance measurements](docs/capacity-results.json) and [remaining qualification work](docs/acceptance.md). Existing Luke source was inspected as reference evidence; Theo imports none of its modules and requires none of its files.
+Claims here are meant to be checkable. [Captured evidence](docs/evidence/) holds the raw terminal recordings and JSON reports behind the testing statements above.
+
+A read-only importer brings across a snapshot from an earlier assistant, Luke. That source was inspected as reference evidence only; Theo imports none of its modules and requires none of its files. A fixed 30-case behavioural evaluation pack measures answer quality.
