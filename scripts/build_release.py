@@ -25,7 +25,7 @@ def build(source: Path, destination: Path, release_id: str) -> None:
     destination.mkdir(parents=True)
     try:
         subprocess.run(
-            ["uv", "venv", "--relocatable", "--python", "3.14.6", str(destination)], check=True
+            ["uv", "venv", "--relocatable", "--python", "3.14", str(destination)], check=True
         )
         env = {**os.environ, "UV_PROJECT_ENVIRONMENT": str(destination)}
         subprocess.run(
