@@ -2,6 +2,48 @@
 
 Source contract: the owner-provided ADR-0001, 7 September 2026. The owner explicitly named the assistant **Theo**; the distribution is `theo-assistant`, the import package and CLI are `theo`.
 
+## Source organization
+
+Packages follow the responsibility that owns a behavior. Shared contracts and the database authority remain at the root; orchestration composes the feature services. Import concrete modules directly rather than adding broad re-exports to package initializers.
+
+| Location under `src/theo/` | Responsibility |
+| --- | --- |
+| `domain.py`, `config.py` | Shared data contracts, errors, identities and operator configuration. |
+| `storage.py`, `migrations/`, `privacy.py` | SQLite transactions and migrations, shared persistence primitives and conversation visibility. |
+| `application/` | `service` owns daemon lifetime and background loops; `coordinator` runs leased attempts; `commands` handles host commands; `status` provides a read-only projection. |
+| `work/` | Job admission and fencing, schedules, goal plans, background-work policy and reviewed improvements. |
+| `memory/` | `store` owns canonical revisions and retrieval; `context` assembles auditable worker input; `embeddings` maintains the optional derived index. |
+| `tools/` | `schemas` defines wire inputs; `registry` binds handlers and receipt policy; `authorization` checks leases and visibility; `broker` owns grants, validation, receipts, audit and the socket. |
+| `tools/handlers/` | Model-facing memory, work, workspace, feedback and outbound operations, each calling the appropriate service. |
+| `backends/` | Separate Claude, Codex and ACP adapters, a shared native lifecycle, account policy, RPC transport and adapter factory. |
+| `delivery/` | Transactional actions and outbox receipts in `ledger`, transport contracts in `contracts`, pure text splitting in `chunking`. |
+| `channels/telegram/` | Polling/admission adapter, API sender, media hydration, persistent state, pure normalization, controls, rendering and diagnostics. |
+| `channels/terminal/` | Durable client, attachment ingestion, turn presentation and interactive prompt loop. |
+| `content/` | Artifact validation/storage, guarded public-web reads and optional local media processing. |
+| `execution/` | OS isolation, owned-process recovery, workspace execution/promotion and file checksums. |
+| `operations/` | Verified backups, portable export, legacy import, release management and qualification evidence. |
+| `observability/` | Bounded instrumentation and the independent read-only host observer. |
+| `cli/`, `__main__.py`, `mcp_shim.py`, `supervisor.py`, `observer.py` | Operator CLI and process entry points. The root observer module preserves existing service launch commands. |
+
+### Dependency rules
+
+- Shared contracts, persistence and feature services do not import their callers in the application, CLI, channels or tool broker. Conversation commands receive a cancellation callback from the coordinator rather than importing it.
+- Channel adapters translate input and remote receipts. Durable jobs belong to `work`; memory policy belongs to `memory`; outbound approvals and uncertainty belong to `delivery`.
+- A tool handler receives an immutable `ToolCall` containing the authorized database view, settings, run context and conversation scope. It cannot grant capabilities or change the catalog. Bulk memory calls repeat the per-item authorization checks.
+- Tool definitions declare `read`, `write` or `outbound` effects explicitly. The broker reserves replay receipts for writes, while outbound operations use the delivery ledger. Registry order has no effect on this policy. Browsing with optional screenshot storage retains a write receipt even though its successful response status is `ok`.
+- Native adapters own only their protocol and execution lifecycle. The application selects and coordinates them through `backends.factory`; shared process recovery does not import the supervisor.
+- Package initializers stay lightweight. Optional dependencies load at the point of use. Deferred imports must not conceal a module cycle.
+
+`tests/test_architecture.py` checks import resolution, cycles, dependency direction, CLI import isolation and the published tool schemas. Existing behavior tests remain under `tests/`; operational probes and evaluation entry points keep their documented names under `scripts/`.
+
+### Adding or changing code
+
+Put business rules in the owning service and keep tool/channel adapters thin. To add a tool, define a strict input model in `tools/schemas.py`, implement the appropriate capability handler, and register its schema, description and effect policy in `tools/registry.py`. Regenerate the reference with `uv run python scripts/export_tool_schemas.py` and test its real state/receipt behavior.
+
+Every production module starts with a docstring explaining what it owns and how it relates to neighboring modules. Describe the actual responsibility and important boundaries rather than repeating the filename or making general quality claims. Ruff requires module and package docstrings.
+
+The reorganization changes internal Python import paths. The `theo` console command, `python -m theo`, MCP shim, supervisor and observer launch paths remain available. SQL migration files, checksums, persisted formats and model-visible tool contracts are unchanged; no data migration is required.
+
 ## Boundaries
 
 ```mermaid
@@ -45,9 +87,9 @@ Autonomy uses typed work, proposal or justified no-op results with cadence and s
 
 ## Deliberate departures and limits
 
-- Telegram sends literal plain text, with UTF-16-safe chunks and caption continuations. It does not parse or balance model-produced HTML. This keeps channel output valid while sacrificing styled HTML parity.
-- The local video path supplies a first-frame preview and retains the original. It does not claim full temporal video understanding. Audio transcription requires locally provisioned Apple Silicon speech assets.
-- Native workers use their native login stores. Generated code has a stricter Mac profile denying native-home credentials, networking and protected core paths. Linux dedicated-UID isolation is a canary path, not a qualified generated-code sandbox. The Mac profile still requires real target verification and may need adjustment for the installed vendor runtime.
+- Telegram uses a bounded, escaped rich renderer with literal-text fallback after definite rejection, Unicode-safe chunks, and caption continuations. Private drafts are ephemeral; final delivery remains ledger-controlled. See [Telegram](telegram.md).
+- The local video path supplies up to eight timestamped samples and retains the original. Coverage remains partial. Audio transcription requires locally provisioned Apple Silicon speech assets.
+- Native workers use their native login stores. Generated code has a stricter Mac profile denying native-home credentials, networking and protected core paths. Linux dedicated-UID isolation is a canary path, not a qualified generated-code sandbox. Local macOS sandbox canaries cover protected/sibling paths, generated-code credential denial and installed Codex startup. Complete target deployment verification remains separate and may require adjustment for the installed vendor runtime.
 - Conservative retries, explicit account re-verification and operator code promotion favor reviewable state. Automatic cross-provider selection, general long-history semantic compaction and unattended self-patch promotion remain follow-up implementation work, separately identified in the requirement matrix.
 - Qualification reports are operator-only, source-attributed records. They are evidence attestations, not cryptographic proof of human grades or observed uptime. Configuration booleans alone cannot qualify a deployment.
 

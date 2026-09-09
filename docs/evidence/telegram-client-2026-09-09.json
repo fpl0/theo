@@ -1,0 +1,140 @@
+{
+  "observed_at": "2026-09-09T00:09:27.871686+00:00",
+  "scope": "Manual macOS Telegram interface checks against the dedicated test bot and real Theo transport",
+  "bot": "theo_fpl0_test_bot",
+  "credential_storage": "Process memory only; no Keychain or token file",
+  "model_inference_tested": false,
+  "production_qualified": false,
+  "passed": [
+    {
+      "case": "private owner pairing",
+      "evidence": "Unique pairing command sent through Telegram; configured test daemon answered /help and /status."
+    },
+    {
+      "case": "scheduled delivery",
+      "evidence": "Reminder A appeared in Telegram at 00:54 local while model processing was paused."
+    },
+    {
+      "case": "callback cancellation and repeated tap",
+      "evidence": "Cancel reminder B tapped twice; callback recorded once and schedule inactive."
+    },
+    {
+      "case": "queued edit identity",
+      "evidence": "Telegram native edit changed ORBIT-17 to ORBIT-29; one job and two immutable message revisions."
+    },
+    {
+      "case": "typing before answer",
+      "evidence": "Observed typing in Telegram header before the synthetic draft started."
+    },
+    {
+      "case": "native draft growth",
+      "evidence": "Observed one temporary message grow from the synthetic stream prefix to multiple sentences."
+    },
+    {
+      "case": "rich line breaks and final delivery",
+      "evidence": "Final synthetic message retained paragraphs; result action has exactly one receipt."
+    },
+    {
+      "case": "graceful restart persistence",
+      "evidence": "Stopped and restarted the test process; prior history, edits and cancelled/delivered schedules remained."
+    },
+    {
+      "case": "document transport receipt",
+      "evidence": "Uploaded synthetic-note.txt using the Telegram file chooser; document reference and caption stored durably. Extraction remains pending."
+    },
+    {
+      "case": "outbound reply reference",
+      "evidence": "Missing-model response appeared as a reply to its originating text/document in Telegram."
+    },
+    {
+      "case": "job cancellation",
+      "evidence": "/cancel stopped only the synthetic ORBIT edit job."
+    }
+  ],
+  "not_tested": [
+    "Native model conversations and model-generated streaming",
+    "Native Stop interaction and process cancellation",
+    "Incoming quoted reply via client",
+    "Approvals and memory review through live buttons",
+    "Group/topic and other-participant live isolation",
+    "Photo, voice, audio, video and other media extraction/delivery",
+    "Albums, polls and reaction event delivery",
+    "Crash recovery, partial/uncertain send drills and rate limits",
+    "Seven-day observation"
+  ],
+  "local_evidence": {
+    "events": [
+      {
+        "status": "done",
+        "n": 15
+      }
+    ],
+    "revisions": [
+      {
+        "message_id": 17,
+        "revision": 1
+      },
+      {
+        "message_id": 17,
+        "revision": 2
+      }
+    ],
+    "schedules": [
+      {
+        "id": "3e45f74ccbc84e781d7e4fdb51e3e9b164fb1cc5a42666c56288a5e68abb6f48",
+        "body": "Telegram UI test: scheduled delivery check A",
+        "active": 0
+      },
+      {
+        "id": "6eb2c39c8c55742ba76315e0f0ca8d4865cfb101fa310ab7309138ab220e9092",
+        "body": "Telegram UI test: cancel this reminder B",
+        "active": 0
+      }
+    ],
+    "cancelled_test_job": [
+      {
+        "id": "f43ce16a-2308-42f0-9fb4-bb738d2b826d",
+        "status": "cancelled"
+      }
+    ],
+    "stream_receipts": [
+      {
+        "id": "34c12299-85dd-4672-9e36-1957bf3534f0",
+        "semantic_key": "presentation-probe:7923fe6a-9c8f-4433-ab71-2b60ad3213db:intro",
+        "status": "succeeded",
+        "receipt_count": 1
+      },
+      {
+        "id": "f1bc0b77-2070-49a5-8b33-595562a22794",
+        "semantic_key": "presentation-probe:7923fe6a-9c8f-4433-ab71-2b60ad3213db:result",
+        "status": "succeeded",
+        "receipt_count": 1
+      }
+    ],
+    "controls": [
+      {
+        "key": "background_paused",
+        "value": "true"
+      },
+      {
+        "key": "notifications_paused",
+        "value": "false"
+      },
+      {
+        "key": "models_paused",
+        "value": "false"
+      }
+    ]
+  },
+  "fixes": [
+    "Use typing in private chats until nonempty visible draft text is available.",
+    "Render Rich HTML newlines with explicit br tags.",
+    "Use a one-time loopback password form for in-memory bot connection."
+  ],
+  "validation": {
+    "full_suite_before_concurrent_telemetry_edits": "183 passed, 1 Linux-only skip",
+    "latest_telegram_and_observer_suite": "36 passed",
+    "telegram_files_ruff": "pass",
+    "whole_tree_final_status": "Concurrent telemetry edits introduced separate formatting and strict typing failures; no whole-tree clean claim."
+  }
+}

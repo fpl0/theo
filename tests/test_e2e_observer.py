@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from theo.delivery import Delivery
+from theo.application.coordinator import Coordinator
+from theo.delivery.ledger import Delivery
 from theo.domain import ExecutionOutcome, Outcome
-from theo.jobs import Jobs
-from theo.runtime import Coordinator
-from theo.tools import ToolBroker
+from theo.tools.broker import ToolBroker
+from theo.work.jobs import Jobs
 
 spec = importlib.util.spec_from_file_location(
     "telegram_e2e", Path(__file__).parents[1] / "scripts/telegram_e2e.py"

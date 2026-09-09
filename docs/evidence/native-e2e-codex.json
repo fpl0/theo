@@ -1,0 +1,75 @@
+{
+  "scope": "local native adapter + coordinator + MCP + SQLite + local delivery",
+  "backend": "codex",
+  "model": "gpt-5.6-sol",
+  "python": "3.14.7",
+  "telegram_tested": false,
+  "deployment_qualification_tested": false,
+  "cases": [
+    {
+      "name": "round_trip",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "answer": true,
+        "delivered": true,
+        "receipt": true,
+        "tool": true
+      },
+      "passed": true,
+      "output": "theo-e2e-f92c8de7",
+      "error": null
+    },
+    {
+      "name": "remember",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "answer": true,
+        "delivered": true,
+        "receipt": true,
+        "tool": true,
+        "persisted": true
+      },
+      "passed": true,
+      "output": "SAVED",
+      "error": null
+    },
+    {
+      "name": "recall",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "answer": true,
+        "delivered": true,
+        "receipt": true,
+        "tool": true,
+        "retrieved": true
+      },
+      "passed": true,
+      "output": "violet-otter-4edc65a0",
+      "error": null
+    },
+    {
+      "name": "document",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "answer": true,
+        "delivered": true,
+        "receipt": true,
+        "tool": true
+      },
+      "passed": true,
+      "output": "amber-lark-f0ef1107",
+      "error": null
+    }
+  ],
+  "passed": true,
+  "started_at": "2026-09-08T21:40:08.979277+00:00",
+  "runtime_version": "codex-cli 0.153.4"
+}

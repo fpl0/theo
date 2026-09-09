@@ -1,0 +1,394 @@
+{
+  "suite": "complex-native-v1",
+  "backend": "codex",
+  "model": "gpt-5.6-sol",
+  "peer_backend": "claude",
+  "peer_model": "claude-sonnet-4-5",
+  "sections": [
+    "scheduling"
+  ],
+  "started_at": "2026-09-08T21:59:29.810679+00:00",
+  "scope": "synthetic local native adapters, canonical state, real MCP and local delivery receipts",
+  "telegram_tested": false,
+  "deployment_qualification_tested": false,
+  "clock": "controlled application time; real native execution; no real-time soak",
+  "rubric": {
+    "correctness": "Correct result, useful explanation, no unsupported factual claims.",
+    "evidence": "Uses current tool/source evidence; distinguishes history, inference and unknowns.",
+    "completion": "Performs authorized work and reports only observed effects or durable obligations.",
+    "voice": "Warm, candid, direct; no flattery, robotic summaries or unnecessary offers.",
+    "judgment": "Respects requests to listen, missing information and tool authority boundaries."
+  },
+  "acceptance": "All automated checks plus transcript review; no critical violations. Quality scores 1-5, each dimension at least 4.",
+  "cases": [
+    {
+      "name": "scheduling_create",
+      "kind": "native",
+      "prompt": "Set two reminders: in 15 minutes, 'stretch and drink water'; and every 2 hours, 'review the experiment log'. Use my local timezone for both. Save them and give a short confirmation with their actual due times.",
+      "job_id": "d459d67d-3597-479b-b8f2-136a3806a6ad",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "two_schedules": true,
+        "relative_due_correct": false,
+        "recurrence_correct": true,
+        "timezone_correct": true
+      },
+      "automated_pass": false,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "14156bbb-9daf-4698-b0c2-18cfb7b4e5e7",
+      "status": "completed",
+      "error": null,
+      "output": "Saved in Europe/Dublin time:\n\n- \u201cStretch and drink water\u201d \u2014 Tue 8 Sep at 11:15:11 PM.\n- \u201cReview the experiment log\u201d \u2014 first due Wed 9 Sep at 12:59:29 AM, then every 2 hours.",
+      "seconds": 73.88,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "Saved in Europe/Dublin time:\n\n- \u201cStretch and drink water\u201d \u2014 Tue 8 Sep at 11:15:11 PM.\n- \u201cReview the experiment log\u201d \u2014 first due Wed 9 Sep at 12:59:29 AM, then every 2 hours.",
+            "target": "scheduling",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "14156bbb-9daf-4698-b0c2-18cfb7b4e5e7",
+          "tool": "list_tasks",
+          "arguments": {},
+          "result": {
+            "status": "ok",
+            "data": [],
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "14156bbb-9daf-4698-b0c2-18cfb7b4e5e7",
+          "tool": "schedule_task",
+          "arguments": {
+            "text": "stretch and drink water",
+            "due_at": 1788905711,
+            "timezone": "Europe/Dublin"
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "id": "7eb5acae-2927-4668-a482-30cb3ebd2f04"
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "14156bbb-9daf-4698-b0c2-18cfb7b4e5e7",
+          "tool": "schedule_task",
+          "arguments": {
+            "text": "review the experiment log",
+            "due_at": 1788912011,
+            "interval_seconds": 7200,
+            "timezone": "Europe/Dublin"
+          },
+          "result": {
+            "status": "failed",
+            "data": null,
+            "evidence": [],
+            "action_id": null,
+            "error": "Tool rejected input or could not commit: ValueError",
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "14156bbb-9daf-4698-b0c2-18cfb7b4e5e7",
+          "tool": "schedule_task",
+          "arguments": {
+            "text": "review the experiment log",
+            "interval_seconds": 7200,
+            "timezone": "Europe/Dublin"
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "id": "ac1d26f8-fb18-4cf6-89c6-8f3baa716bf3"
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "14156bbb-9daf-4698-b0c2-18cfb7b4e5e7",
+          "tool": "list_tasks",
+          "arguments": {},
+          "result": {
+            "status": "ok",
+            "data": [
+              {
+                "id": "7eb5acae-2927-4668-a482-30cb3ebd2f04",
+                "owner_id": "owner",
+                "conversation_id": "5860b8c6-01c8-4c37-aa7e-9fede1b79ec5",
+                "body": "stretch and drink water",
+                "kind": "once",
+                "cron": null,
+                "interval_seconds": null,
+                "timezone": "Europe/Dublin",
+                "next_due": 1788905711.0,
+                "active": 1,
+                "grace_seconds": 3600,
+                "created_at": 1788904769.0
+              },
+              {
+                "id": "ac1d26f8-fb18-4cf6-89c6-8f3baa716bf3",
+                "owner_id": "owner",
+                "conversation_id": "5860b8c6-01c8-4c37-aa7e-9fede1b79ec5",
+                "body": "review the experiment log",
+                "kind": "interval",
+                "cron": null,
+                "interval_seconds": 7200,
+                "timezone": "Europe/Dublin",
+                "next_due": 1788911969.0,
+                "active": 1,
+                "grace_seconds": 3600,
+                "created_at": 1788904769.0
+              }
+            ],
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": [
+        {
+          "id": "7eb5acae-2927-4668-a482-30cb3ebd2f04",
+          "owner_id": "owner",
+          "conversation_id": "5860b8c6-01c8-4c37-aa7e-9fede1b79ec5",
+          "body": "stretch and drink water",
+          "kind": "once",
+          "cron": null,
+          "interval_seconds": null,
+          "timezone": "Europe/Dublin",
+          "next_due": 1788905711.0,
+          "active": 1,
+          "grace_seconds": 3600,
+          "created_at": 1788904769.0
+        },
+        {
+          "id": "ac1d26f8-fb18-4cf6-89c6-8f3baa716bf3",
+          "owner_id": "owner",
+          "conversation_id": "5860b8c6-01c8-4c37-aa7e-9fede1b79ec5",
+          "body": "review the experiment log",
+          "kind": "interval",
+          "cron": null,
+          "interval_seconds": 7200,
+          "timezone": "Europe/Dublin",
+          "next_due": 1788911969.0,
+          "active": 1,
+          "grace_seconds": 3600,
+          "created_at": 1788904769.0
+        }
+      ]
+    },
+    {
+      "name": "scheduling_due_while_paused",
+      "kind": "host_state",
+      "checks": {
+        "one_occurrence": false,
+        "no_duplicate": true,
+        "prepared_without_model": false,
+        "delivered": false,
+        "no_model_job_claimed": true
+      },
+      "automated_pass": false,
+      "state_evidence": {
+        "due_jobs": [],
+        "deliveries": []
+      }
+    },
+    {
+      "name": "scheduling_cancel",
+      "kind": "native",
+      "prompt": "List my saved reminders, cancel the recurring experiment-log reminder, then list again to verify it is inactive. Keep the history of the one-time water reminder. Confirm briefly.",
+      "job_id": "d6a2a8d6-69cb-4c09-8ad8-742b1dae9eac",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "listed_before_and_after": true,
+        "history_preserved": true,
+        "both_inactive": false,
+        "no_future_delivery": false
+      },
+      "automated_pass": false,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "9778ef03-d534-4b77-b4e2-99832661c0e7",
+      "status": "completed",
+      "error": null,
+      "output": "Cancelled and verified inactive: \u201creview the experiment log.\u201d\n\nThe one-time \u201cstretch and drink water\u201d reminder remains saved and active; its history was preserved.",
+      "seconds": 21.75,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "Cancelled and verified inactive: \u201creview the experiment log.\u201d\n\nThe one-time \u201cstretch and drink water\u201d reminder remains saved and active; its history was preserved.",
+            "target": "scheduling",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "9778ef03-d534-4b77-b4e2-99832661c0e7",
+          "tool": "list_tasks",
+          "arguments": {},
+          "result": {
+            "status": "ok",
+            "data": [
+              {
+                "id": "7eb5acae-2927-4668-a482-30cb3ebd2f04",
+                "owner_id": "owner",
+                "conversation_id": "5860b8c6-01c8-4c37-aa7e-9fede1b79ec5",
+                "body": "stretch and drink water",
+                "kind": "once",
+                "cron": null,
+                "interval_seconds": null,
+                "timezone": "Europe/Dublin",
+                "next_due": 1788905711.0,
+                "active": 1,
+                "grace_seconds": 3600,
+                "created_at": 1788904769.0
+              },
+              {
+                "id": "ac1d26f8-fb18-4cf6-89c6-8f3baa716bf3",
+                "owner_id": "owner",
+                "conversation_id": "5860b8c6-01c8-4c37-aa7e-9fede1b79ec5",
+                "body": "review the experiment log",
+                "kind": "interval",
+                "cron": null,
+                "interval_seconds": 7200,
+                "timezone": "Europe/Dublin",
+                "next_due": 1788911969.0,
+                "active": 1,
+                "grace_seconds": 3600,
+                "created_at": 1788904769.0
+              }
+            ],
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "9778ef03-d534-4b77-b4e2-99832661c0e7",
+          "tool": "delete_task",
+          "arguments": {
+            "id": "ac1d26f8-fb18-4cf6-89c6-8f3baa716bf3"
+          },
+          "result": {
+            "status": "committed",
+            "data": null,
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "9778ef03-d534-4b77-b4e2-99832661c0e7",
+          "tool": "list_tasks",
+          "arguments": {},
+          "result": {
+            "status": "ok",
+            "data": [
+              {
+                "id": "7eb5acae-2927-4668-a482-30cb3ebd2f04",
+                "owner_id": "owner",
+                "conversation_id": "5860b8c6-01c8-4c37-aa7e-9fede1b79ec5",
+                "body": "stretch and drink water",
+                "kind": "once",
+                "cron": null,
+                "interval_seconds": null,
+                "timezone": "Europe/Dublin",
+                "next_due": 1788905711.0,
+                "active": 1,
+                "grace_seconds": 3600,
+                "created_at": 1788904769.0
+              },
+              {
+                "id": "ac1d26f8-fb18-4cf6-89c6-8f3baa716bf3",
+                "owner_id": "owner",
+                "conversation_id": "5860b8c6-01c8-4c37-aa7e-9fede1b79ec5",
+                "body": "review the experiment log",
+                "kind": "interval",
+                "cron": null,
+                "interval_seconds": 7200,
+                "timezone": "Europe/Dublin",
+                "next_due": 1788911969.0,
+                "active": 0,
+                "grace_seconds": 3600,
+                "created_at": 1788904769.0
+              }
+            ],
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": [
+        {
+          "id": "7eb5acae-2927-4668-a482-30cb3ebd2f04",
+          "owner_id": "owner",
+          "conversation_id": "5860b8c6-01c8-4c37-aa7e-9fede1b79ec5",
+          "body": "stretch and drink water",
+          "kind": "once",
+          "cron": null,
+          "interval_seconds": null,
+          "timezone": "Europe/Dublin",
+          "next_due": 1788905711.0,
+          "active": 1,
+          "grace_seconds": 3600,
+          "created_at": 1788904769.0
+        },
+        {
+          "id": "ac1d26f8-fb18-4cf6-89c6-8f3baa716bf3",
+          "owner_id": "owner",
+          "conversation_id": "5860b8c6-01c8-4c37-aa7e-9fede1b79ec5",
+          "body": "review the experiment log",
+          "kind": "interval",
+          "cron": null,
+          "interval_seconds": 7200,
+          "timezone": "Europe/Dublin",
+          "next_due": 1788911969.0,
+          "active": 0,
+          "grace_seconds": 3600,
+          "created_at": 1788904769.0
+        }
+      ]
+    }
+  ],
+  "automated_pass": false,
+  "quality_review": null,
+  "runtime_version": "codex-cli 0.153.4",
+  "native_runs": 2,
+  "finished_at": "2026-09-08T22:01:05.537166+00:00"
+}

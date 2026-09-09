@@ -11,26 +11,28 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 
-from theo.artifacts import Artifacts
-from theo.channels import Telegram
-from theo.context import ContextAssembler
-from theo.delivery import Delivery
+from theo.channels.telegram.adapter import Telegram
+from theo.content.artifacts import Artifacts
+from theo.delivery.ledger import Delivery
 from theo.domain import Conflict, Denied, ToolContext, uid
-from theo.improvement import Critic, Improvement
-from theo.isolation import launch_options
-from theo.jobs import Jobs
-from theo.memory import Memory
-from theo.operations import Releases, file_hash
-from theo.qualification import qualification_status
-from theo.scheduling import Scheduler
-from theo.tools import REGISTRY, ToolBroker
-from theo.workspaces import create_worktree, git, promote_worktree
+from theo.execution.files import file_hash
+from theo.execution.isolation import launch_options
+from theo.execution.workspaces import create_worktree, git, promote_worktree
+from theo.memory.context import ContextAssembler
+from theo.memory.store import Memory
+from theo.operations.qualification import qualification_status
+from theo.operations.releases import Releases
+from theo.tools.broker import ToolBroker
+from theo.tools.registry import REGISTRY
+from theo.work.improvement import Critic, Improvement
+from theo.work.jobs import Jobs
+from theo.work.scheduling import Scheduler
 
 
 async def test_restore_quarantine_release_requires_review_and_resolved_jobs(
     db, settings, conversation
 ):
-    from theo.operations import release_recovery
+    from theo.operations.releases import release_recovery
 
     await db.set_control("owner", "quarantined", "true")
     await db.set_control("owner", "recovery_since", str(db.clock()))
@@ -244,6 +246,8 @@ async def test_a31_real_unprivileged_process_cannot_read_or_write_core(db, setti
 
 
 async def test_a32_release_integrity_and_schema_rollback_gate(db, settings, tmp_path):
+    schema = await db.one("SELECT max(version) AS version FROM schema_migrations")
+    assert schema
     release = tmp_path / "release"
     release.mkdir()
     (release / "code.py").write_text("version = 1")
@@ -253,7 +257,7 @@ async def test_a32_release_integrity_and_schema_rollback_gate(db, settings, tmp_
         "source_commit": "fixture",
         "lock_sha256": "fixture",
         "schema_min": 1,
-        "schema_max": 2,
+        "schema_max": schema["version"],
         "files": {"code.py": file_hash(release / "code.py")},
         "canary_passed": True,
     }

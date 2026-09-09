@@ -1,0 +1,43 @@
+{
+  "scope": "local native adapter + coordinator + MCP + SQLite + local delivery",
+  "backend": "codex",
+  "model": "gpt-5.6-sol",
+  "python": "3.14.7",
+  "telegram_tested": false,
+  "deployment_qualification_tested": false,
+  "cases": [
+    {
+      "name": "round_trip",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "answer": true,
+        "delivered": true,
+        "receipt": true,
+        "tool": true
+      },
+      "passed": true,
+      "output": "theo-e2e-b28ea4cf",
+      "error": null
+    },
+    {
+      "name": "remember",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "answer": true,
+        "delivered": true,
+        "receipt": true,
+        "tool": false,
+        "persisted": false
+      },
+      "passed": false,
+      "output": "Saving that now.NOT SAVED \u2014 the remember call was blocked because approval is unavailable.",
+      "error": null
+    }
+  ],
+  "passed": false,
+  "runtime_version": "codex-cli 0.153.4"
+}

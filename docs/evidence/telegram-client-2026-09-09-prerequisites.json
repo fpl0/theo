@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-09-09T02:03:10.662169+00:00",
+  "suite": "Live qualification prerequisite recheck",
+  "bot_username": "theo_fpl0_test_bot",
+  "production_qualified": false,
+  "model_inference_tested": false,
+  "daemon_handle": {
+    "session_id": 33387,
+    "verified_running_this_turn": true,
+    "restarted_this_turn": false
+  },
+  "accounts": [],
+  "jobs": [
+    {
+      "status": "cancelled",
+      "count": 2
+    },
+    {
+      "status": "completed",
+      "count": 18
+    },
+    {
+      "status": "waiting_for_auth",
+      "count": 6
+    }
+  ],
+  "events": [
+    {
+      "status": "done",
+      "count": 41
+    }
+  ],
+  "destinations": [
+    {
+      "chat_id": 8201332044,
+      "topic_id": 0,
+      "private": 1
+    }
+  ],
+  "uncertain_deliveries": 0,
+  "latest_message_id": 99,
+  "client_attempts": [
+    {
+      "case": "Reaction and forwarding menus",
+      "result": "unverified",
+      "observation": "Right-click and Shift+F10 on the latest test message did not open message actions in the automation-accessible client."
+    },
+    {
+      "case": "Incoming GIF upload",
+      "result": "unverified",
+      "observation": "The native file chooser selected synthetic-animation.gif, but returning to Telegram produced no send preview or incoming update. No media send was claimed."
+    }
+  ],
+  "blocking_prerequisites": [
+    {
+      "name": "Qualified Codex account",
+      "evidence": "No enrolled backend_accounts row; six jobs remain waiting_for_auth. Genuine account spending-control attestation is still pending. No gate was bypassed."
+    },
+    {
+      "name": "Dedicated group and topics",
+      "evidence": "Only the private destination is configured. Prior automatic approval review rejected group creation because it could not verify the UI target; the requested user resolution remains pending."
+    },
+    {
+      "name": "Remaining manual-client operations",
+      "evidence": "Reaction changes, poll revoting, forwarding, remaining incoming media formats and playback are not fully verified through the available native UI."
+    }
+  ],
+  "remaining_after_prerequisites": [
+    "Codex-backed conversations, semantic media answers and streamed output.",
+    "Active model cancellation and interrupted-run recovery.",
+    "Allowed group/topic behavior and privacy isolation in the live client.",
+    "Complete remaining media and feedback client cases.",
+    "Genuine seven-day service observation and final requirement-by-requirement audit."
+  ],
+  "last_regression_evidence": "telegram-client-2026-09-09-recovery.json",
+  "observability_evidence": "observability-local-2026-09-09.json#post_reconciliation_restart_check"
+}

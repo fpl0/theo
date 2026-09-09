@@ -6,15 +6,20 @@ import json
 import tempfile
 from pathlib import Path
 
+from native_e2e import require_local_live
+
+from theo.application.coordinator import Coordinator
 from theo.config import load_settings
 from theo.domain import Denied, encode, uid
-from theo.jobs import Jobs
-from theo.runtime import Coordinator
 from theo.storage import Database
-from theo.tools import ToolBroker
+from theo.tools.broker import ToolBroker
+from theo.work.jobs import Jobs
 
 
-async def evaluate(root: Path, backend: str, model: str, limit: int, output: Path) -> None:
+async def evaluate(
+    root: Path, backend: str, model: str, limit: int, output: Path, *, live: bool = False
+) -> None:
+    require_local_live(live)
     settings = load_settings(root)
     if settings.owner_id != "evaluation" or not settings.isolation_verified:
         raise Denied(
@@ -92,6 +97,7 @@ async def evaluate(root: Path, backend: str, model: str, limit: int, output: Pat
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--live", action="store_true", required=True)
     parser.add_argument("--data-root", type=Path, required=True)
     parser.add_argument("--backend", choices=("claude", "codex", "cursor", "grok"), required=True)
     parser.add_argument("--model", required=True)
@@ -99,5 +105,12 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     asyncio.run(
-        evaluate(args.data_root.resolve(), args.backend, args.model, args.limit, args.output)
+        evaluate(
+            args.data_root.resolve(),
+            args.backend,
+            args.model,
+            args.limit,
+            args.output,
+            live=args.live,
+        )
     )

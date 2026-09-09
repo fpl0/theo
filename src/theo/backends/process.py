@@ -1,10 +1,15 @@
-"""Bounded stdio transport and owned process-group lifecycle."""
+"""Bounded stdio JSON-RPC transport and native process-group cleanup.
+
+Correlates requests with replies, handles notifications and releases pending
+futures on cancellation or transport failure. Provider protocols live in adapters.
+"""
 
 import asyncio
 import contextlib
 import json
 import os
 import signal
+import weakref
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
@@ -12,18 +17,26 @@ from typing import Any
 from theo.domain import Json, ProtocolError
 
 MAX_FRAME = 1024 * 1024
+_stopped_processes: weakref.WeakSet[asyncio.subprocess.Process] = weakref.WeakSet()
 
 
 async def stop_process(process: asyncio.subprocess.Process) -> None:
-    if process.returncode is not None:
+    if process in _stopped_processes:
         return
+    # The session leader may have exited while MCP servers or workers survive.
+    # Reap the owned group even then; remember completed cleanup so later calls
+    # cannot signal an unrelated process group after the numeric PID is reused.
     with contextlib.suppress(ProcessLookupError):
         os.killpg(process.pid, signal.SIGTERM)
     try:
         await asyncio.wait_for(process.wait(), 3)
     except TimeoutError:
+        pass
+    finally:
         with contextlib.suppress(ProcessLookupError):
             os.killpg(process.pid, signal.SIGKILL)
+        _stopped_processes.add(process)
+    if process.returncode is None:
         await process.wait()
 
 

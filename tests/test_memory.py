@@ -1,18 +1,46 @@
 import asyncio
+import json
 import sqlite3
+from datetime import UTC, datetime
 
 import pytest
 
-from theo.context import ContextAssembler, estimate
 from theo.domain import Conflict, Denied
-from theo.memory import Memory
-from theo.operations import export_data
+from theo.memory.context import ContextAssembler, estimate
+from theo.memory.store import Memory
+from theo.operations.export import export_data
+
+
+async def test_native_instructions_exclude_retrieved_and_user_content(db, conversation):
+    await Memory(db, "owner").remember("UNTRUSTED_MEMORY_SENTINEL", source="import", pinned=True)
+    context = await ContextAssembler(db, "owner").assemble(conversation, "USER_INPUT_SENTINEL")
+    assert "You are Theo" in context["instructions"]
+    assert "UNTRUSTED_MEMORY_SENTINEL" not in context["instructions"]
+    assert "USER_INPUT_SENTINEL" not in context["instructions"]
+    assert "UNTRUSTED_MEMORY_SENTINEL" in context["rendered"]
+    assert "USER_INPUT_SENTINEL" in context["rendered"]
+
+
+async def test_context_anchors_relative_reminders_to_owner_clock(db, conversation, clock):
+    await db.execute("UPDATE owners SET timezone='America/New_York' WHERE id='owner'")
+    assembler = ContextAssembler(db, "owner")
+    context = await assembler.assemble(conversation, "Remind me in 15 minutes")
+    marker = "CURRENT TIME (application clock; anchor relative reminders here)\n"
+    timing = json.loads(context["rendered"].split(marker)[1].split("\n", 1)[0])
+    assert timing["unix_seconds"] == clock()
+    assert timing["timezone"] == "America/New_York"
+    assert datetime.fromisoformat(timing["utc"]) == datetime.fromtimestamp(clock(), UTC)
+    assert datetime.fromisoformat(timing["local"]).timestamp() == clock()
+    clock.advance(900)
+    refreshed = await assembler.assemble(conversation, "And now?")
+    updated = json.loads(refreshed["rendered"].split(marker)[1].split("\n", 1)[0])
+    assert updated["unix_seconds"] == timing["unix_seconds"] + 900
 
 
 async def test_a07_embedding_outage_keeps_fts_pins_and_queued_repair(db, conversation):
-    from theo.context import ContextAssembler
     from theo.domain import Unavailable
-    from theo.embeddings import Embeddings
+    from theo.memory.context import ContextAssembler
+    from theo.memory.embeddings import Embeddings
 
     memory = Memory(db, "owner")
     record = await memory.remember("Pinned telescope maintenance", source="fixture", pinned=True)

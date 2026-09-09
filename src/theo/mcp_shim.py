@@ -1,4 +1,8 @@
-"""Credential-free stdio MCP facade. The run grant is the only authority."""
+"""Run-scoped stdio MCP bridge for native reasoning workers.
+
+Relays tool listing and calls to the host broker over a Unix socket using an
+opaque grant. It has no database path, channel credential or grant-creation authority.
+"""
 
 import asyncio
 import json

@@ -1,0 +1,68 @@
+logging { level = "warn" }
+otelcol.receiver.otlp "theo" {
+  http { endpoint = "0.0.0.0:4318" }
+  output {
+    metrics = [otelcol.processor.memory_limiter.theo.input]
+    logs = [otelcol.processor.memory_limiter.theo.input]
+    traces = [otelcol.processor.memory_limiter.theo.input]
+  }
+}
+otelcol.processor.memory_limiter "theo" {
+  check_interval = "1s"
+  limit = "80MiB"
+  spike_limit = "16MiB"
+  output {
+    metrics = [otelcol.processor.batch.theo.input]
+    logs = [otelcol.processor.batch.theo.input]
+    traces = [otelcol.processor.batch.theo.input]
+  }
+}
+otelcol.processor.batch "theo" {
+  timeout = "1s"
+  send_batch_size = 64
+  send_batch_max_size = 128
+  output {
+    metrics = [otelcol.processor.transform.identity.input]
+    logs = [otelcol.exporter.otlphttp.loki.input]
+    traces = [otelcol.exporter.otlphttp.tempo.input]
+  }
+}
+otelcol.exporter.prometheus "theo" {
+  forward_to = [prometheus.remote_write.local.receiver]
+}
+prometheus.remote_write "local" {
+  endpoint {
+    url = "http://prometheus:9090/api/v1/write"
+    send_exemplars = true
+    queue_config {
+      capacity = 1000
+      max_shards = 1
+      max_samples_per_send = 200
+    }
+  }
+  wal { max_keepalive_time = "15m" }
+}
+otelcol.exporter.otlphttp "loki" {
+  client { endpoint = "http://loki:3100/otlp" }
+  sending_queue {
+    queue_size = 128
+    num_consumers = 1
+  }
+  retry_on_failure { max_elapsed_time = "30s" }
+}
+otelcol.exporter.otlphttp "tempo" {
+  client { endpoint = "http://tempo:4318" }
+  sending_queue {
+    queue_size = 128
+    num_consumers = 1
+  }
+  retry_on_failure { max_elapsed_time = "30s" }
+}
+
+otelcol.processor.transform "identity" {
+  metric_statements {
+    context = "datapoint"
+    statements = ["set(attributes[\"environment\"], resource.attributes[\"deployment.environment.name\"])"]
+  }
+  output { metrics = [otelcol.exporter.prometheus.theo.input] }
+}

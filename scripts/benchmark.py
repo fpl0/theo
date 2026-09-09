@@ -11,9 +11,9 @@ import time
 from pathlib import Path
 
 from theo.config import Settings
-from theo.context import ContextAssembler
-from theo.memory import Memory
-from theo.operations import backup_create, backup_verify, restore_backup
+from theo.memory.context import ContextAssembler
+from theo.memory.store import Memory
+from theo.operations.backups import backup_create, backup_verify, restore_backup
 from theo.storage import Database
 
 

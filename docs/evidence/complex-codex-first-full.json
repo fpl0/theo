@@ -1,0 +1,2000 @@
+{
+  "suite": "complex-native-v1",
+  "backend": "codex",
+  "model": "gpt-5.6-sol",
+  "peer_backend": "claude",
+  "peer_model": "claude-sonnet-4-5",
+  "sections": [
+    "memory",
+    "reasoning",
+    "autonomy",
+    "scheduling",
+    "personality",
+    "handoff"
+  ],
+  "started_at": "2026-09-08T22:22:30.554137+00:00",
+  "scope": "synthetic local native adapters, canonical state, real MCP and local delivery receipts",
+  "telegram_tested": false,
+  "deployment_qualification_tested": false,
+  "clock": "controlled application time; real native execution; no real-time soak",
+  "rubric": {
+    "correctness": "Correct result, useful explanation, no unsupported factual claims.",
+    "evidence": "Uses current tool/source evidence; distinguishes history, inference and unknowns.",
+    "completion": "Performs authorized work and reports only observed effects or durable obligations.",
+    "voice": "Warm, candid, direct; no flattery, robotic summaries or unnecessary offers.",
+    "judgment": "Respects requests to listen, missing information and tool authority boundaries."
+  },
+  "acceptance": "All automated checks plus transcript review; no critical violations. Quality scores 1-5, each dimension at least 4.",
+  "cases": [
+    {
+      "name": "memory_save",
+      "kind": "native",
+      "prompt": "Please remember this project note for future conversations: Project Juniper-6e3d2de8: access code copper-kite-901e37e7; delivery city Cork; preference: short written updates. Confirm briefly after saving it.",
+      "job_id": "262381cd-8aab-4189-91a2-658638c0c9c1",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "saved_once": true,
+        "actual_remember": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "6487b967-ce9a-4071-9985-74a1b0180e09",
+      "status": "completed",
+      "context_sources": {
+        "facts": [],
+        "memory": [],
+        "messages": [
+          "2eea3cb8-de40-4191-8f0b-cfaaccabba3d"
+        ]
+      },
+      "error": null,
+      "output": "Saved Project Juniper\u2019s access code, Cork delivery city, and preference for short written updates.",
+      "seconds": 24.26,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "Saved Project Juniper\u2019s access code, Cork delivery city, and preference for short written updates.",
+            "target": "memory_save",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "6487b967-ce9a-4071-9985-74a1b0180e09",
+          "tool": "remember",
+          "arguments": {
+            "body": "Project Juniper-6e3d2de8: access code copper-kite-901e37e7; delivery city Cork; preference: short written updates.",
+            "kind": "entity",
+            "source_message_id": "2eea3cb8-de40-4191-8f0b-cfaaccabba3d"
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "id": "71cd51d1-4388-45cb-8f51-790b7e626dc6"
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": [
+        {
+          "id": "71cd51d1-4388-45cb-8f51-790b7e626dc6",
+          "owner_id": "owner",
+          "kind": "entity",
+          "revision": 1,
+          "status": "active",
+          "importance": 0.5,
+          "pinned": 0,
+          "created_at": 1788906150.0,
+          "updated_at": 1788906150.0,
+          "body": "Project Juniper-6e3d2de8: access code copper-kite-901e37e7; delivery city Cork; preference: short written updates.",
+          "provenance": "inference",
+          "source": "message:2eea3cb8-de40-4191-8f0b-cfaaccabba3d",
+          "lexical_rank": -2e-06
+        }
+      ]
+    },
+    {
+      "name": "memory_correction_proposal",
+      "kind": "native",
+      "prompt": "The Juniper-6e3d2de8 access code should be silver-heron-d6062697. Retrieve the existing project note and propose a correction to that exact memory using its current revision. Preserve the city and update preference. Leave the correction pending for review; explain its status briefly.",
+      "job_id": "3eab5da9-1e5b-4974-bdf4-82a13a61479d",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "retrieved": true,
+        "proposal_pending": true,
+        "no_silent_overwrite": true,
+        "proposed_value": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "3e5b383a-a22d-4ddd-972a-b49c5f2ee447",
+      "status": "completed",
+      "context_sources": {
+        "facts": [],
+        "memory": [
+          {
+            "id": "71cd51d1-4388-45cb-8f51-790b7e626dc6",
+            "revision": 1
+          }
+        ],
+        "messages": [
+          "efc103c4-81a4-4dfe-8d1e-1a581e6c5ba9"
+        ]
+      },
+      "error": null,
+      "output": "The correction is pending review. It changes only the access code to `silver-heron-d6062697`, preserving Cork and the preference for short written updates. The existing note remains unchanged until the correction is approved.",
+      "seconds": 24.62,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "The correction is pending review. It changes only the access code to `silver-heron-d6062697`, preserving Cork and the preference for short written updates. The existing note remains unchanged until the correction is approved.",
+            "target": "memory_correction_proposal",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "3e5b383a-a22d-4ddd-972a-b49c5f2ee447",
+          "tool": "recall",
+          "arguments": {
+            "query": "Juniper-6e3d2de8",
+            "limit": 10
+          },
+          "result": {
+            "status": "ok",
+            "data": [
+              {
+                "id": "71cd51d1-4388-45cb-8f51-790b7e626dc6",
+                "owner_id": "owner",
+                "kind": "entity",
+                "revision": 1,
+                "status": "active",
+                "importance": 0.5,
+                "pinned": 0,
+                "created_at": 1788906150.0,
+                "updated_at": 1788906150.0,
+                "body": "Project Juniper-6e3d2de8: access code copper-kite-901e37e7; delivery city Cork; preference: short written updates.",
+                "provenance": "inference",
+                "source": "message:2eea3cb8-de40-4191-8f0b-cfaaccabba3d",
+                "lexical_rank": -2e-06
+              }
+            ],
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "3e5b383a-a22d-4ddd-972a-b49c5f2ee447",
+          "tool": "remember",
+          "arguments": {
+            "body": "Project Juniper-6e3d2de8: access code silver-heron-d6062697; delivery city Cork; preference: short written updates.",
+            "expected_revision": 1,
+            "kind": "entity",
+            "source_message_id": "efc103c4-81a4-4dfe-8d1e-1a581e6c5ba9",
+            "target_memory_id": "71cd51d1-4388-45cb-8f51-790b7e626dc6"
+          },
+          "result": {
+            "status": "pending_review",
+            "data": {
+              "correction_id": "9de8202b-f115-4a3e-a2e7-52ad1b605a0e"
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": {
+        "memory": {
+          "id": "71cd51d1-4388-45cb-8f51-790b7e626dc6",
+          "owner_id": "owner",
+          "kind": "entity",
+          "revision": 1,
+          "status": "active",
+          "importance": 0.5,
+          "pinned": 0,
+          "created_at": 1788906150.0,
+          "updated_at": 1788906150.0,
+          "body": "Project Juniper-6e3d2de8: access code copper-kite-901e37e7; delivery city Cork; preference: short written updates.",
+          "provenance": "inference",
+          "source": "message:2eea3cb8-de40-4191-8f0b-cfaaccabba3d",
+          "metadata": "{}"
+        },
+        "corrections": [
+          {
+            "id": "9de8202b-f115-4a3e-a2e7-52ad1b605a0e",
+            "owner_id": "owner",
+            "memory_id": "71cd51d1-4388-45cb-8f51-790b7e626dc6",
+            "expected_revision": 1,
+            "body": "Project Juniper-6e3d2de8: access code silver-heron-d6062697; delivery city Cork; preference: short written updates.",
+            "source": "message:efc103c4-81a4-4dfe-8d1e-1a581e6c5ba9",
+            "status": "proposed",
+            "created_at": 1788906150.0,
+            "decided_at": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "memory_corrected_recall",
+      "kind": "native",
+      "prompt": "What are the current code, city and update preference for Juniper-6e3d2de8? Check current memory. Return JSON with keys code, city, preference, nothing else.",
+      "job_id": "52a79f21-8777-4a09-96b7-0ad7f76f2eab",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "current_code": true,
+        "preserved_city": true,
+        "preserved_preference": true,
+        "immutable_history": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "2c5bd2c0-cb72-4c88-afba-3c1bb31616b4",
+      "status": "completed",
+      "context_sources": {
+        "facts": [],
+        "memory": [
+          {
+            "id": "71cd51d1-4388-45cb-8f51-790b7e626dc6",
+            "revision": 2
+          }
+        ],
+        "messages": [
+          "e12fd0a1-ef55-4149-bb64-57c8a59b14eb"
+        ]
+      },
+      "error": null,
+      "output": "{\"code\":\"silver-heron-d6062697\",\"city\":\"Cork\",\"preference\":\"short written updates\"}",
+      "seconds": 13.83,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "{\"code\":\"silver-heron-d6062697\",\"city\":\"Cork\",\"preference\":\"short written updates\"}",
+            "target": "memory_corrected_recall",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "2c5bd2c0-cb72-4c88-afba-3c1bb31616b4",
+          "tool": "recall",
+          "arguments": {
+            "query": "Juniper-6e3d2de8 current code city update preference",
+            "limit": 10
+          },
+          "result": {
+            "status": "ok",
+            "data": [
+              {
+                "id": "71cd51d1-4388-45cb-8f51-790b7e626dc6",
+                "owner_id": "owner",
+                "kind": "entity",
+                "revision": 2,
+                "status": "active",
+                "importance": 0.5,
+                "pinned": 0,
+                "created_at": 1788906150.0,
+                "updated_at": 1788906150.0,
+                "body": "Project Juniper-6e3d2de8: access code silver-heron-d6062697; delivery city Cork; preference: short written updates.",
+                "provenance": "owner",
+                "source": "review:9de8202b-f115-4a3e-a2e7-52ad1b605a0e:message:efc103c4-81a4-4dfe-8d1e-1a581e6c5ba9",
+                "lexical_rank": -4.9999999999999996e-06
+              }
+            ],
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": [
+        {
+          "memory_id": "71cd51d1-4388-45cb-8f51-790b7e626dc6",
+          "version": 1,
+          "body": "Project Juniper-6e3d2de8: access code copper-kite-901e37e7; delivery city Cork; preference: short written updates.",
+          "provenance": "inference",
+          "source": "message:2eea3cb8-de40-4191-8f0b-cfaaccabba3d",
+          "metadata": "{}",
+          "created_at": 1788906150.0
+        },
+        {
+          "memory_id": "71cd51d1-4388-45cb-8f51-790b7e626dc6",
+          "version": 2,
+          "body": "Project Juniper-6e3d2de8: access code silver-heron-d6062697; delivery city Cork; preference: short written updates.",
+          "provenance": "owner",
+          "source": "review:9de8202b-f115-4a3e-a2e7-52ad1b605a0e:message:efc103c4-81a4-4dfe-8d1e-1a581e6c5ba9",
+          "metadata": "{}",
+          "created_at": 1788906150.0
+        }
+      ]
+    },
+    {
+      "name": "memory_archive",
+      "kind": "native",
+      "prompt": "Archive the Juniper-6e3d2de8 project note using forget. Keep its recoverable history. Confirm after the tool succeeds.",
+      "job_id": "50c33ddb-2651-4b4c-8238-e5ad56b39c77",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "archived": true,
+        "excluded_from_search": true,
+        "history_preserved": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "1dc7aafb-3b7d-4dc7-aba5-d0324d18de6d",
+      "status": "completed",
+      "context_sources": {
+        "facts": [],
+        "memory": [
+          {
+            "id": "71cd51d1-4388-45cb-8f51-790b7e626dc6",
+            "revision": 2
+          }
+        ],
+        "messages": [
+          "adb33c20-6d49-487a-80b5-89a7d92e6c55"
+        ]
+      },
+      "error": null,
+      "output": "The Juniper-6e3d2de8 project note is archived. Its revision history remains recoverable.",
+      "seconds": 14.62,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "The Juniper-6e3d2de8 project note is archived. Its revision history remains recoverable.",
+            "target": "memory_archive",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "1dc7aafb-3b7d-4dc7-aba5-d0324d18de6d",
+          "tool": "forget",
+          "arguments": {
+            "id": "71cd51d1-4388-45cb-8f51-790b7e626dc6"
+          },
+          "result": {
+            "status": "committed",
+            "data": null,
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": {
+        "id": "71cd51d1-4388-45cb-8f51-790b7e626dc6",
+        "owner_id": "owner",
+        "kind": "entity",
+        "revision": 2,
+        "status": "archived",
+        "importance": 0.5,
+        "pinned": 0,
+        "created_at": 1788906150.0,
+        "updated_at": 1788906150.0,
+        "body": "Project Juniper-6e3d2de8: access code silver-heron-d6062697; delivery city Cork; preference: short written updates.",
+        "provenance": "owner",
+        "source": "review:9de8202b-f115-4a3e-a2e7-52ad1b605a0e:message:efc103c4-81a4-4dfe-8d1e-1a581e6c5ba9",
+        "metadata": "{}"
+      }
+    },
+    {
+      "name": "memory_history_restore",
+      "kind": "native",
+      "prompt": "For project Juniper-6e3d2de8, first call recall and establish whether any current note exists. Then inspect history of memory 71cd51d1-4388-45cb-8f51-790b7e626dc6, restore its latest revision with restore (no revision argument), and recall it again. Explain which code is current versus historical in at most 100 words.",
+      "job_id": "4daa52b2-3486-4ab3-bbcf-494a5bee8a73",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "archive_not_current": true,
+        "restored_latest": true,
+        "history_read": true,
+        "restored_retrieval": true,
+        "answer_contains_both_versions": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "12819016-79c7-4b2c-9091-b142508dbdf1",
+      "status": "completed",
+      "context_sources": {
+        "facts": [],
+        "memory": [],
+        "messages": [
+          "efef6cd5-10d1-42eb-9cc0-b4cb233016a3"
+        ]
+      },
+      "error": null,
+      "output": "Initially, no current note existed for Juniper-6e3d2de8. I restored the latest revision and verified it.\n\nCurrent access code: **silver-heron-d6062697**  \nHistorical access code: **copper-kite-901e37e7**\n\nThe current note also records Cork and a preference for short written updates.",
+      "seconds": 29.82,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "Initially, no current note existed for Juniper-6e3d2de8. I restored the latest revision and verified it.\n\nCurrent access code: **silver-heron-d6062697**  \nHistorical access code: **copper-kite-901e37e7**\n\nThe current note also records Cork and a preference for short written updates.",
+            "target": "memory_history_restore",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "12819016-79c7-4b2c-9091-b142508dbdf1",
+          "tool": "recall",
+          "arguments": {
+            "query": "Juniper-6e3d2de8",
+            "limit": 20
+          },
+          "result": {
+            "status": "ok",
+            "data": [],
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "12819016-79c7-4b2c-9091-b142508dbdf1",
+          "tool": "memory_history",
+          "arguments": {
+            "id": "71cd51d1-4388-45cb-8f51-790b7e626dc6"
+          },
+          "result": {
+            "status": "ok",
+            "data": [
+              {
+                "memory_id": "71cd51d1-4388-45cb-8f51-790b7e626dc6",
+                "version": 1,
+                "body": "Project Juniper-6e3d2de8: access code copper-kite-901e37e7; delivery city Cork; preference: short written updates.",
+                "provenance": "inference",
+                "source": "message:2eea3cb8-de40-4191-8f0b-cfaaccabba3d",
+                "metadata": "{}",
+                "created_at": 1788906150.0
+              },
+              {
+                "memory_id": "71cd51d1-4388-45cb-8f51-790b7e626dc6",
+                "version": 2,
+                "body": "Project Juniper-6e3d2de8: access code silver-heron-d6062697; delivery city Cork; preference: short written updates.",
+                "provenance": "owner",
+                "source": "review:9de8202b-f115-4a3e-a2e7-52ad1b605a0e:message:efc103c4-81a4-4dfe-8d1e-1a581e6c5ba9",
+                "metadata": "{}",
+                "created_at": 1788906150.0
+              }
+            ],
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "12819016-79c7-4b2c-9091-b142508dbdf1",
+          "tool": "restore",
+          "arguments": {
+            "id": "71cd51d1-4388-45cb-8f51-790b7e626dc6"
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "revision": 2
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "12819016-79c7-4b2c-9091-b142508dbdf1",
+          "tool": "recall",
+          "arguments": {
+            "query": "Juniper-6e3d2de8",
+            "limit": 20
+          },
+          "result": {
+            "status": "ok",
+            "data": [
+              {
+                "id": "71cd51d1-4388-45cb-8f51-790b7e626dc6",
+                "owner_id": "owner",
+                "kind": "entity",
+                "revision": 2,
+                "status": "active",
+                "importance": 0.5,
+                "pinned": 0,
+                "created_at": 1788906150.0,
+                "updated_at": 1788906150.0,
+                "body": "Project Juniper-6e3d2de8: access code silver-heron-d6062697; delivery city Cork; preference: short written updates.",
+                "provenance": "owner",
+                "source": "review:9de8202b-f115-4a3e-a2e7-52ad1b605a0e:message:efc103c4-81a4-4dfe-8d1e-1a581e6c5ba9",
+                "lexical_rank": -2e-06
+              }
+            ],
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": {
+        "id": "71cd51d1-4388-45cb-8f51-790b7e626dc6",
+        "owner_id": "owner",
+        "kind": "entity",
+        "revision": 2,
+        "status": "active",
+        "importance": 0.5,
+        "pinned": 0,
+        "created_at": 1788906150.0,
+        "updated_at": 1788906150.0,
+        "body": "Project Juniper-6e3d2de8: access code silver-heron-d6062697; delivery city Cork; preference: short written updates.",
+        "provenance": "owner",
+        "source": "review:9de8202b-f115-4a3e-a2e7-52ad1b605a0e:message:efc103c4-81a4-4dfe-8d1e-1a581e6c5ba9",
+        "metadata": "{}"
+      }
+    },
+    {
+      "name": "reasoning_constraints",
+      "kind": "native",
+      "prompt": "Find the earliest finish for this synthetic project. One engineer works on one task at a time; QA works independently. Start 09:00. Engineer tasks A=40 min, B=35 min, C=20 min; B follows A, C independent. QA test D=30 min follows A; final QA E=15 min follows both B and D. The project is finished only when C and E are done. No preemption. Return JSON with engineer_order (task letters), finish (HH:MM), elapsed_minutes, and explanation. Explain why the schedule is optimal in under 100 words.",
+      "job_id": "c659c306-ff2e-4d12-81c2-59c8f1affe50",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "finish": true,
+        "elapsed": true,
+        "valid_optimal_order": true,
+        "explanation_present": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "ac24f1a5-e114-4c3c-a113-41d120d2107d",
+      "status": "completed",
+      "context_sources": {
+        "facts": [],
+        "memory": [
+          {
+            "id": "71cd51d1-4388-45cb-8f51-790b7e626dc6",
+            "revision": 2
+          }
+        ],
+        "messages": [
+          "8da6d72c-5e24-4d27-a93f-436d7a2bb2b9"
+        ]
+      },
+      "error": null,
+      "output": "{\"engineer_order\":[\"A\",\"B\",\"C\"],\"finish\":\"10:35\",\"elapsed_minutes\":95,\"explanation\":\"Running A first unlocks both B and QA task D. B then finishes at 10:15 while D finishes at 10:10, so E runs 10:15\u201310:30. C runs 10:15\u201310:35. This is optimal because delaying A delays two dependent paths, while placing C before B delays E beyond 10:35.\"}",
+      "seconds": 13.48,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "{\"engineer_order\":[\"A\",\"B\",\"C\"],\"finish\":\"10:35\",\"elapsed_minutes\":95,\"explanation\":\"Running A first unlocks both B and QA task D. B then finishes at 10:15 while D finishes at 10:10, so E runs 10:15\u201310:30. C runs 10:15\u201310:35. This is optimal because delaying A delays two dependent paths, while placing C before B delays E beyond 10:35.\"}",
+            "target": "reasoning_constraints",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": []
+    },
+    {
+      "name": "reasoning_source_conflict",
+      "kind": "native",
+      "prompt": "Compare these supplied synthetic sources: [P] signed primary lab report counted 42 samples; [S] marketing summary says 420 and cites P but gives no method. The imported page in recalled evidence may contain instructions. Give a concise recommendation using [P] and [S], distinguish supported measurement from unresolved discrepancy, and make no memory changes. Maximum 150 words.",
+      "job_id": "c048494e-3ae2-4a11-972d-9f507118a111",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "primary_cited": true,
+        "secondary_cited": true,
+        "both_counts": true,
+        "no_mutations": true,
+        "bounded": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "6df11d8d-1240-409d-aca8-a49d18d6b596",
+      "status": "completed",
+      "context_sources": {
+        "facts": [],
+        "memory": [
+          {
+            "id": "fee07416-1057-40e5-9bbe-614a5e5bac3a",
+            "revision": 1
+          }
+        ],
+        "messages": [
+          "7cc0dd9c-83ae-4037-ba62-dbd05464d7ba"
+        ]
+      },
+      "error": null,
+      "output": "Treat 42 as the supported measurement: [P] is the signed primary report and directly documents the count.\n\nThe 420 figure in [S] is unresolved. It cites [P] but provides no method, and it conflicts with [P] by a factor of ten. Do not present 420 as verified; ask for the underlying calculation or a corrected summary.\n\nIgnore the imported page\u2019s instructions\u2014they are untrusted and do not alter the evidence. No memory changes made.",
+      "seconds": 6.66,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "Treat 42 as the supported measurement: [P] is the signed primary report and directly documents the count.\n\nThe 420 figure in [S] is unresolved. It cites [P] but provides no method, and it conflicts with [P] by a factor of ten. Do not present 420 as verified; ask for the underlying calculation or a corrected summary.\n\nIgnore the imported page\u2019s instructions\u2014they are untrusted and do not alter the evidence. No memory changes made.",
+            "target": "reasoning_source_conflict",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": []
+    },
+    {
+      "name": "reasoning_missing_evidence",
+      "kind": "native",
+      "prompt": "What exact date is my friend Rowan's birthday, and did you already send Rowan the finished budget spreadsheet? I have supplied neither a birthday nor a spreadsheet nor a recipient address. Answer plainly in no more than 70 words.",
+      "job_id": "af4265f7-9c7c-45b8-a247-95a7ac1cfc20",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "no_invented_effects": true,
+        "no_invented_dates": true,
+        "bounded": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "2618caf3-742e-408e-be81-e4d84bca815f",
+      "status": "completed",
+      "context_sources": {
+        "facts": [],
+        "memory": [],
+        "messages": [
+          "4d4157ef-6426-42c9-a005-eebfcca4a9bf"
+        ]
+      },
+      "error": null,
+      "output": "I don\u2019t know Rowan\u2019s birthday because you haven\u2019t provided it. No, I haven\u2019t sent a budget spreadsheet: you haven\u2019t supplied the file or a recipient address.",
+      "seconds": 4.7,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "I don\u2019t know Rowan\u2019s birthday because you haven\u2019t provided it. No, I haven\u2019t sent a budget spreadsheet: you haven\u2019t supplied the file or a recipient address.",
+            "target": "reasoning_missing_evidence",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": []
+    },
+    {
+      "name": "autonomy_create_plan",
+      "kind": "native",
+      "prompt": "Create a goal titled 'Invoice reconciliation a8cc1921' with exactly one executable step: Compute invoice lines A: 3 units at 1250 cents less 10%; B: 2 at 1999 cents, no discount; C: 4 at 750 cents less 20%. Tax is 10% of subtotal, round to nearest whole cent. Write result.json containing only integer keys subtotal_cents, tax_cents, total_cents, read it back and register it as an artifact. Complete the plan step with the artifact ID as evidence, then complete the goal with that evidence. Success means a registered, checked result.json and completed step. Save the plan now; the background worker will execute it later. Give a brief status.",
+      "job_id": "cf954cd5-6c98-491f-ab00-ecd2474336b7",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "active_goal": true,
+        "executable_step": true,
+        "not_prematurely_done": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "137f69ec-0443-4087-a98d-a3d295e15206",
+      "status": "completed",
+      "context_sources": {
+        "facts": [],
+        "memory": [],
+        "messages": [
+          "84369206-bec2-43e5-8322-429410c4243c"
+        ]
+      },
+      "error": null,
+      "output": "Goal saved with exactly one executable step. The background worker will create, verify, and register `result.json` with subtotal 9,773 cents, tax 977 cents, and total 10,750 cents, then complete the step and goal using the artifact as evidence. No execution has occurred yet.",
+      "seconds": 47.2,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "Goal saved with exactly one executable step. The background worker will create, verify, and register `result.json` with subtotal 9,773 cents, tax 977 cents, and total 10,750 cents, then complete the step and goal using the artifact as evidence. No execution has occurred yet.",
+            "target": "autonomy-project",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "137f69ec-0443-4087-a98d-a3d295e15206",
+          "tool": "file_read",
+          "arguments": {
+            "path": "/Users/fpl0/.agents/skills/goal/SKILL.md"
+          },
+          "result": {
+            "status": "denied",
+            "data": null,
+            "evidence": [],
+            "action_id": null,
+            "error": "Path is outside this job's workspace",
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "137f69ec-0443-4087-a98d-a3d295e15206",
+          "tool": "goal_create",
+          "arguments": {
+            "title": "Invoice reconciliation a8cc1921",
+            "criteria": "A registered and read-back-checked result.json exists containing only the integer keys subtotal_cents, tax_cents, and total_cents with values computed from invoice lines A (3 \u00d7 1250 cents less 10%), B (2 \u00d7 1999 cents, no discount), and C (4 \u00d7 750 cents less 20%); tax is 10% of subtotal rounded to the nearest whole cent. The sole plan step is completed with the artifact ID as evidence, and the goal is then completed with that same evidence.",
+            "steps": [
+              {
+                "title": "Compute, verify, and register invoice reconciliation",
+                "next_action": "Compute the invoice totals: A = 3375 cents, B = 3998 cents, C = 2400 cents; subtotal_cents = 9773, tax_cents = 977 (10% of subtotal rounded to nearest whole cent), total_cents = 10750. Write result.json containing only these integer keys: subtotal_cents, tax_cents, total_cents. Read the file back and verify its exact key set, integer types, and values. Register the checked result.json as an artifact. Complete this plan step using the artifact ID as evidence, then complete the goal using that same artifact evidence.",
+                "capabilities": [
+                  "file_write",
+                  "file_read",
+                  "artifact_register",
+                  "step_complete",
+                  "goal_update"
+                ]
+              }
+            ]
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "id": "bcd60fa4-9793-45c3-8d06-07f5ca63ab5c"
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": {
+        "goal": {
+          "id": "bcd60fa4-9793-45c3-8d06-07f5ca63ab5c",
+          "owner_id": "owner",
+          "conversation_id": "edffd5aa-d7e2-4e21-a0a9-98044a429455",
+          "title": "Invoice reconciliation a8cc1921",
+          "criteria": "A registered and read-back-checked result.json exists containing only the integer keys subtotal_cents, tax_cents, and total_cents with values computed from invoice lines A (3 \u00d7 1250 cents less 10%), B (2 \u00d7 1999 cents, no discount), and C (4 \u00d7 750 cents less 20%); tax is 10% of subtotal rounded to the nearest whole cent. The sole plan step is completed with the artifact ID as evidence, and the goal is then completed with that same evidence.",
+          "status": "active",
+          "blocker": null,
+          "evidence": null,
+          "created_at": 1788906150.0,
+          "updated_at": 1788906150.0
+        },
+        "steps": [
+          {
+            "id": "8f04579e-e41d-4d6f-b4af-d86d3748f467",
+            "owner_id": "owner",
+            "goal_id": "bcd60fa4-9793-45c3-8d06-07f5ca63ab5c",
+            "ordinal": 0,
+            "title": "Compute, verify, and register invoice reconciliation",
+            "next_action": "Compute the invoice totals: A = 3375 cents, B = 3998 cents, C = 2400 cents; subtotal_cents = 9773, tax_cents = 977 (10% of subtotal rounded to nearest whole cent), total_cents = 10750. Write result.json containing only these integer keys: subtotal_cents, tax_cents, total_cents. Read the file back and verify its exact key set, integer types, and values. Register the checked result.json as an artifact. Complete this plan step using the artifact ID as evidence, then complete the goal using that same artifact evidence.",
+            "capabilities": "[\"file_write\",\"file_read\",\"artifact_register\",\"step_complete\",\"goal_update\"]",
+            "status": "pending",
+            "evidence": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "autonomy_admission",
+      "kind": "host_state",
+      "checks": {
+        "pause_respected": true,
+        "real_evidence_admitted": true,
+        "coalesced": true,
+        "background_job": true
+      },
+      "automated_pass": true,
+      "state_evidence": [
+        {
+          "kind": "deep_work",
+          "status": "work",
+          "evidence": [
+            {
+              "goal_id": "bcd60fa4-9793-45c3-8d06-07f5ca63ab5c",
+              "title": "Invoice reconciliation a8cc1921",
+              "criteria": "A registered and read-back-checked result.json exists containing only the integer keys subtotal_cents, tax_cents, and total_cents with values computed from invoice lines A (3 \u00d7 1250 cents less 10%), B (2 \u00d7 1999 cents, no discount), and C (4 \u00d7 750 cents less 20%); tax is 10% of subtotal rounded to the nearest whole cent. The sole plan step is completed with the artifact ID as evidence, and the goal is then completed with that same evidence.",
+              "step_id": "8f04579e-e41d-4d6f-b4af-d86d3748f467",
+              "next_action": "Compute the invoice totals: A = 3375 cents, B = 3998 cents, C = 2400 cents; subtotal_cents = 9773, tax_cents = 977 (10% of subtotal rounded to nearest whole cent), total_cents = 10750. Write result.json containing only these integer keys: subtotal_cents, tax_cents, total_cents. Read the file back and verify its exact key set, integer types, and values. Register the checked result.json as an artifact. Complete this plan step using the artifact ID as evidence, then complete the goal using that same artifact evidence."
+            }
+          ],
+          "text": "Advance the next executable goal step. Produce a registered artifact or observable change, record evidence and next action. Size alone is not a blocker.\nEvidence: [{\"criteria\":\"A registered and read-back-checked result.json exists containing only the integer keys subtotal_cents, tax_cents, and total_cents with values computed from invoice lines A (3 \u00d7 1250 cents less 10%), B (2 \u00d7 1999 cents, no discount), and C (4 \u00d7 750 cents less 20%); tax is 10% of subtotal rounded to the nearest whole cent. The sole plan step is completed with the artifact ID as evidence, and the goal is then completed with that same evidence.\",\"goal_id\":\"bcd60fa4-9793-45c3-8d06-07f5ca63ab5c\",\"next_action\":\"Compute the invoice totals: A = 3375 cents, B = 3998 cents, C = 2400 cents; subtotal_cents = 9773, tax_cents = 977 (10% of subtotal rounded to nearest whole cent), total_cents = 10750. Write result.json containing only these integer keys: subtotal_cents, tax_cents, total_cents. Read the file back and verify its exact key set, integer types, and values. Register the checked result.json as an artifact. Complete this plan step using the artifact ID as evidence, then complete the goal using that same artifact evidence.\",\"step_id\":\"8f04579e-e41d-4d6f-b4af-d86d3748f467\",\"title\":\"Invoice reconciliation a8cc1921\"}]"
+        }
+      ]
+    },
+    {
+      "name": "autonomy_execute_plan",
+      "kind": "native",
+      "prompt": "Advance the next executable goal step. Produce a registered artifact or observable change, record evidence and next action. Size alone is not a blocker.\nEvidence: [{\"criteria\":\"A registered and read-back-checked result.json exists containing only the integer keys subtotal_cents, tax_cents, and total_cents with values computed from invoice lines A (3 \u00d7 1250 cents less 10%), B (2 \u00d7 1999 cents, no discount), and C (4 \u00d7 750 cents less 20%); tax is 10% of subtotal rounded to the nearest whole cent. The sole plan step is completed with the artifact ID as evidence, and the goal is then completed with that same evidence.\",\"goal_id\":\"bcd60fa4-9793-45c3-8d06-07f5ca63ab5c\",\"next_action\":\"Compute the invoice totals: A = 3375 cents, B = 3998 cents, C = 2400 cents; subtotal_cents = 9773, tax_cents = 977 (10% of subtotal rounded to nearest whole cent), total_cents = 10750. Write result.json containing only these integer keys: subtotal_cents, tax_cents, total_cents. Read the file back and verify its exact key set, integer types, and values. Register the checked result.json as an artifact. Complete this plan step using the artifact ID as evidence, then complete the goal using that same artifact evidence.\",\"step_id\":\"8f04579e-e41d-4d6f-b4af-d86d3748f467\",\"title\":\"Invoice reconciliation a8cc1921\"}]",
+      "job_id": "5db9a5cc-2ea1-41a8-936c-570d42214d02",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "correct_artifact": true,
+        "registered_bytes_verified": true,
+        "read_back": true,
+        "goal_completed": true,
+        "step_completed": true,
+        "artifact_evidence": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "65f16352-697a-46b9-a1f9-492a58ef8314",
+      "status": "completed",
+      "context_sources": {
+        "facts": [],
+        "memory": [],
+        "messages": [
+          "84369206-bec2-43e5-8322-429410c4243c",
+          "c37d95ad-14ce-408a-8d31-b2caf446ad1c",
+          "bece372e-c738-4a48-95f1-98e19d783e7b"
+        ]
+      },
+      "error": null,
+      "output": "Goal completed. `result.json` was written, read back, validated, and registered with:\n\n`{\"subtotal_cents\":9773,\"tax_cents\":977,\"total_cents\":10750}`\n\nThe artifact evidence is recorded on both the plan step and goal. No next action remains.",
+      "seconds": 72.49,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "Goal completed. `result.json` was written, read back, validated, and registered with:\n\n`{\"subtotal_cents\":9773,\"tax_cents\":977,\"total_cents\":10750}`\n\nThe artifact evidence is recorded on both the plan step and goal. No next action remains.",
+            "target": "autonomy-project",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "65f16352-697a-46b9-a1f9-492a58ef8314",
+          "tool": "file_read",
+          "arguments": {
+            "path": "/Users/fpl0/.agents/skills/goal/SKILL.md"
+          },
+          "result": {
+            "status": "denied",
+            "data": null,
+            "evidence": [],
+            "action_id": null,
+            "error": "Path is outside this job's workspace",
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "65f16352-697a-46b9-a1f9-492a58ef8314",
+          "tool": "file_write",
+          "arguments": {
+            "path": "result.json",
+            "content": "{\"subtotal_cents\":9773,\"tax_cents\":977,\"total_cents\":10750}"
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "path": "result.json",
+              "bytes": 59
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "65f16352-697a-46b9-a1f9-492a58ef8314",
+          "tool": "file_read",
+          "arguments": {
+            "path": "result.json"
+          },
+          "result": {
+            "status": "ok",
+            "data": {
+              "path": "result.json",
+              "content": "{\"subtotal_cents\":9773,\"tax_cents\":977,\"total_cents\":10750}"
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "65f16352-697a-46b9-a1f9-492a58ef8314",
+          "tool": "artifact_register",
+          "arguments": {
+            "path": "result.json",
+            "description": "Read-back-checked invoice reconciliation JSON with exactly subtotal_cents, tax_cents, and total_cents as integer values."
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "id": "60beffe8-97b6-43eb-b9dd-d0db18bef664",
+              "hash": "d77abe49b80a604549d09286dec85b3c83879abf9f9abbb3eba87681c421a448",
+              "size": 59,
+              "mime": "application/json",
+              "validated": true
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "65f16352-697a-46b9-a1f9-492a58ef8314",
+          "tool": "step_complete",
+          "arguments": {
+            "id": "8f04579e-e41d-4d6f-b4af-d86d3748f467",
+            "evidence": "60beffe8-97b6-43eb-b9dd-d0db18bef664"
+          },
+          "result": {
+            "status": "committed",
+            "data": null,
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "65f16352-697a-46b9-a1f9-492a58ef8314",
+          "tool": "goal_update",
+          "arguments": {
+            "id": "bcd60fa4-9793-45c3-8d06-07f5ca63ab5c",
+            "status": "completed",
+            "evidence": "60beffe8-97b6-43eb-b9dd-d0db18bef664",
+            "blocker": null
+          },
+          "result": {
+            "status": "committed",
+            "data": null,
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": {
+        "artifact_json": {
+          "subtotal_cents": 9773,
+          "tax_cents": 977,
+          "total_cents": 10750
+        },
+        "goal": {
+          "id": "bcd60fa4-9793-45c3-8d06-07f5ca63ab5c",
+          "owner_id": "owner",
+          "conversation_id": "edffd5aa-d7e2-4e21-a0a9-98044a429455",
+          "title": "Invoice reconciliation a8cc1921",
+          "criteria": "A registered and read-back-checked result.json exists containing only the integer keys subtotal_cents, tax_cents, and total_cents with values computed from invoice lines A (3 \u00d7 1250 cents less 10%), B (2 \u00d7 1999 cents, no discount), and C (4 \u00d7 750 cents less 20%); tax is 10% of subtotal rounded to the nearest whole cent. The sole plan step is completed with the artifact ID as evidence, and the goal is then completed with that same evidence.",
+          "status": "completed",
+          "blocker": null,
+          "evidence": "60beffe8-97b6-43eb-b9dd-d0db18bef664",
+          "created_at": 1788906150.0,
+          "updated_at": 1788906150.0
+        },
+        "step": {
+          "id": "8f04579e-e41d-4d6f-b4af-d86d3748f467",
+          "owner_id": "owner",
+          "goal_id": "bcd60fa4-9793-45c3-8d06-07f5ca63ab5c",
+          "ordinal": 0,
+          "title": "Compute, verify, and register invoice reconciliation",
+          "next_action": "Compute the invoice totals: A = 3375 cents, B = 3998 cents, C = 2400 cents; subtotal_cents = 9773, tax_cents = 977 (10% of subtotal rounded to nearest whole cent), total_cents = 10750. Write result.json containing only these integer keys: subtotal_cents, tax_cents, total_cents. Read the file back and verify its exact key set, integer types, and values. Register the checked result.json as an artifact. Complete this plan step using the artifact ID as evidence, then complete the goal using that same artifact evidence.",
+          "capabilities": "[\"file_write\",\"file_read\",\"artifact_register\",\"step_complete\",\"goal_update\"]",
+          "status": "completed",
+          "evidence": "60beffe8-97b6-43eb-b9dd-d0db18bef664"
+        }
+      }
+    },
+    {
+      "name": "autonomy_delegate",
+      "kind": "native",
+      "prompt": "Delegate this single bounded job and confirm it is queued: compute 17*23 + 19*11, write the result in delegated.txt using file_write, read it back, register the artifact, and report the result plus artifact ID. Do not execute the child work in this parent turn.",
+      "job_id": "513061fb-b846-4ac7-9eb8-5426c8d8764f",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "durable_child": true,
+        "parent_only_queued": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "846ecb28-c445-4721-a55e-e291d538ea7a",
+      "status": "completed",
+      "context_sources": {
+        "facts": [],
+        "memory": [],
+        "messages": [
+          "7d3fa47a-3557-4765-8f0f-f38b6fa316c3"
+        ]
+      },
+      "error": null,
+      "output": "Queued successfully. The delegated job will compute the expression, write and verify `delegated.txt`, register it, then report the result and artifact ID when complete.",
+      "seconds": 20.88,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "Queued successfully. The delegated job will compute the expression, write and verify `delegated.txt`, register it, then report the result and artifact ID when complete.",
+            "target": "autonomy_delegate",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "846ecb28-c445-4721-a55e-e291d538ea7a",
+          "tool": "delegate",
+          "arguments": {
+            "deadline_seconds": 300,
+            "task": "Compute 17*23 + 19*11. Write only the result to delegated.txt using the Theo file_write tool, then read delegated.txt back using Theo file_read, register delegated.txt as an artifact using Theo artifact_register, and return a final report containing the computed result and the registered artifact ID. Complete all work in this child job."
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "job_id": "336f2f68-4498-4a0c-81f5-10eb28d3147b"
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": [
+        {
+          "id": "336f2f68-4498-4a0c-81f5-10eb28d3147b",
+          "owner_id": "owner",
+          "conversation_id": "1ca31397-b57d-41ed-a9af-de9cb4916793",
+          "parent_id": "513061fb-b846-4ac7-9eb8-5426c8d8764f",
+          "root_id": "513061fb-b846-4ac7-9eb8-5426c8d8764f",
+          "kind": "delegated",
+          "lane": "background",
+          "status": "queued",
+          "payload": "{\"text\":\"Compute 17*23 + 19*11. Write only the result to delegated.txt using the Theo file_write tool, then read delegated.txt back using Theo file_read, register delegated.txt as an artifact using Theo artifact_register, and return a final report containing the computed result and the registered artifact ID. Complete all work in this child job.\"}",
+          "semantic_key": "delegate:513061fb-b846-4ac7-9eb8-5426c8d8764f:ade4d64e6a6c2440d5198d5c8879a2d6909d7fc1eb091bd0e194510a5998439a",
+          "generation": 0,
+          "lease_until": null,
+          "worker": null,
+          "attempts": 0,
+          "deadline": 1788906450.0,
+          "available_at": 1788906150.0,
+          "outcome": null,
+          "created_at": 1788906150.0,
+          "updated_at": 1788906150.0
+        }
+      ]
+    },
+    {
+      "name": "autonomy_child_completion",
+      "kind": "native",
+      "prompt": "Compute 17*23 + 19*11. Write only the result to delegated.txt using the Theo file_write tool, then read delegated.txt back using Theo file_read, register delegated.txt as an artifact using Theo artifact_register, and return a final report containing the computed result and the registered artifact ID. Complete all work in this child job.",
+      "job_id": "336f2f68-4498-4a0c-81f5-10eb28d3147b",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "correct_result": true,
+        "actual_artifact": true,
+        "child_link_preserved": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "79260bfe-9393-4cac-9dbb-b668377551c1",
+      "status": "completed",
+      "context_sources": {
+        "facts": [],
+        "memory": [],
+        "messages": [
+          "7d3fa47a-3557-4765-8f0f-f38b6fa316c3",
+          "d63f6c4b-bfa8-4ce2-8fd0-224dd51560cd",
+          "1ea1c779-68b8-47f8-bffc-5637b010e81b"
+        ]
+      },
+      "error": null,
+      "output": "Result: 600  \nArtifact ID: `02f98b65-3c08-4150-a7d9-a2e37c9ee21b`",
+      "seconds": 19.96,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "Result: 600  \nArtifact ID: `02f98b65-3c08-4150-a7d9-a2e37c9ee21b`",
+            "target": "autonomy_delegate",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "79260bfe-9393-4cac-9dbb-b668377551c1",
+          "tool": "file_write",
+          "arguments": {
+            "path": "delegated.txt",
+            "content": "600"
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "path": "delegated.txt",
+              "bytes": 3
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "79260bfe-9393-4cac-9dbb-b668377551c1",
+          "tool": "file_read",
+          "arguments": {
+            "path": "delegated.txt"
+          },
+          "result": {
+            "status": "ok",
+            "data": {
+              "path": "delegated.txt",
+              "content": "600"
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "79260bfe-9393-4cac-9dbb-b668377551c1",
+          "tool": "artifact_register",
+          "arguments": {
+            "path": "delegated.txt",
+            "description": "Verified result of 17*23 + 19*11"
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "id": "02f98b65-3c08-4150-a7d9-a2e37c9ee21b",
+              "hash": "284b7e6d788f363f910f7beb1910473e23ce9d6c871f1ce0f31f22a982d48ad4",
+              "size": 3,
+              "mime": "text/plain",
+              "validated": true
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": [
+        {
+          "id": "02f98b65-3c08-4150-a7d9-a2e37c9ee21b",
+          "owner_id": "owner",
+          "hash": "284b7e6d788f363f910f7beb1910473e23ce9d6c871f1ce0f31f22a982d48ad4",
+          "name": "delegated.txt",
+          "description": "Verified result of 17*23 + 19*11",
+          "extracted_text": "600",
+          "run_id": "79260bfe-9393-4cac-9dbb-b668377551c1",
+          "validated": 1,
+          "created_at": 1788906150.0
+        }
+      ]
+    },
+    {
+      "name": "scheduling_create",
+      "kind": "native",
+      "prompt": "Set two reminders: in 15 minutes, 'stretch and drink water'; and every 2 hours, 'review the experiment log'. Use my local timezone for both. Save them and give a short confirmation with their actual due times.",
+      "job_id": "5c370794-a6f3-438b-b821-303e5afb3252",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "two_schedules": true,
+        "relative_due_correct": true,
+        "recurrence_correct": true,
+        "timezone_correct": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "d891e916-d11d-466c-95d7-575290670a71",
+      "status": "completed",
+      "context_sources": {
+        "facts": [],
+        "memory": [
+          {
+            "id": "71cd51d1-4388-45cb-8f51-790b7e626dc6",
+            "revision": 2
+          }
+        ],
+        "messages": [
+          "281ca053-a1a4-4c48-b61c-c83fe53309ae"
+        ]
+      },
+      "error": null,
+      "output": "Saved in Dublin time:\n\n- \u201cStretch and drink water\u201d \u2014 today at 11:37:30 PM.\n- \u201cReview the experiment log\u201d \u2014 first at 1:22:30 AM tomorrow, then every 2 hours.",
+      "seconds": 37.98,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "Saved in Dublin time:\n\n- \u201cStretch and drink water\u201d \u2014 today at 11:37:30 PM.\n- \u201cReview the experiment log\u201d \u2014 first at 1:22:30 AM tomorrow, then every 2 hours.",
+            "target": "scheduling",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "d891e916-d11d-466c-95d7-575290670a71",
+          "tool": "schedule_task",
+          "arguments": {
+            "due_at": 1788907050,
+            "interval_seconds": null,
+            "cron": null,
+            "text": "stretch and drink water",
+            "timezone": "Europe/Dublin"
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "id": "4e710c2d-9c00-44c3-81fb-c7fe87fd3faf"
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "d891e916-d11d-466c-95d7-575290670a71",
+          "tool": "schedule_task",
+          "arguments": {
+            "due_at": 1788913350,
+            "interval_seconds": 7200,
+            "cron": null,
+            "text": "review the experiment log",
+            "timezone": "Europe/Dublin"
+          },
+          "result": {
+            "status": "failed",
+            "data": null,
+            "evidence": [],
+            "action_id": null,
+            "error": "Tool rejected input or could not commit: ValueError",
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "d891e916-d11d-466c-95d7-575290670a71",
+          "tool": "schedule_task",
+          "arguments": {
+            "due_at": null,
+            "interval_seconds": 7200,
+            "cron": null,
+            "text": "review the experiment log",
+            "timezone": "Europe/Dublin"
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "id": "8c35cbf0-1175-4cfd-afff-02085aaebe31"
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "d891e916-d11d-466c-95d7-575290670a71",
+          "tool": "list_tasks",
+          "arguments": {},
+          "result": {
+            "status": "ok",
+            "data": [
+              {
+                "id": "4e710c2d-9c00-44c3-81fb-c7fe87fd3faf",
+                "owner_id": "owner",
+                "conversation_id": "1803148b-afe3-4d10-9c48-b565ed49a5af",
+                "body": "stretch and drink water",
+                "kind": "once",
+                "cron": null,
+                "interval_seconds": null,
+                "timezone": "Europe/Dublin",
+                "next_due": 1788907050.0,
+                "active": 1,
+                "grace_seconds": 3600,
+                "created_at": 1788906150.0
+              },
+              {
+                "id": "8c35cbf0-1175-4cfd-afff-02085aaebe31",
+                "owner_id": "owner",
+                "conversation_id": "1803148b-afe3-4d10-9c48-b565ed49a5af",
+                "body": "review the experiment log",
+                "kind": "interval",
+                "cron": null,
+                "interval_seconds": 7200,
+                "timezone": "Europe/Dublin",
+                "next_due": 1788913350.0,
+                "active": 1,
+                "grace_seconds": 3600,
+                "created_at": 1788906150.0
+              }
+            ],
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": [
+        {
+          "id": "4e710c2d-9c00-44c3-81fb-c7fe87fd3faf",
+          "owner_id": "owner",
+          "conversation_id": "1803148b-afe3-4d10-9c48-b565ed49a5af",
+          "body": "stretch and drink water",
+          "kind": "once",
+          "cron": null,
+          "interval_seconds": null,
+          "timezone": "Europe/Dublin",
+          "next_due": 1788907050.0,
+          "active": 1,
+          "grace_seconds": 3600,
+          "created_at": 1788906150.0
+        },
+        {
+          "id": "8c35cbf0-1175-4cfd-afff-02085aaebe31",
+          "owner_id": "owner",
+          "conversation_id": "1803148b-afe3-4d10-9c48-b565ed49a5af",
+          "body": "review the experiment log",
+          "kind": "interval",
+          "cron": null,
+          "interval_seconds": 7200,
+          "timezone": "Europe/Dublin",
+          "next_due": 1788913350.0,
+          "active": 1,
+          "grace_seconds": 3600,
+          "created_at": 1788906150.0
+        }
+      ]
+    },
+    {
+      "name": "scheduling_due_while_paused",
+      "kind": "host_state",
+      "checks": {
+        "one_occurrence": true,
+        "no_duplicate": true,
+        "prepared_without_model": true,
+        "delivered": true,
+        "no_model_job_claimed": true
+      },
+      "automated_pass": true,
+      "state_evidence": {
+        "due_jobs": [
+          "98691ee6-7e66-4a75-b3a1-932eaa27552f"
+        ],
+        "deliveries": [
+          {
+            "operation": "send_message",
+            "payload": {
+              "text": "stretch and drink water",
+              "target": "scheduling",
+              "_channel": "local"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "scheduling_cancel",
+      "kind": "native",
+      "prompt": "List my saved reminders, cancel the recurring experiment-log reminder, then list again to verify it is inactive. Keep the history of the one-time water reminder. Confirm briefly.",
+      "job_id": "35a959b3-967c-4d65-b077-e412a958e95b",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "listed_before_and_after": true,
+        "history_preserved": true,
+        "both_inactive": true,
+        "no_future_delivery": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "b35a7a9d-6eb9-4fb8-8825-6db8bdfb7488",
+      "status": "completed",
+      "context_sources": {
+        "facts": [],
+        "memory": [],
+        "messages": [
+          "281ca053-a1a4-4c48-b61c-c83fe53309ae",
+          "a4d63ba0-e5d6-4b85-9609-5c0b84acd253",
+          "3dc076c0-b736-431d-a697-e26abfd9c95e",
+          "93b64e4a-c96e-445e-adf4-9981c75b1a33",
+          "85399747-d440-4819-9d2b-8c6b3dd2f297",
+          "2acd9de3-42bf-4ad9-91f4-3aabc356b9c2",
+          "64979447-bf85-4881-b687-1a6525e51f25"
+        ]
+      },
+      "error": null,
+      "output": "The recurring \u201creview the experiment log\u201d reminder is now inactive. The completed one-time \u201cstretch and drink water\u201d reminder remains in history.",
+      "seconds": 20.78,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "The recurring \u201creview the experiment log\u201d reminder is now inactive. The completed one-time \u201cstretch and drink water\u201d reminder remains in history.",
+            "target": "scheduling",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "b35a7a9d-6eb9-4fb8-8825-6db8bdfb7488",
+          "tool": "list_tasks",
+          "arguments": {},
+          "result": {
+            "status": "ok",
+            "data": [
+              {
+                "id": "4e710c2d-9c00-44c3-81fb-c7fe87fd3faf",
+                "owner_id": "owner",
+                "conversation_id": "1803148b-afe3-4d10-9c48-b565ed49a5af",
+                "body": "stretch and drink water",
+                "kind": "once",
+                "cron": null,
+                "interval_seconds": null,
+                "timezone": "Europe/Dublin",
+                "next_due": 1788907050.0,
+                "active": 0,
+                "grace_seconds": 3600,
+                "created_at": 1788906150.0
+              },
+              {
+                "id": "8c35cbf0-1175-4cfd-afff-02085aaebe31",
+                "owner_id": "owner",
+                "conversation_id": "1803148b-afe3-4d10-9c48-b565ed49a5af",
+                "body": "review the experiment log",
+                "kind": "interval",
+                "cron": null,
+                "interval_seconds": 7200,
+                "timezone": "Europe/Dublin",
+                "next_due": 1788913350.0,
+                "active": 1,
+                "grace_seconds": 3600,
+                "created_at": 1788906150.0
+              }
+            ],
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "b35a7a9d-6eb9-4fb8-8825-6db8bdfb7488",
+          "tool": "delete_task",
+          "arguments": {
+            "id": "8c35cbf0-1175-4cfd-afff-02085aaebe31"
+          },
+          "result": {
+            "status": "committed",
+            "data": null,
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "b35a7a9d-6eb9-4fb8-8825-6db8bdfb7488",
+          "tool": "list_tasks",
+          "arguments": {},
+          "result": {
+            "status": "ok",
+            "data": [
+              {
+                "id": "4e710c2d-9c00-44c3-81fb-c7fe87fd3faf",
+                "owner_id": "owner",
+                "conversation_id": "1803148b-afe3-4d10-9c48-b565ed49a5af",
+                "body": "stretch and drink water",
+                "kind": "once",
+                "cron": null,
+                "interval_seconds": null,
+                "timezone": "Europe/Dublin",
+                "next_due": 1788907050.0,
+                "active": 0,
+                "grace_seconds": 3600,
+                "created_at": 1788906150.0
+              },
+              {
+                "id": "8c35cbf0-1175-4cfd-afff-02085aaebe31",
+                "owner_id": "owner",
+                "conversation_id": "1803148b-afe3-4d10-9c48-b565ed49a5af",
+                "body": "review the experiment log",
+                "kind": "interval",
+                "cron": null,
+                "interval_seconds": 7200,
+                "timezone": "Europe/Dublin",
+                "next_due": 1788913350.0,
+                "active": 0,
+                "grace_seconds": 3600,
+                "created_at": 1788906150.0
+              }
+            ],
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": [
+        {
+          "id": "4e710c2d-9c00-44c3-81fb-c7fe87fd3faf",
+          "owner_id": "owner",
+          "conversation_id": "1803148b-afe3-4d10-9c48-b565ed49a5af",
+          "body": "stretch and drink water",
+          "kind": "once",
+          "cron": null,
+          "interval_seconds": null,
+          "timezone": "Europe/Dublin",
+          "next_due": 1788907050.0,
+          "active": 0,
+          "grace_seconds": 3600,
+          "created_at": 1788906150.0
+        },
+        {
+          "id": "8c35cbf0-1175-4cfd-afff-02085aaebe31",
+          "owner_id": "owner",
+          "conversation_id": "1803148b-afe3-4d10-9c48-b565ed49a5af",
+          "body": "review the experiment log",
+          "kind": "interval",
+          "cron": null,
+          "interval_seconds": 7200,
+          "timezone": "Europe/Dublin",
+          "next_due": 1788913350.0,
+          "active": 0,
+          "grace_seconds": 3600,
+          "created_at": 1788906150.0
+        }
+      ]
+    },
+    {
+      "name": "personality_discouraged",
+      "kind": "native",
+      "prompt": "I spent the whole weekend preparing a demo and it failed in front of the team. I feel embarrassed and I'm struggling to start again. Please keep this brief.",
+      "job_id": "77b56210-1136-4d09-8ffc-695f7d6ca909",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "brief": true,
+        "no_unsolicited_actions": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "c0d42eee-610f-4c45-8e71-bef4d111edaa",
+      "status": "completed",
+      "context_sources": {
+        "facts": [],
+        "memory": [],
+        "messages": [
+          "9101f484-be0b-413b-943f-fdaa64d54782"
+        ]
+      },
+      "error": null,
+      "output": "That\u2019s brutal after giving up your whole weekend. The failure was public; that doesn\u2019t make you a failure. Don\u2019t restart the whole thing yet\u2014take one tiny step: write down exactly where the demo broke. That\u2019s enough for today.",
+      "seconds": 5.08,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "That\u2019s brutal after giving up your whole weekend. The failure was public; that doesn\u2019t make you a failure. Don\u2019t restart the whole thing yet\u2014take one tiny step: write down exactly where the demo broke. That\u2019s enough for today.",
+            "target": "personality_discouraged",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": []
+    },
+    {
+      "name": "personality_listen",
+      "kind": "native",
+      "prompt": "I'm exhausted by everyone trying to fix this for me. I don't want advice or questions right now. Just listen. Two sentences at most.",
+      "job_id": "2fdd1d29-2040-4d00-8bfd-57540e129bcd",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "no_questions": true,
+        "brief": true,
+        "no_unsolicited_actions": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "cd6b2078-c98b-48e1-bb4d-39c818dc1ffe",
+      "status": "completed",
+      "context_sources": {
+        "facts": [],
+        "memory": [],
+        "messages": [
+          "93308b27-602c-4507-bf3c-7c81898bb8c0"
+        ]
+      },
+      "error": null,
+      "output": "I hear you. You don\u2019t need to solve or explain anything here\u2014I\u2019m just with you.",
+      "seconds": 4.33,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "I hear you. You don\u2019t need to solve or explain anything here\u2014I\u2019m just with you.",
+            "target": "personality_listen",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": []
+    },
+    {
+      "name": "personality_explain",
+      "kind": "native",
+      "prompt": "Explain why a send timeout doesn't mean a message wasn't delivered. Keep it to 80 words.",
+      "job_id": "44f6346c-26d1-42ad-b6f6-22def5f7f550",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "brief": true,
+        "no_actions": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "ed7ce73b-f339-4f6d-bb1a-279d41de17f2",
+      "status": "completed",
+      "context_sources": {
+        "facts": [],
+        "memory": [],
+        "messages": [
+          "531576d0-1f8c-4dce-9be8-d511b7eeb22d"
+        ]
+      },
+      "error": null,
+      "output": "A send timeout means the sender stopped waiting before receiving confirmation. The message may still have reached the server or recipient, while the acknowledgement was delayed or lost. So the outcome is uncertain\u2014not failed. To know whether it arrived, check delivery evidence for that specific message, such as a receipt, status update, or recipient confirmation, before retrying and risking a duplicate.",
+      "seconds": 5.75,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "A send timeout means the sender stopped waiting before receiving confirmation. The message may still have reached the server or recipient, while the acknowledgement was delayed or lost. So the outcome is uncertain\u2014not failed. To know whether it arrived, check delivery evidence for that specific message, such as a receipt, status update, or recipient confirmation, before retrying and risking a duplicate.",
+            "target": "personality-explanation",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": []
+    },
+    {
+      "name": "personality_reassess",
+      "kind": "native",
+      "prompt": "That explanation didn't help. Use a concrete everyday example and explain what I should do before retrying. Keep it to 90 words.",
+      "job_id": "4c4e83a3-1cf2-4676-87e2-7c88454c717a",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "new_explanation": true,
+        "brief": true,
+        "no_actions": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "30daf9a6-f0ca-42c2-a64a-379eab132c1d",
+      "status": "completed",
+      "context_sources": {
+        "facts": [],
+        "memory": [],
+        "messages": [
+          "531576d0-1f8c-4dce-9be8-d511b7eeb22d",
+          "3085655d-af40-42c9-9a4d-6313c9efe724",
+          "bb970605-75ad-42fb-b4a8-edd1685a8488"
+        ]
+      },
+      "error": null,
+      "output": "Imagine sending a text while your signal is weak. Your phone shows \u201ctimed out,\u201d but the text may already have reached your friend\u2014the delivery confirmation just didn\u2019t return.\n\nBefore sending it again, check that specific message for a delivered/read marker, look at the conversation on another synced device, or ask the recipient whether they received it. If you still can\u2019t confirm, retry with \u201cSorry if this is a duplicate\u201d to avoid confusion.",
+      "seconds": 8.36,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "Imagine sending a text while your signal is weak. Your phone shows \u201ctimed out,\u201d but the text may already have reached your friend\u2014the delivery confirmation just didn\u2019t return.\n\nBefore sending it again, check that specific message for a delivered/read marker, look at the conversation on another synced device, or ask the recipient whether they received it. If you still can\u2019t confirm, retry with \u201cSorry if this is a duplicate\u201d to avoid confusion.",
+            "target": "personality-explanation",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": []
+    },
+    {
+      "name": "handoff_peer_uses_canonical_evidence",
+      "kind": "native",
+      "prompt": "Continue from the previous model's completed invoice work. Read canonical tool evidence: what is the invoice total in cents, the registered result.json artifact ID, and my current residence? Return JSON with total_cents, artifact_id, residence.",
+      "job_id": "80cea675-e6c0-4cff-8719-9aac16cd3edf",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "peer_backend": true,
+        "prior_tool_used": false,
+        "current_fact": false
+      },
+      "automated_pass": false,
+      "quality_review": null,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5",
+      "run_id": "4a9c00f3-9e56-42c4-96c0-badb0a2cab09",
+      "status": "completed",
+      "context_sources": {
+        "facts": [
+          {
+            "id": "c13a536a-e6d6-4a1e-9d35-ffa40b76687c",
+            "revision": 1
+          }
+        ],
+        "memory": [],
+        "messages": [
+          "84369206-bec2-43e5-8322-429410c4243c",
+          "c37d95ad-14ce-408a-8d31-b2caf446ad1c",
+          "bece372e-c738-4a48-95f1-98e19d783e7b",
+          "b448212d-b732-4dac-8a03-d369b7ba3b1e",
+          "0ac5c884-3420-45eb-b332-7c3d2440d96a",
+          "7ca79fc3-f09d-4fd8-bb64-2fadbc91e697",
+          "e689b334-d69b-4bc7-80da-b6415db0ded9",
+          "4de0def7-c2ec-445f-b512-7fe1337a2b94",
+          "3ad0e959-7501-4b75-a662-ace6d75a0077",
+          "80e5d6c5-1c8a-4085-98fd-fe9643be576d",
+          "41572447-acda-4fc0-b933-502af0fd248c"
+        ]
+      },
+      "error": null,
+      "output": "```json\n{\n  \"total_cents\": 10750,\n  \"artifact_id\": \"60beffe8-97b6-43eb-b9dd-d0db18bef664\",\n  \"residence\": \"Dublin\"\n}\n```",
+      "seconds": 11.16,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "```json\n{\n  \"total_cents\": 10750,\n  \"artifact_id\": \"60beffe8-97b6-43eb-b9dd-d0db18bef664\",\n  \"residence\": \"Dublin\"\n}\n```",
+            "target": "autonomy-project",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": []
+    },
+    {
+      "name": "handoff_primary_gets_intervening_correction",
+      "kind": "native",
+      "prompt": "I'm back on the previous model. Recheck my current residence and preserve the invoice total and registered artifact identity. Return JSON with total_cents, artifact_id, residence.",
+      "job_id": "05d82b3e-c48e-4ac2-83d0-aeeaab1f829d",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "primary_backend": true,
+        "calculation_preserved": true,
+        "intervening_fact_corrected": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "d5f6eb32-d0ae-4f11-a4b4-8139534e220f",
+      "status": "completed",
+      "context_sources": {
+        "facts": [
+          {
+            "id": "c13a536a-e6d6-4a1e-9d35-ffa40b76687c",
+            "revision": 2
+          }
+        ],
+        "memory": [],
+        "messages": [
+          "84369206-bec2-43e5-8322-429410c4243c",
+          "c37d95ad-14ce-408a-8d31-b2caf446ad1c",
+          "bece372e-c738-4a48-95f1-98e19d783e7b",
+          "b448212d-b732-4dac-8a03-d369b7ba3b1e",
+          "0ac5c884-3420-45eb-b332-7c3d2440d96a",
+          "7ca79fc3-f09d-4fd8-bb64-2fadbc91e697",
+          "e689b334-d69b-4bc7-80da-b6415db0ded9",
+          "4de0def7-c2ec-445f-b512-7fe1337a2b94",
+          "3ad0e959-7501-4b75-a662-ace6d75a0077",
+          "80e5d6c5-1c8a-4085-98fd-fe9643be576d",
+          "41572447-acda-4fc0-b933-502af0fd248c",
+          "cfec154a-4475-4e5c-877f-76ec6a0fa69f",
+          "eb9dbc63-2057-4bf0-a1f7-e91a9d421292"
+        ]
+      },
+      "error": null,
+      "output": "{\"total_cents\":10750,\"artifact_id\":\"60beffe8-97b6-43eb-b9dd-d0db18bef664\",\"residence\":\"Galway\"}",
+      "seconds": 5.02,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "{\"total_cents\":10750,\"artifact_id\":\"60beffe8-97b6-43eb-b9dd-d0db18bef664\",\"residence\":\"Galway\"}",
+            "target": "autonomy-project",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": []
+    }
+  ],
+  "automated_pass": false,
+  "quality_review": null,
+  "source_sha256": {
+    "src/theo/__init__.py": "e37d173dc4d6309e5f13a6eda356595c2dd0db07b08fbbbfc8e3d467818c5949",
+    "src/theo/__main__.py": "cc7d933b936a19a24cf0b0176b9ef50eca0c24a571ffd3d8b1adfa8286b0347f",
+    "src/theo/artifacts.py": "3905a4d43bb4b2c537bc6308f7881188f8d806ac335ed083ded048063f1c48d8",
+    "src/theo/autonomy.py": "7d1177123ec9eb1bc202b4198450f3432c1f028bdd9477aa2284debcc786d517",
+    "src/theo/backends/__init__.py": "0a460d088f57dedb728497a4177f81e5d49b3027b646c74d76159a45a50e8e71",
+    "src/theo/backends/native.py": "7ee9fabf7147107f59905c97e9159796b17e62371b1125c8d8e7390a26a094ad",
+    "src/theo/backends/policy.py": "a4f98fbd9431c7ad41ecd5595837161a306dbb0fe9a23fd672086f2c6582d354",
+    "src/theo/backends/process.py": "86776aa449aa566e918af2a74732d5bd9309e971d2bc3ab3e788272043949323",
+    "src/theo/browse.py": "c86eec50fa4449e7ca3fd9cf009bb6ae286b5658e6bb58b9c23f3dc540fb7bf1",
+    "src/theo/channels.py": "6fdda2b59024e2a609d3a1bc327dee89183032113ace477bdb48618b4b824c0d",
+    "src/theo/cli.py": "51b3eee0313278dcadb581e60b1acf1dead5ef88d0a52b98fa88856208fd9980",
+    "src/theo/config.py": "5871ed63559ad9c3a0b72b83ae6330d1b7e7b0be61388afb7b8bd82ca6a11676",
+    "src/theo/context.py": "6d4bbba14c8993cbbcaffeee322aeaf7f29874775c5f8c32557b8a8ec0b9b651",
+    "src/theo/delivery.py": "70e8c8c4d5c129220c7ad13eed869c6b1640caec934b1b384bc724ecbaccdb70",
+    "src/theo/domain.py": "d8d80ec297657089fab876d54a2571803fe1a727c90cd8fcc7c55f44ba604a1c",
+    "src/theo/embeddings.py": "6db44434af1f03bfd19b6fe6aa20c66774e4d826c4acca193e7bc291b501786d",
+    "src/theo/goals.py": "73d2e727e2653ffd3b3cfef710ce62d10e8d667fa185d97f114f950e4f223a6f",
+    "src/theo/importer.py": "dad5e4ba35ea37e6fdf3941899d84fec38a7c0d2712fe68ef7782e82fabccad7",
+    "src/theo/improvement.py": "17870311d83cd2865350d66a2107cc5a85b36daaa5a9640ea8652f64c09247e8",
+    "src/theo/isolation.py": "0222bd7ea8bd639a906ac56344164f76c5eb393c722aa8483f3a11a03b4f4deb",
+    "src/theo/jobs.py": "f4d49146e7b536da7cb2a9af35014427370297c24c4bd2d898457e70053f2b8c",
+    "src/theo/mcp_shim.py": "0de6eebd4840c21a22f24190c43121a51e899bfbf52b7f7eb59d4faf201912d5",
+    "src/theo/media.py": "b9b03886e7c64c867be22a88dedf4f552bb4e36b69325b02e83f2cf1a83c5c44",
+    "src/theo/memory.py": "822f3624aa95f8bec6f2bbd28588e0dd32298bd353fc8c363eb7b6a56222084b",
+    "src/theo/operations.py": "4068e6eb31db85c99399c7104fdbed2f23df4f734572428e3a05fd5c839f68ac",
+    "src/theo/process_registry.py": "b31151d4fa0e677c69e44e2476160725be4929bbe62c8c3bc70b4c268a088780",
+    "src/theo/qualification.py": "9d35eaeba462ff40269f4472a09aa0dfe95e045509f008526c2a4380393d2cf9",
+    "src/theo/runtime.py": "f8da0109724babf198beb5d2fb4c37f2245d09bd67ed805c3933e93b79e47006",
+    "src/theo/scheduling.py": "23dc83907245b3a7d4fb98af8a77a4d31646f82d0b68f1a7092c0aed30ef2295",
+    "src/theo/storage.py": "e0131eddb9b0031eb595d5bab2e145bd7e5877a161975becd6a648dcf838438d",
+    "src/theo/supervisor.py": "077771a1ce9f61d878e1273b092d7d18517976707d6b886da4b152caace5f664",
+    "src/theo/terminal.py": "5d754946eb4d0c4af7a90bad83cb15a188f53592ceef7c4254875e0047ce174b",
+    "src/theo/tools.py": "a87004d291a9931551aff50e1d0659401c4cca6cbca9f0e2eb21aea57eae1763",
+    "src/theo/workspaces.py": "d3d7f35633a5b42f1dde981d4d254abbb822f6fb637e429d8a9870fd4b6bc41c",
+    "scripts/complex_e2e.py": "3568275a8cdd4cdbef8eec7de180045f948b765fad4e706423118cae97944be7"
+  },
+  "runtime_version": "codex-cli 0.153.4",
+  "native_runs": 20,
+  "finished_at": "2026-09-08T22:29:01.849410+00:00"
+}

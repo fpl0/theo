@@ -1,9 +1,12 @@
 import os
+import pwd
 import sys
 
 import pytest
 
-from theo.backends.native import ACPBackend, ClaudeBackend, CodexBackend, claude_terminal
+from theo.backends.acp import ACPBackend
+from theo.backends.claude import ClaudeBackend, claude_terminal
+from theo.backends.codex import CodexBackend
 from theo.backends.policy import Accounts, inspect_configuration, worker_environment
 from theo.domain import AuthWait, Denied, ExecutionRequest, Outcome, QuotaWait
 
@@ -59,6 +62,26 @@ def test_a12_custom_provider_configuration_denied(tmp_path):
         inspect_configuration([config])
 
 
+def test_worker_environment_has_os_account_identity_without_inheriting_secrets(tmp_path):
+    identity = pwd.getpwuid(os.geteuid()).pw_name
+    env = worker_environment(tmp_path, {"USER": "wrong", "LOGNAME": "wrong", "SECRET": "private"})
+    assert env["USER"] == env["LOGNAME"] == identity
+    assert env["HOME"] == str(tmp_path)
+    assert "SECRET" not in env
+
+
+def test_worker_environment_uses_dedicated_runner_identity(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    def identity(uid):
+        assert uid == 12345
+        return SimpleNamespace(pw_name="theo-runner")
+
+    monkeypatch.setattr("theo.backends.policy.pwd.getpwuid", identity)
+    env = worker_environment(tmp_path, {}, runner_uid=12345)
+    assert env["USER"] == env["LOGNAME"] == "theo-runner"
+
+
 async def test_a13_a14_a39_shared_pool_eligibility_and_version_invalidation(db, clock):
     accounts = Accounts(db, "owner")
     evidence = {
@@ -93,7 +116,13 @@ args=sys.argv[1:]
 if "--version" in args:
  print("fixture-1");sys.exit(0)
 if "--print" in args:
+ assert args[args.index("--tools")+1]==""
+ assert "--strict-mcp-config" in args
+ assert json.loads(args[args.index("--settings")+1])["autoMemoryEnabled"] is False
+ assert "remember and recall tools" in args[args.index("--system-prompt")+1]
+ assert "Host persona fixture" in args[args.index("--system-prompt")+1]
  prompt=sys.stdin.read()
+ send({"type":"system","subtype":"init","model":"fixture-model"})
  send({"type":"assistant","message":{"content":[{"type":"text","text":"Fixture answer"}]}})
  send({"type":"result","subtype":"success","result":"Fixture answer"});sys.exit(0)
 for line in sys.stdin:
@@ -103,9 +132,19 @@ for line in sys.stdin:
  elif m=="account/read": result={"account":{"type":"chatgpt"},"requiresOpenaiAuth":True}
  elif m=="thread/start":
   assert params["sandbox"]=="read-only"
+  assert params["approvalPolicy"]=="never"
+  assert params["config"]["mcp_servers"]["theo"]["tools"]["remember"]["approval_mode"]=="approve"
+  assert "Theo MCP tools" in params["developerInstructions"]
+  assert "Host persona fixture" in params["developerInstructions"]
+  assert params["config"]["web_search"]=="disabled"
+  for feature in ("multi_agent","multi_agent_v2","goals","memories","in_app_local_automation","shell_tool","unified_exec","apps","plugins","hooks","browser_use","computer_use","image_generation"):
+   assert params["config"]["features"][feature] is False
   result={"thread":{"id":"native-fixture"}}
  elif m=="turn/start":
+  send({"method":"item/agentMessage/delta","params":{"delta":"Working on this."}})
+  send({"method":"item/completed","params":{"item":{"type":"agentMessage","id":"progress","phase":"commentary","text":"Working on this."}}})
   send({"method":"item/agentMessage/delta","params":{"delta":"Fixture answer"}})
+  send({"method":"item/completed","params":{"item":{"type":"agentMessage","id":"answer","phase":"final_answer","text":"Fixture answer"}}})
   result={"turn":{"id":"turn-fixture"}}
  elif m=="session/new": result={"sessionId":"native-fixture","configOptions":[{"id":"model","name":"Model","category":"model","type":"select","currentValue":"fixture-model","options":[{"value":"fixture-model","name":"Fixture"}]}]}
  elif m=="session/set_config_option": result={"configOptions":[]}
@@ -136,7 +175,7 @@ async def test_four_real_transports_against_subprocess_protocol_fixture(
 
     monkeypatch.setattr(backend, "preparation", prep)
     monkeypatch.setattr(
-        "theo.backends.native.launch_options",
+        "theo.execution.isolation.launch_options",
         lambda settings, root, workspace, command: (command, {}),
     )
     request = ExecutionRequest(
@@ -148,6 +187,7 @@ async def test_four_real_transports_against_subprocess_protocol_fixture(
         model="fixture-model",
         lane="interactive",
         context="fixture input",
+        instructions="Host persona fixture: be concise.",
         workspace=tmp_path,
         deadline=db.clock() + 60,
         generation=1,
@@ -160,4 +200,8 @@ async def test_four_real_transports_against_subprocess_protocol_fixture(
     assert terminal[0].payload["status"] == "completed", terminal[0].payload
     assert terminal[0].payload["text"] == "Fixture answer"
     assert terminal[0].payload["input_tokens"] is None
+    if name == "claude":
+        assert [event.payload for event in events if event.kind == "runtime_metadata"] == [
+            {"model": "fixture-model"}
+        ]
     assert [event.sequence for event in events] == list(range(1, len(events) + 1))

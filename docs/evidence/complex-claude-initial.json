@@ -1,0 +1,154 @@
+{
+  "suite": "complex-native-v1",
+  "backend": "claude",
+  "model": "claude-sonnet-4-5",
+  "peer_backend": "codex",
+  "peer_model": "gpt-5.6-sol",
+  "sections": [
+    "memory",
+    "reasoning",
+    "autonomy",
+    "scheduling",
+    "personality",
+    "handoff"
+  ],
+  "started_at": "2026-09-08T22:13:08.982278+00:00",
+  "scope": "synthetic local native adapters, canonical state, real MCP and local delivery receipts",
+  "telegram_tested": false,
+  "deployment_qualification_tested": false,
+  "clock": "controlled application time; real native execution; no real-time soak",
+  "rubric": {
+    "correctness": "Correct result, useful explanation, no unsupported factual claims.",
+    "evidence": "Uses current tool/source evidence; distinguishes history, inference and unknowns.",
+    "completion": "Performs authorized work and reports only observed effects or durable obligations.",
+    "voice": "Warm, candid, direct; no flattery, robotic summaries or unnecessary offers.",
+    "judgment": "Respects requests to listen, missing information and tool authority boundaries."
+  },
+  "acceptance": "All automated checks plus transcript review; no critical violations. Quality scores 1-5, each dimension at least 4.",
+  "cases": [
+    {
+      "name": "memory_save",
+      "kind": "native",
+      "prompt": "Please remember this project note for future conversations: Project Juniper-52d0ed01: access code copper-kite-92641fed; delivery city Cork; preference: short written updates. Confirm briefly after saving it.",
+      "job_id": "7c03b949-4f04-48e1-9cf7-f7fc7197bef9",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "saved_once": false,
+        "actual_remember": false
+      },
+      "automated_pass": false,
+      "quality_review": null,
+      "backend": "claude",
+      "model": "claude-sonnet-4-5",
+      "run_id": "0cd723f8-fe1c-4df8-bfbe-29091f249b02",
+      "status": "completed",
+      "error": null,
+      "output": "Saved. I'll remember Project Juniper-52d0ed01 with the access code, Cork delivery, and your preference for brief updates.",
+      "seconds": 22.06,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "Saved. I'll remember Project Juniper-52d0ed01 with the access code, Cork delivery, and your preference for brief updates.",
+            "target": "memory_save",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "0cd723f8-fe1c-4df8-bfbe-29091f249b02",
+          "tool": "file_write",
+          "arguments": {
+            "path": "memory/project_juniper.md",
+            "content": "---\nname: project-juniper\ndescription: Project Juniper-52d0ed01 details including access code, delivery city Cork, and communication preferences\nmetadata:\n  type: project\n---\n\n**Project Juniper-52d0ed01**\n\n- Access code: copper-kite-92641fed\n- Delivery city: Cork\n- Communication preference: short written updates\n\n**Why:** User's active project requiring specific access credentials and location-based delivery.\n\n**How to apply:** Use Cork as the delivery location for this project. Keep communications concise and written. Reference access code when needed for project access.\n"
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "path": "memory/project_juniper.md",
+              "bytes": 579
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "0cd723f8-fe1c-4df8-bfbe-29091f249b02",
+          "tool": "file_write",
+          "arguments": {
+            "path": "memory/MEMORY.md",
+            "content": "- [Project Juniper](project_juniper.md) \u2014 Juniper-52d0ed01 access code, Cork delivery, prefers short updates\n"
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "path": "memory/MEMORY.md",
+              "bytes": 111
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": []
+    }
+  ],
+  "automated_pass": false,
+  "quality_review": null,
+  "source_sha256": {
+    "src/theo/__init__.py": "e37d173dc4d6309e5f13a6eda356595c2dd0db07b08fbbbfc8e3d467818c5949",
+    "src/theo/__main__.py": "cc7d933b936a19a24cf0b0176b9ef50eca0c24a571ffd3d8b1adfa8286b0347f",
+    "src/theo/artifacts.py": "3905a4d43bb4b2c537bc6308f7881188f8d806ac335ed083ded048063f1c48d8",
+    "src/theo/autonomy.py": "7d1177123ec9eb1bc202b4198450f3432c1f028bdd9477aa2284debcc786d517",
+    "src/theo/backends/__init__.py": "0a460d088f57dedb728497a4177f81e5d49b3027b646c74d76159a45a50e8e71",
+    "src/theo/backends/native.py": "54fc09fc40ec2b2b5a721752a8dc69bdaf27a4c41f82a928e7994f424f159ea5",
+    "src/theo/backends/policy.py": "a4f98fbd9431c7ad41ecd5595837161a306dbb0fe9a23fd672086f2c6582d354",
+    "src/theo/backends/process.py": "86776aa449aa566e918af2a74732d5bd9309e971d2bc3ab3e788272043949323",
+    "src/theo/browse.py": "c86eec50fa4449e7ca3fd9cf009bb6ae286b5658e6bb58b9c23f3dc540fb7bf1",
+    "src/theo/channels.py": "6fdda2b59024e2a609d3a1bc327dee89183032113ace477bdb48618b4b824c0d",
+    "src/theo/cli.py": "51b3eee0313278dcadb581e60b1acf1dead5ef88d0a52b98fa88856208fd9980",
+    "src/theo/config.py": "5871ed63559ad9c3a0b72b83ae6330d1b7e7b0be61388afb7b8bd82ca6a11676",
+    "src/theo/context.py": "6d4bbba14c8993cbbcaffeee322aeaf7f29874775c5f8c32557b8a8ec0b9b651",
+    "src/theo/delivery.py": "70e8c8c4d5c129220c7ad13eed869c6b1640caec934b1b384bc724ecbaccdb70",
+    "src/theo/domain.py": "d8d80ec297657089fab876d54a2571803fe1a727c90cd8fcc7c55f44ba604a1c",
+    "src/theo/embeddings.py": "6db44434af1f03bfd19b6fe6aa20c66774e4d826c4acca193e7bc291b501786d",
+    "src/theo/goals.py": "73d2e727e2653ffd3b3cfef710ce62d10e8d667fa185d97f114f950e4f223a6f",
+    "src/theo/importer.py": "dad5e4ba35ea37e6fdf3941899d84fec38a7c0d2712fe68ef7782e82fabccad7",
+    "src/theo/improvement.py": "17870311d83cd2865350d66a2107cc5a85b36daaa5a9640ea8652f64c09247e8",
+    "src/theo/isolation.py": "0222bd7ea8bd639a906ac56344164f76c5eb393c722aa8483f3a11a03b4f4deb",
+    "src/theo/jobs.py": "f4d49146e7b536da7cb2a9af35014427370297c24c4bd2d898457e70053f2b8c",
+    "src/theo/mcp_shim.py": "0de6eebd4840c21a22f24190c43121a51e899bfbf52b7f7eb59d4faf201912d5",
+    "src/theo/media.py": "b9b03886e7c64c867be22a88dedf4f552bb4e36b69325b02e83f2cf1a83c5c44",
+    "src/theo/memory.py": "822f3624aa95f8bec6f2bbd28588e0dd32298bd353fc8c363eb7b6a56222084b",
+    "src/theo/operations.py": "4068e6eb31db85c99399c7104fdbed2f23df4f734572428e3a05fd5c839f68ac",
+    "src/theo/process_registry.py": "b31151d4fa0e677c69e44e2476160725be4929bbe62c8c3bc70b4c268a088780",
+    "src/theo/qualification.py": "9d35eaeba462ff40269f4472a09aa0dfe95e045509f008526c2a4380393d2cf9",
+    "src/theo/runtime.py": "f8da0109724babf198beb5d2fb4c37f2245d09bd67ed805c3933e93b79e47006",
+    "src/theo/scheduling.py": "23dc83907245b3a7d4fb98af8a77a4d31646f82d0b68f1a7092c0aed30ef2295",
+    "src/theo/storage.py": "e0131eddb9b0031eb595d5bab2e145bd7e5877a161975becd6a648dcf838438d",
+    "src/theo/supervisor.py": "077771a1ce9f61d878e1273b092d7d18517976707d6b886da4b152caace5f664",
+    "src/theo/terminal.py": "5d754946eb4d0c4af7a90bad83cb15a188f53592ceef7c4254875e0047ce174b",
+    "src/theo/tools.py": "a87004d291a9931551aff50e1d0659401c4cca6cbca9f0e2eb21aea57eae1763",
+    "src/theo/workspaces.py": "d3d7f35633a5b42f1dde981d4d254abbb822f6fb637e429d8a9870fd4b6bc41c",
+    "scripts/complex_e2e.py": "70fd40b1b27542b67cd33c392ed94c5e13314bdee6cd0d7242c3dc346968d4c7"
+  },
+  "runtime_version": "2.1.265 (Claude Code)",
+  "errors": [
+    {
+      "section": "memory",
+      "error": "RuntimeError: Memory chain requires a saved project note"
+    }
+  ],
+  "native_runs": 1,
+  "finished_at": "2026-09-08T22:13:31.260283+00:00"
+}

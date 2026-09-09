@@ -1,6 +1,11 @@
-"""Single dedicated SQLite writer. Transaction callbacks must perform SQL only."""
+"""SQLite authority with a dedicated writer and checksummed migrations.
+
+Serializes SQL-only transaction callbacks, opens separate read connections and
+provides shared owner, message and control persistence primitives.
+"""
 
 import asyncio
+import contextvars
 import hashlib
 import sqlite3
 from collections.abc import Callable, Sequence
@@ -46,7 +51,7 @@ class Database:
 
     async def _call[T](self, fn: Transaction[T]) -> T:
         return await asyncio.get_running_loop().run_in_executor(
-            self._executor, lambda: fn(self._connect())
+            self._executor, contextvars.copy_context().run, lambda: fn(self._connect())
         )
 
     async def write[T](self, fn: Transaction[T]) -> T:
@@ -141,6 +146,9 @@ class Database:
         )
 
     async def health(self, owner: str, kind: str, detail: Json) -> None:
+        from theo.observability.telemetry import event
+
+        event("health." + kind, error_type=detail.get("error"))
         await self.execute(
             "INSERT INTO health_events VALUES(?,?,?,?,?)",
             (uid(), owner, kind, encode(detail), self.clock()),

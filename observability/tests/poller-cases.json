@@ -1,0 +1,68 @@
+[
+  {
+    "name": "healthy",
+    "input_series": [
+      {
+        "series": "theo_channel_configured{channel=\"telegram\",environment=\"local\"}",
+        "values": "1x20"
+      },
+      {
+        "series": "theo_telegram_poll_success_timestamp{environment=\"local\"}",
+        "values": "0+60x20"
+      }
+    ],
+    "should_alert": false
+  },
+  {
+    "name": "stopped after samples expired",
+    "input_series": [
+      {
+        "series": "theo_channel_configured{channel=\"telegram\",environment=\"local\"}",
+        "values": "1x20"
+      },
+      {
+        "series": "theo_telegram_poll_success_timestamp{environment=\"local\"}",
+        "values": "0+60x2 stale"
+      }
+    ],
+    "should_alert": true
+  },
+  {
+    "name": "configured but never observed",
+    "input_series": [
+      {
+        "series": "theo_channel_configured{channel=\"telegram\",environment=\"local\"}",
+        "values": "1x20"
+      }
+    ],
+    "should_alert": true
+  },
+  {
+    "name": "not configured",
+    "input_series": [
+      {
+        "series": "theo_channel_configured{channel=\"telegram\",environment=\"local\"}",
+        "values": "0x20"
+      },
+      {
+        "series": "theo_telegram_poll_success_timestamp{environment=\"local\"}",
+        "values": "0+60x2 stale"
+      }
+    ],
+    "should_alert": false
+  },
+  {
+    "name": "fixtures cannot mask missing live signal",
+    "input_series": [
+      {
+        "series": "theo_channel_configured{channel=\"telegram\",environment=\"local\"}",
+        "values": "1x20"
+      },
+      {
+        "series": "theo_telegram_poll_success_timestamp{environment=\"qualification\"}",
+        "values": "0+60x20"
+      }
+    ],
+    "should_alert": true
+  }
+]

@@ -1,0 +1,888 @@
+{
+  "suite": "complex-native-v1",
+  "backend": "codex",
+  "model": "gpt-5.6-sol",
+  "peer_backend": "claude",
+  "peer_model": "claude-sonnet-4-5",
+  "sections": [
+    "autonomy",
+    "scheduling"
+  ],
+  "started_at": "2026-09-08T22:08:42.600115+00:00",
+  "scope": "synthetic local native adapters, canonical state, real MCP and local delivery receipts",
+  "telegram_tested": false,
+  "deployment_qualification_tested": false,
+  "clock": "controlled application time; real native execution; no real-time soak",
+  "rubric": {
+    "correctness": "Correct result, useful explanation, no unsupported factual claims.",
+    "evidence": "Uses current tool/source evidence; distinguishes history, inference and unknowns.",
+    "completion": "Performs authorized work and reports only observed effects or durable obligations.",
+    "voice": "Warm, candid, direct; no flattery, robotic summaries or unnecessary offers.",
+    "judgment": "Respects requests to listen, missing information and tool authority boundaries."
+  },
+  "acceptance": "All automated checks plus transcript review; no critical violations. Quality scores 1-5, each dimension at least 4.",
+  "cases": [
+    {
+      "name": "autonomy_create_plan",
+      "kind": "native",
+      "prompt": "Create a goal titled 'Invoice reconciliation 10b9d662' with exactly one executable step: Compute invoice lines A: 3 units at 1250 cents less 10%; B: 2 at 1999 cents, no discount; C: 4 at 750 cents less 20%. Tax is 10% of subtotal, round to nearest whole cent. Write result.json containing only integer keys subtotal_cents, tax_cents, total_cents, read it back and register it as an artifact. Complete the plan step with the artifact ID as evidence, then complete the goal with that evidence. Success means a registered, checked result.json and completed step. Save the plan now; the background worker will execute it later. Give a brief status.",
+      "job_id": "d879c2a1-bcbe-4376-b8a5-e7dcc15d493f",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "active_goal": true,
+        "executable_step": true,
+        "not_prematurely_done": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "5253ba4d-d9e0-4e56-81c8-2a8a35269c5b",
+      "status": "completed",
+      "error": null,
+      "output": "Goal \u201cInvoice reconciliation 10b9d662\u201d is saved with exactly one executable step. It\u2019s awaiting the background worker; no result file or artifact exists yet.",
+      "seconds": 61.01,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "Goal \u201cInvoice reconciliation 10b9d662\u201d is saved with exactly one executable step. It\u2019s awaiting the background worker; no result file or artifact exists yet.",
+            "target": "autonomy-project",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "5253ba4d-d9e0-4e56-81c8-2a8a35269c5b",
+          "tool": "file_read",
+          "arguments": {
+            "path": "/Users/fpl0/.agents/skills/goal/SKILL.md"
+          },
+          "result": {
+            "status": "denied",
+            "data": null,
+            "evidence": [],
+            "action_id": null,
+            "error": "Path is outside this job's workspace",
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "5253ba4d-d9e0-4e56-81c8-2a8a35269c5b",
+          "tool": "goal_create",
+          "arguments": {
+            "title": "Invoice reconciliation 10b9d662",
+            "criteria": "Success requires result.json to be written in the job workspace with exactly three keys\u2014subtotal_cents, tax_cents, and total_cents\u2014each holding an integer; the file must be read back and checked, registered as an artifact, the sole plan step completed using the artifact ID as evidence, and the goal completed using that same artifact evidence.",
+            "steps": [
+              {
+                "title": "Compute, verify, and register the invoice reconciliation",
+                "next_action": "Compute line A as 3 units at 1250 cents each less 10%, line B as 2 units at 1999 cents each with no discount, and line C as 4 units at 750 cents each less 20%. Sum the discounted lines for subtotal_cents. Compute tax_cents as 10% of the subtotal, rounded to the nearest whole cent, then set total_cents to subtotal_cents plus tax_cents. Write result.json in the job workspace containing only the integer keys subtotal_cents, tax_cents, and total_cents. Read result.json back and verify its exact key set, integer value types, and arithmetic. Register the checked result.json as an artifact. Complete this sole plan step with the registered artifact ID as evidence, then complete the goal using that same artifact ID as evidence.",
+                "capabilities": [
+                  "file_write",
+                  "file_read",
+                  "artifact_register",
+                  "step_complete",
+                  "goal_update"
+                ]
+              }
+            ]
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "id": "7d7791fd-d023-47a3-a309-ac709f59e07b"
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": {
+        "goal": {
+          "id": "7d7791fd-d023-47a3-a309-ac709f59e07b",
+          "owner_id": "owner",
+          "conversation_id": "9f708145-ebec-4550-9f9e-8f551c3897a8",
+          "title": "Invoice reconciliation 10b9d662",
+          "criteria": "Success requires result.json to be written in the job workspace with exactly three keys\u2014subtotal_cents, tax_cents, and total_cents\u2014each holding an integer; the file must be read back and checked, registered as an artifact, the sole plan step completed using the artifact ID as evidence, and the goal completed using that same artifact evidence.",
+          "status": "active",
+          "blocker": null,
+          "evidence": null,
+          "created_at": 1788905322.0,
+          "updated_at": 1788905322.0
+        },
+        "steps": [
+          {
+            "id": "08df491f-d0e9-4218-bcc7-2ae0814568c0",
+            "owner_id": "owner",
+            "goal_id": "7d7791fd-d023-47a3-a309-ac709f59e07b",
+            "ordinal": 0,
+            "title": "Compute, verify, and register the invoice reconciliation",
+            "next_action": "Compute line A as 3 units at 1250 cents each less 10%, line B as 2 units at 1999 cents each with no discount, and line C as 4 units at 750 cents each less 20%. Sum the discounted lines for subtotal_cents. Compute tax_cents as 10% of the subtotal, rounded to the nearest whole cent, then set total_cents to subtotal_cents plus tax_cents. Write result.json in the job workspace containing only the integer keys subtotal_cents, tax_cents, and total_cents. Read result.json back and verify its exact key set, integer value types, and arithmetic. Register the checked result.json as an artifact. Complete this sole plan step with the registered artifact ID as evidence, then complete the goal using that same artifact ID as evidence.",
+            "capabilities": "[\"file_write\",\"file_read\",\"artifact_register\",\"step_complete\",\"goal_update\"]",
+            "status": "pending",
+            "evidence": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "autonomy_admission",
+      "kind": "host_state",
+      "checks": {
+        "pause_respected": true,
+        "real_evidence_admitted": true,
+        "coalesced": true,
+        "background_job": true
+      },
+      "automated_pass": true,
+      "state_evidence": [
+        {
+          "kind": "deep_work",
+          "status": "work",
+          "evidence": [
+            {
+              "goal_id": "7d7791fd-d023-47a3-a309-ac709f59e07b",
+              "title": "Invoice reconciliation 10b9d662",
+              "criteria": "Success requires result.json to be written in the job workspace with exactly three keys\u2014subtotal_cents, tax_cents, and total_cents\u2014each holding an integer; the file must be read back and checked, registered as an artifact, the sole plan step completed using the artifact ID as evidence, and the goal completed using that same artifact evidence.",
+              "step_id": "08df491f-d0e9-4218-bcc7-2ae0814568c0",
+              "next_action": "Compute line A as 3 units at 1250 cents each less 10%, line B as 2 units at 1999 cents each with no discount, and line C as 4 units at 750 cents each less 20%. Sum the discounted lines for subtotal_cents. Compute tax_cents as 10% of the subtotal, rounded to the nearest whole cent, then set total_cents to subtotal_cents plus tax_cents. Write result.json in the job workspace containing only the integer keys subtotal_cents, tax_cents, and total_cents. Read result.json back and verify its exact key set, integer value types, and arithmetic. Register the checked result.json as an artifact. Complete this sole plan step with the registered artifact ID as evidence, then complete the goal using that same artifact ID as evidence."
+            }
+          ],
+          "text": "Advance the next executable goal step. Produce a registered artifact or observable change, record evidence and next action. Size alone is not a blocker.\nEvidence: [{\"criteria\":\"Success requires result.json to be written in the job workspace with exactly three keys\u2014subtotal_cents, tax_cents, and total_cents\u2014each holding an integer; the file must be read back and checked, registered as an artifact, the sole plan step completed using the artifact ID as evidence, and the goal completed using that same artifact evidence.\",\"goal_id\":\"7d7791fd-d023-47a3-a309-ac709f59e07b\",\"next_action\":\"Compute line A as 3 units at 1250 cents each less 10%, line B as 2 units at 1999 cents each with no discount, and line C as 4 units at 750 cents each less 20%. Sum the discounted lines for subtotal_cents. Compute tax_cents as 10% of the subtotal, rounded to the nearest whole cent, then set total_cents to subtotal_cents plus tax_cents. Write result.json in the job workspace containing only the integer keys subtotal_cents, tax_cents, and total_cents. Read result.json back and verify its exact key set, integer value types, and arithmetic. Register the checked result.json as an artifact. Complete this sole plan step with the registered artifact ID as evidence, then complete the goal using that same artifact ID as evidence.\",\"step_id\":\"08df491f-d0e9-4218-bcc7-2ae0814568c0\",\"title\":\"Invoice reconciliation 10b9d662\"}]"
+        }
+      ]
+    },
+    {
+      "name": "autonomy_execute_plan",
+      "kind": "native",
+      "prompt": "Advance the next executable goal step. Produce a registered artifact or observable change, record evidence and next action. Size alone is not a blocker.\nEvidence: [{\"criteria\":\"Success requires result.json to be written in the job workspace with exactly three keys\u2014subtotal_cents, tax_cents, and total_cents\u2014each holding an integer; the file must be read back and checked, registered as an artifact, the sole plan step completed using the artifact ID as evidence, and the goal completed using that same artifact evidence.\",\"goal_id\":\"7d7791fd-d023-47a3-a309-ac709f59e07b\",\"next_action\":\"Compute line A as 3 units at 1250 cents each less 10%, line B as 2 units at 1999 cents each with no discount, and line C as 4 units at 750 cents each less 20%. Sum the discounted lines for subtotal_cents. Compute tax_cents as 10% of the subtotal, rounded to the nearest whole cent, then set total_cents to subtotal_cents plus tax_cents. Write result.json in the job workspace containing only the integer keys subtotal_cents, tax_cents, and total_cents. Read result.json back and verify its exact key set, integer value types, and arithmetic. Register the checked result.json as an artifact. Complete this sole plan step with the registered artifact ID as evidence, then complete the goal using that same artifact ID as evidence.\",\"step_id\":\"08df491f-d0e9-4218-bcc7-2ae0814568c0\",\"title\":\"Invoice reconciliation 10b9d662\"}]",
+      "job_id": "e118bc20-3684-46b3-ad05-6a3d2bff2b44",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "correct_artifact": true,
+        "registered_bytes_verified": true,
+        "read_back": true,
+        "goal_completed": true,
+        "step_completed": true,
+        "artifact_evidence": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "fdf5846c-4062-4b38-b926-f22fde1bf66f",
+      "status": "completed",
+      "error": null,
+      "output": "Invoice reconciliation is complete.\n\n`result.json` was written, read back, validated, and registered:\n\n- Subtotal: 9,773 cents\n- Tax: 977 cents\n- Total: 10,750 cents\n\nThe artifact is recorded as evidence for both the completed plan step and goal. No next action remains.",
+      "seconds": 45.1,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "Invoice reconciliation is complete.\n\n`result.json` was written, read back, validated, and registered:\n\n- Subtotal: 9,773 cents\n- Tax: 977 cents\n- Total: 10,750 cents\n\nThe artifact is recorded as evidence for both the completed plan step and goal. No next action remains.",
+            "target": "autonomy-project",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "fdf5846c-4062-4b38-b926-f22fde1bf66f",
+          "tool": "file_write",
+          "arguments": {
+            "path": "result.json",
+            "content": "{\"subtotal_cents\":9773,\"tax_cents\":977,\"total_cents\":10750}"
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "path": "result.json",
+              "bytes": 59
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "fdf5846c-4062-4b38-b926-f22fde1bf66f",
+          "tool": "file_read",
+          "arguments": {
+            "path": "result.json"
+          },
+          "result": {
+            "status": "ok",
+            "data": {
+              "path": "result.json",
+              "content": "{\"subtotal_cents\":9773,\"tax_cents\":977,\"total_cents\":10750}"
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "fdf5846c-4062-4b38-b926-f22fde1bf66f",
+          "tool": "artifact_register",
+          "arguments": {
+            "path": "result.json",
+            "description": "Checked invoice reconciliation result: exact required key set, integer values, and verified subtotal/tax/total arithmetic."
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "id": "e89859c7-6e76-41b2-88ea-7cd299366fcd",
+              "hash": "d77abe49b80a604549d09286dec85b3c83879abf9f9abbb3eba87681c421a448",
+              "size": 59,
+              "mime": "application/json",
+              "validated": true
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "fdf5846c-4062-4b38-b926-f22fde1bf66f",
+          "tool": "step_complete",
+          "arguments": {
+            "id": "08df491f-d0e9-4218-bcc7-2ae0814568c0",
+            "evidence": "e89859c7-6e76-41b2-88ea-7cd299366fcd"
+          },
+          "result": {
+            "status": "committed",
+            "data": null,
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "fdf5846c-4062-4b38-b926-f22fde1bf66f",
+          "tool": "goal_update",
+          "arguments": {
+            "id": "7d7791fd-d023-47a3-a309-ac709f59e07b",
+            "status": "completed",
+            "evidence": "e89859c7-6e76-41b2-88ea-7cd299366fcd",
+            "blocker": null
+          },
+          "result": {
+            "status": "committed",
+            "data": null,
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": {
+        "artifact_json": {
+          "subtotal_cents": 9773,
+          "tax_cents": 977,
+          "total_cents": 10750
+        },
+        "goal": {
+          "id": "7d7791fd-d023-47a3-a309-ac709f59e07b",
+          "owner_id": "owner",
+          "conversation_id": "9f708145-ebec-4550-9f9e-8f551c3897a8",
+          "title": "Invoice reconciliation 10b9d662",
+          "criteria": "Success requires result.json to be written in the job workspace with exactly three keys\u2014subtotal_cents, tax_cents, and total_cents\u2014each holding an integer; the file must be read back and checked, registered as an artifact, the sole plan step completed using the artifact ID as evidence, and the goal completed using that same artifact evidence.",
+          "status": "completed",
+          "blocker": null,
+          "evidence": "e89859c7-6e76-41b2-88ea-7cd299366fcd",
+          "created_at": 1788905322.0,
+          "updated_at": 1788905322.0
+        },
+        "step": {
+          "id": "08df491f-d0e9-4218-bcc7-2ae0814568c0",
+          "owner_id": "owner",
+          "goal_id": "7d7791fd-d023-47a3-a309-ac709f59e07b",
+          "ordinal": 0,
+          "title": "Compute, verify, and register the invoice reconciliation",
+          "next_action": "Compute line A as 3 units at 1250 cents each less 10%, line B as 2 units at 1999 cents each with no discount, and line C as 4 units at 750 cents each less 20%. Sum the discounted lines for subtotal_cents. Compute tax_cents as 10% of the subtotal, rounded to the nearest whole cent, then set total_cents to subtotal_cents plus tax_cents. Write result.json in the job workspace containing only the integer keys subtotal_cents, tax_cents, and total_cents. Read result.json back and verify its exact key set, integer value types, and arithmetic. Register the checked result.json as an artifact. Complete this sole plan step with the registered artifact ID as evidence, then complete the goal using that same artifact ID as evidence.",
+          "capabilities": "[\"file_write\",\"file_read\",\"artifact_register\",\"step_complete\",\"goal_update\"]",
+          "status": "completed",
+          "evidence": "e89859c7-6e76-41b2-88ea-7cd299366fcd"
+        }
+      }
+    },
+    {
+      "name": "autonomy_delegate",
+      "kind": "native",
+      "prompt": "Delegate this single bounded job and confirm it is queued: compute 17*23 + 19*11, write the result in delegated.txt using file_write, read it back, register the artifact, and report the result plus artifact ID. Do not execute the child work in this parent turn.",
+      "job_id": "0b3302c0-3ffe-4f70-bb57-655717ef1a37",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "durable_child": true,
+        "parent_only_queued": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "1023aa0d-6c5d-4e24-ab1a-06145d303b52",
+      "status": "completed",
+      "error": null,
+      "output": "Queued successfully as a durable child job. It will report the verified result and artifact ID when complete.",
+      "seconds": 25.74,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "Queued successfully as a durable child job. It will report the verified result and artifact ID when complete.",
+            "target": "autonomy_delegate",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "1023aa0d-6c5d-4e24-ab1a-06145d303b52",
+          "tool": "delegate",
+          "arguments": {
+            "task": "Compute 17*23 + 19*11. Write the numeric result to delegated.txt using the Theo file_write tool. Read delegated.txt back using the Theo file_read tool to verify its contents. Register delegated.txt using the Theo artifact_register tool. In your final report, state the computed result and the registered artifact ID. This is a single bounded job; complete all steps yourself.",
+            "deadline_seconds": 300
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "job_id": "9e167a66-e7fa-4166-9f20-93f69c24cfc7"
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": [
+        {
+          "id": "9e167a66-e7fa-4166-9f20-93f69c24cfc7",
+          "owner_id": "owner",
+          "conversation_id": "10e0190e-c6d8-4223-9be8-7be4217d09b2",
+          "parent_id": "0b3302c0-3ffe-4f70-bb57-655717ef1a37",
+          "root_id": "0b3302c0-3ffe-4f70-bb57-655717ef1a37",
+          "kind": "delegated",
+          "lane": "background",
+          "status": "queued",
+          "payload": "{\"text\":\"Compute 17*23 + 19*11. Write the numeric result to delegated.txt using the Theo file_write tool. Read delegated.txt back using the Theo file_read tool to verify its contents. Register delegated.txt using the Theo artifact_register tool. In your final report, state the computed result and the registered artifact ID. This is a single bounded job; complete all steps yourself.\"}",
+          "semantic_key": "delegate:0b3302c0-3ffe-4f70-bb57-655717ef1a37:17ee11800c8a8d28a61375933049cf176f9a1d65f595d68c7498eedafb036535",
+          "generation": 0,
+          "lease_until": null,
+          "worker": null,
+          "attempts": 0,
+          "deadline": 1788905622.0,
+          "available_at": 1788905322.0,
+          "outcome": null,
+          "created_at": 1788905322.0,
+          "updated_at": 1788905322.0
+        }
+      ]
+    },
+    {
+      "name": "autonomy_child_completion",
+      "kind": "native",
+      "prompt": "Compute 17*23 + 19*11. Write the numeric result to delegated.txt using the Theo file_write tool. Read delegated.txt back using the Theo file_read tool to verify its contents. Register delegated.txt using the Theo artifact_register tool. In your final report, state the computed result and the registered artifact ID. This is a single bounded job; complete all steps yourself.",
+      "job_id": "9e167a66-e7fa-4166-9f20-93f69c24cfc7",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "correct_result": true,
+        "actual_artifact": true,
+        "child_link_preserved": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "3b59d10d-0ceb-4f1d-88fb-e7530d6a8c4b",
+      "status": "completed",
+      "error": null,
+      "output": "Result: **600**\n\n`delegated.txt` was written, read back as `600`, and registered.\n\nArtifact ID: `edd801b7-5a92-4b52-af2d-22a90b255fe8`",
+      "seconds": 22.49,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "Result: **600**\n\n`delegated.txt` was written, read back as `600`, and registered.\n\nArtifact ID: `edd801b7-5a92-4b52-af2d-22a90b255fe8`",
+            "target": "autonomy_delegate",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "3b59d10d-0ceb-4f1d-88fb-e7530d6a8c4b",
+          "tool": "file_write",
+          "arguments": {
+            "path": "delegated.txt",
+            "content": "600"
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "path": "delegated.txt",
+              "bytes": 3
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "3b59d10d-0ceb-4f1d-88fb-e7530d6a8c4b",
+          "tool": "file_read",
+          "arguments": {
+            "path": "delegated.txt"
+          },
+          "result": {
+            "status": "ok",
+            "data": {
+              "path": "delegated.txt",
+              "content": "600"
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "3b59d10d-0ceb-4f1d-88fb-e7530d6a8c4b",
+          "tool": "artifact_register",
+          "arguments": {
+            "path": "delegated.txt",
+            "description": "Verified numeric result of 17*23 + 19*11"
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "id": "edd801b7-5a92-4b52-af2d-22a90b255fe8",
+              "hash": "284b7e6d788f363f910f7beb1910473e23ce9d6c871f1ce0f31f22a982d48ad4",
+              "size": 3,
+              "mime": "text/plain",
+              "validated": true
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": [
+        {
+          "id": "edd801b7-5a92-4b52-af2d-22a90b255fe8",
+          "owner_id": "owner",
+          "hash": "284b7e6d788f363f910f7beb1910473e23ce9d6c871f1ce0f31f22a982d48ad4",
+          "name": "delegated.txt",
+          "description": "Verified numeric result of 17*23 + 19*11",
+          "extracted_text": "600",
+          "run_id": "3b59d10d-0ceb-4f1d-88fb-e7530d6a8c4b",
+          "validated": 1,
+          "created_at": 1788905322.0
+        }
+      ]
+    },
+    {
+      "name": "scheduling_create",
+      "kind": "native",
+      "prompt": "Set two reminders: in 15 minutes, 'stretch and drink water'; and every 2 hours, 'review the experiment log'. Use my local timezone for both. Save them and give a short confirmation with their actual due times.",
+      "job_id": "1e1e13b9-60fb-406d-9ddb-aa34c1c6e7e0",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "two_schedules": true,
+        "relative_due_correct": true,
+        "recurrence_correct": true,
+        "timezone_correct": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "749f86b8-0ce8-43b5-8e79-328c195a8413",
+      "status": "completed",
+      "error": null,
+      "output": "Saved in your Dublin timezone:\n\n- \u201cStretch and drink water\u201d \u2014 11:23:42 PM tonight.\n- \u201cReview the experiment log\u201d \u2014 first at 1:08:42 AM tomorrow, then every 2 hours.",
+      "seconds": 29.55,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "Saved in your Dublin timezone:\n\n- \u201cStretch and drink water\u201d \u2014 11:23:42 PM tonight.\n- \u201cReview the experiment log\u201d \u2014 first at 1:08:42 AM tomorrow, then every 2 hours.",
+            "target": "scheduling",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "749f86b8-0ce8-43b5-8e79-328c195a8413",
+          "tool": "schedule_task",
+          "arguments": {
+            "due_at": 1788912522,
+            "interval_seconds": 7200,
+            "cron": null,
+            "text": "review the experiment log",
+            "timezone": "Europe/Dublin"
+          },
+          "result": {
+            "status": "failed",
+            "data": null,
+            "evidence": [],
+            "action_id": null,
+            "error": "Tool rejected input or could not commit: ValueError",
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "749f86b8-0ce8-43b5-8e79-328c195a8413",
+          "tool": "schedule_task",
+          "arguments": {
+            "due_at": 1788906222,
+            "interval_seconds": null,
+            "cron": null,
+            "text": "stretch and drink water",
+            "timezone": "Europe/Dublin"
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "id": "90f6a5f9-78e2-45c8-94b1-a6e5b8518f61"
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "749f86b8-0ce8-43b5-8e79-328c195a8413",
+          "tool": "schedule_task",
+          "arguments": {
+            "due_at": null,
+            "interval_seconds": 7200,
+            "cron": null,
+            "text": "review the experiment log",
+            "timezone": "Europe/Dublin"
+          },
+          "result": {
+            "status": "committed",
+            "data": {
+              "id": "c768e0d2-37b1-4828-bd14-6573e074b555"
+            },
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "749f86b8-0ce8-43b5-8e79-328c195a8413",
+          "tool": "list_tasks",
+          "arguments": {},
+          "result": {
+            "status": "ok",
+            "data": [
+              {
+                "id": "90f6a5f9-78e2-45c8-94b1-a6e5b8518f61",
+                "owner_id": "owner",
+                "conversation_id": "c009470e-e2a7-4973-8b06-2af4f08f4a24",
+                "body": "stretch and drink water",
+                "kind": "once",
+                "cron": null,
+                "interval_seconds": null,
+                "timezone": "Europe/Dublin",
+                "next_due": 1788906222.0,
+                "active": 1,
+                "grace_seconds": 3600,
+                "created_at": 1788905322.0
+              },
+              {
+                "id": "c768e0d2-37b1-4828-bd14-6573e074b555",
+                "owner_id": "owner",
+                "conversation_id": "c009470e-e2a7-4973-8b06-2af4f08f4a24",
+                "body": "review the experiment log",
+                "kind": "interval",
+                "cron": null,
+                "interval_seconds": 7200,
+                "timezone": "Europe/Dublin",
+                "next_due": 1788912522.0,
+                "active": 1,
+                "grace_seconds": 3600,
+                "created_at": 1788905322.0
+              }
+            ],
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": [
+        {
+          "id": "90f6a5f9-78e2-45c8-94b1-a6e5b8518f61",
+          "owner_id": "owner",
+          "conversation_id": "c009470e-e2a7-4973-8b06-2af4f08f4a24",
+          "body": "stretch and drink water",
+          "kind": "once",
+          "cron": null,
+          "interval_seconds": null,
+          "timezone": "Europe/Dublin",
+          "next_due": 1788906222.0,
+          "active": 1,
+          "grace_seconds": 3600,
+          "created_at": 1788905322.0
+        },
+        {
+          "id": "c768e0d2-37b1-4828-bd14-6573e074b555",
+          "owner_id": "owner",
+          "conversation_id": "c009470e-e2a7-4973-8b06-2af4f08f4a24",
+          "body": "review the experiment log",
+          "kind": "interval",
+          "cron": null,
+          "interval_seconds": 7200,
+          "timezone": "Europe/Dublin",
+          "next_due": 1788912522.0,
+          "active": 1,
+          "grace_seconds": 3600,
+          "created_at": 1788905322.0
+        }
+      ]
+    },
+    {
+      "name": "scheduling_due_while_paused",
+      "kind": "host_state",
+      "checks": {
+        "one_occurrence": true,
+        "no_duplicate": true,
+        "prepared_without_model": true,
+        "delivered": true,
+        "no_model_job_claimed": true
+      },
+      "automated_pass": true,
+      "state_evidence": {
+        "due_jobs": [
+          "bbeaa509-1ed8-4209-8ffe-45efc82eec7b"
+        ],
+        "deliveries": [
+          {
+            "operation": "send_message",
+            "payload": {
+              "text": "stretch and drink water",
+              "target": "scheduling",
+              "_channel": "local"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "scheduling_cancel",
+      "kind": "native",
+      "prompt": "List my saved reminders, cancel the recurring experiment-log reminder, then list again to verify it is inactive. Keep the history of the one-time water reminder. Confirm briefly.",
+      "job_id": "d0dae9c4-b38a-4e0d-b628-19949f205b79",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "one_final_action": true,
+        "receipted_once": true,
+        "delivered_answer": true,
+        "listed_before_and_after": true,
+        "history_preserved": true,
+        "both_inactive": true,
+        "no_future_delivery": true
+      },
+      "automated_pass": true,
+      "quality_review": null,
+      "backend": "codex",
+      "model": "gpt-5.6-sol",
+      "run_id": "68ae30a9-4aca-4d0e-8ba1-480896f5006a",
+      "status": "completed",
+      "error": null,
+      "output": "Cancelled and verified: the recurring \u201creview the experiment log\u201d reminder is inactive. The completed \u201cstretch and drink water\u201d reminder remains in your history.",
+      "seconds": 18.03,
+      "deliveries": [
+        {
+          "operation": "send_message",
+          "payload": {
+            "text": "Cancelled and verified: the recurring \u201creview the experiment log\u201d reminder is inactive. The completed \u201cstretch and drink water\u201d reminder remains in your history.",
+            "target": "scheduling",
+            "_channel": "local"
+          }
+        }
+      ],
+      "tools": [
+        {
+          "run_id": "68ae30a9-4aca-4d0e-8ba1-480896f5006a",
+          "tool": "list_tasks",
+          "arguments": {},
+          "result": {
+            "status": "ok",
+            "data": [
+              {
+                "id": "90f6a5f9-78e2-45c8-94b1-a6e5b8518f61",
+                "owner_id": "owner",
+                "conversation_id": "c009470e-e2a7-4973-8b06-2af4f08f4a24",
+                "body": "stretch and drink water",
+                "kind": "once",
+                "cron": null,
+                "interval_seconds": null,
+                "timezone": "Europe/Dublin",
+                "next_due": 1788906222.0,
+                "active": 0,
+                "grace_seconds": 3600,
+                "created_at": 1788905322.0
+              },
+              {
+                "id": "c768e0d2-37b1-4828-bd14-6573e074b555",
+                "owner_id": "owner",
+                "conversation_id": "c009470e-e2a7-4973-8b06-2af4f08f4a24",
+                "body": "review the experiment log",
+                "kind": "interval",
+                "cron": null,
+                "interval_seconds": 7200,
+                "timezone": "Europe/Dublin",
+                "next_due": 1788912522.0,
+                "active": 1,
+                "grace_seconds": 3600,
+                "created_at": 1788905322.0
+              }
+            ],
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "68ae30a9-4aca-4d0e-8ba1-480896f5006a",
+          "tool": "delete_task",
+          "arguments": {
+            "id": "c768e0d2-37b1-4828-bd14-6573e074b555"
+          },
+          "result": {
+            "status": "committed",
+            "data": null,
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        },
+        {
+          "run_id": "68ae30a9-4aca-4d0e-8ba1-480896f5006a",
+          "tool": "list_tasks",
+          "arguments": {},
+          "result": {
+            "status": "ok",
+            "data": [
+              {
+                "id": "90f6a5f9-78e2-45c8-94b1-a6e5b8518f61",
+                "owner_id": "owner",
+                "conversation_id": "c009470e-e2a7-4973-8b06-2af4f08f4a24",
+                "body": "stretch and drink water",
+                "kind": "once",
+                "cron": null,
+                "interval_seconds": null,
+                "timezone": "Europe/Dublin",
+                "next_due": 1788906222.0,
+                "active": 0,
+                "grace_seconds": 3600,
+                "created_at": 1788905322.0
+              },
+              {
+                "id": "c768e0d2-37b1-4828-bd14-6573e074b555",
+                "owner_id": "owner",
+                "conversation_id": "c009470e-e2a7-4973-8b06-2af4f08f4a24",
+                "body": "review the experiment log",
+                "kind": "interval",
+                "cron": null,
+                "interval_seconds": 7200,
+                "timezone": "Europe/Dublin",
+                "next_due": 1788912522.0,
+                "active": 0,
+                "grace_seconds": 3600,
+                "created_at": 1788905322.0
+              }
+            ],
+            "evidence": [],
+            "action_id": null,
+            "error": null,
+            "retryable": false
+          }
+        }
+      ],
+      "state_evidence": [
+        {
+          "id": "90f6a5f9-78e2-45c8-94b1-a6e5b8518f61",
+          "owner_id": "owner",
+          "conversation_id": "c009470e-e2a7-4973-8b06-2af4f08f4a24",
+          "body": "stretch and drink water",
+          "kind": "once",
+          "cron": null,
+          "interval_seconds": null,
+          "timezone": "Europe/Dublin",
+          "next_due": 1788906222.0,
+          "active": 0,
+          "grace_seconds": 3600,
+          "created_at": 1788905322.0
+        },
+        {
+          "id": "c768e0d2-37b1-4828-bd14-6573e074b555",
+          "owner_id": "owner",
+          "conversation_id": "c009470e-e2a7-4973-8b06-2af4f08f4a24",
+          "body": "review the experiment log",
+          "kind": "interval",
+          "cron": null,
+          "interval_seconds": 7200,
+          "timezone": "Europe/Dublin",
+          "next_due": 1788912522.0,
+          "active": 0,
+          "grace_seconds": 3600,
+          "created_at": 1788905322.0
+        }
+      ]
+    }
+  ],
+  "automated_pass": true,
+  "quality_review": null,
+  "runtime_version": "codex-cli 0.153.4",
+  "native_runs": 6,
+  "finished_at": "2026-09-08T22:12:04.610053+00:00"
+}

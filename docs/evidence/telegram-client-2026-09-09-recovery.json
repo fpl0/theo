@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-09-09T01:58:21.904679+00:00",
+  "suite": "Actual Telegram Desktop acknowledgement-loss recovery and rich reply context",
+  "bot_username": "theo_fpl0_test_bot",
+  "bot_id": 8913960081,
+  "client_version": "7.2.7",
+  "destination": {
+    "chat_id": 8201332044,
+    "topic_id": 0
+  },
+  "synthetic_fixtures_only": true,
+  "model_inference_tested": false,
+  "production_qualified": false,
+  "prior_evidence": [
+    "telegram-client-2026-09-09.json",
+    "telegram-client-2026-09-09-extended.json",
+    "telegram-client-2026-09-09-outbound.json"
+  ],
+  "recovery": {
+    "tag": "TG-UNCERTAINTY-ORBIT37",
+    "action_id": "b3c6d2d0-cbac-4ac9-b995-96b051c6321b",
+    "message_id": 93,
+    "fault": "Host deliberately discarded the successful real Telegram.send result before ledger receipt recording; this was not an observed network outage.",
+    "observed_before_restart": {
+      "status": "uncertain",
+      "attempts": 1,
+      "receipt": null,
+      "error": "ConnectionResetError"
+    },
+    "additional_dispatch_checks_without_retry": 2,
+    "observed_after_restart_before_confirmation": {
+      "status": "uncertain",
+      "attempts": 1,
+      "receipt": null,
+      "error": "ConnectionResetError"
+    },
+    "confirmation": {
+      "owner_message_id": 94,
+      "reply": {
+        "chat_id": 8201332044,
+        "message_id": 93,
+        "sender_id": 8913960081,
+        "text": "[Referenced media]",
+        "topic_id": 0
+      },
+      "acknowledgement_message_id": 95
+    },
+    "repeated_confirmation": {
+      "owner_message_id": 96,
+      "acknowledgement_message_id": 97,
+      "acknowledgement": "This delivery confirmation was already recorded. Nothing was resent."
+    },
+    "final_chunk": {
+      "id": "25467647-296c-43a9-a2df-c5c8b91fdd26",
+      "status": "succeeded",
+      "attempts": 1,
+      "receipt": {
+        "message_id": 93,
+        "messages": [
+          {
+            "chat_id": 8201332044,
+            "message_id": 93,
+            "topic_id": 0
+          }
+        ],
+        "operator_confirmed": true
+      },
+      "error": null
+    },
+    "final_receipt_count": 1,
+    "telemetry_limit": "The isolated fault probe did not initialize telemetry. Daemon recovery and command processing ran with telemetry enabled; this evidence does not assert fault metric coverage."
+  },
+  "rich_reply": {
+    "defect": "Replies to RichMessage-only bot output used the Referenced media placeholder, losing the quoted content.",
+    "fix": "Use the same bounded untrusted rich-content normalization for references as for incoming content.",
+    "owner_message_id": 98,
+    "referenced_message_id": 97,
+    "normalized_reply": {
+      "chat_id": 8201332044,
+      "message_id": 97,
+      "sender_id": 8913960081,
+      "text": "\nRich content (untrusted): {\"blocks\":[{\"text\":\"This delivery confirmation was already recorded. Nothing was resent.\",\"type\":\"paragraph\"}]}",
+      "topic_id": 0
+    },
+    "status_reply_message_id": 99
+  },
+  "client_checks": [
+    "Actual Telegram screenshot showed message 93 once, with the synthetic uncertainty label.",
+    "Cmd+Up selected message 93; screenshot confirmed the correct reply banner before the owner confirmation was sent.",
+    "Actual client displayed the first confirmation and the repeated-confirmation acknowledgement; final durable state retained one send attempt and one receipt.",
+    "After restarting the updated daemon, Cmd+Up selected rich bot message 97 and /status was sent as reply 98. Normalized durable input preserved its rich text, sender, chat, topic and message identity.",
+    "Actual /status output reported the inbox caught up, models enabled and six jobs waiting for authentication. This does not establish model-backed streaming."
+  ],
+  "validation": {
+    "reconciliation_full_suite": {
+      "passed": 221,
+      "skipped": 1
+    },
+    "reconciliation_focused_suite": {
+      "passed": 67
+    },
+    "rich_reply_focused_suite": {
+      "passed": 46
+    },
+    "ruff": "passed",
+    "format_files": 98,
+    "pyright": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "git_diff_check": "passed",
+    "final_full_suite": {
+      "passed": 223,
+      "skipped": 1,
+      "duration_seconds": 68.62,
+      "skip": "Linux root-only dedicated-UID boundary canary on macOS"
+    }
+  },
+  "source_sha256": {
+    "src/theo/channels.py": "b3883c96f65a73f9e5a7f9c6f0a69964b3093bd536a5c936771fbf92afe68f80",
+    "src/theo/delivery.py": "b86061aef101cebdaf5415fbcc92809f6acfc767f51b07ea47f5a232969f1c4f",
+    "src/theo/runtime.py": "e199d3a30ac51eadc2200323e408e12923484cfedc85f0ad6e0dec018a258a9a",
+    "src/theo/telegram_state.py": "fd397f2d6b2ec130bb3b531c98fb5a39b0dbfa8b63a266d09517089c81adf0b4",
+    "src/theo/telegram_ui.py": "9461b9e433677e401735b4a93f4edbb4ffb471ffab9363a090d2998a7eb0bb29",
+    "scripts/telegram_uncertainty_probe.py": "1e1b2ad97a640e8efc82862d577e3332eac56e9173c7c753b323dbc6b15e8f2a",
+    "tests/test_telegram_integration.py": "7f2627d03d25bc7146dfaa6d87018aa4725e8b7ec607d52ab52462f6b91bd096",
+    "tests/test_native_live_guards.py": "4093b77adc49ad6c6458b87c9d634a9ce8c6fcbab3b26ae57c4fa6ab8ebbc43b"
+  },
+  "remaining": [
+    "Native Codex conversation streaming and active-model cancellation require verified account spending controls.",
+    "Dedicated group/topic client checks remain pending.",
+    "Incoming media format coverage, playback, reaction changes and poll revoting remain incomplete.",
+    "Seven-day production observation has not been completed."
+  ]
+}

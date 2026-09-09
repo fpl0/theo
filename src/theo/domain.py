@@ -1,4 +1,8 @@
-"""Versioned contracts. No provider SDK objects cross this boundary."""
+"""Shared data contracts, outcomes and errors across Theo services.
+
+Defines strict execution and tool models, canonical JSON encoding and identity
+helpers. Provider SDK objects and persistence implementations stay outside this boundary.
+"""
 
 import hashlib
 import json
@@ -82,6 +86,17 @@ class InputPart(StrictModel):
     metadata: Json = Field(default_factory=dict)
 
 
+class TelegramDestination(StrictModel):
+    chat_id: int
+    topic_id: int = Field(default=0, ge=0)
+
+
+class TelegramMessageRef(StrictModel):
+    chat_id: int
+    message_id: int = Field(gt=0)
+    topic_id: int = Field(default=0, ge=0)
+
+
 class BackendDescriptor(StrictModel):
     backend: str
     runtime_version: str
@@ -109,6 +124,7 @@ class ExecutionRequest(StrictModel):
     model: str
     lane: str
     context: str
+    instructions: str = ""
     parts: tuple[InputPart, ...] = ()
     workspace: Path
     deadline: float

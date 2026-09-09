@@ -19,3 +19,6 @@ e2e-results/
 *.session
 *.session-journal
 *.gguf
+
+# Local observability processes, credentials and validation artifacts
+.local/

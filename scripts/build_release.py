@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 
 from theo import __version__
-from theo.operations import file_hash
+from theo.execution.files import file_hash
 
 
 def build(source: Path, destination: Path, release_id: str) -> None:

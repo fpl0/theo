@@ -36,6 +36,18 @@
           "default": null,
           "title": "Target"
         },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
+        },
         "role": {
           "default": "progress",
           "enum": [
@@ -90,6 +102,18 @@
           "default": null,
           "title": "Target"
         },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
+        },
         "role": {
           "default": "progress",
           "enum": [
@@ -130,6 +154,18 @@
           "default": null,
           "title": "Target"
         },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
+        },
         "from_chat_id": {
           "title": "From Chat Id",
           "type": "integer"
@@ -165,6 +201,18 @@
           ],
           "default": null,
           "title": "Target"
+        },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
         },
         "text": {
           "maxLength": 4096,
@@ -203,6 +251,18 @@
           ],
           "default": null,
           "title": "Target"
+        },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
         }
       },
       "required": [
@@ -234,6 +294,18 @@
           ],
           "default": null,
           "title": "Target"
+        },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
         }
       },
       "required": [
@@ -289,6 +361,18 @@
           ],
           "default": null,
           "title": "Target"
+        },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
         }
       },
       "required": [
@@ -344,6 +428,18 @@
           ],
           "default": null,
           "title": "Target"
+        },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
         }
       },
       "required": [
@@ -399,6 +495,18 @@
           ],
           "default": null,
           "title": "Target"
+        },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
         }
       },
       "required": [
@@ -454,6 +562,18 @@
           ],
           "default": null,
           "title": "Target"
+        },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
         }
       },
       "required": [
@@ -493,6 +613,18 @@
           ],
           "default": null,
           "title": "Target"
+        },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
         }
       },
       "required": [
@@ -510,6 +642,11 @@
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "is_anonymous": {
+          "default": false,
+          "title": "Is Anonymous",
+          "type": "boolean"
+        },
         "question": {
           "maxLength": 300,
           "minLength": 1,
@@ -536,6 +673,18 @@
           ],
           "default": null,
           "title": "Target"
+        },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
         }
       },
       "required": [
@@ -606,6 +755,18 @@
           "default": null,
           "title": "Target"
         },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
+        },
         "role": {
           "default": "progress",
           "enum": [
@@ -656,6 +817,18 @@
           "default": null,
           "title": "Target"
         },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
+        },
         "emoji": {
           "title": "Emoji",
           "type": "string"
@@ -691,6 +864,18 @@
           ],
           "default": null,
           "title": "Target"
+        },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
         }
       },
       "required": [
@@ -1604,6 +1789,495 @@
         "triggers"
       ],
       "title": "SkillArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "send_audio",
+    "baseline": false,
+    "description": "Deliver a registered Telegram media artifact.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "caption": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Caption"
+        },
+        "reply_to": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reply To"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
+        }
+      },
+      "required": [
+        "artifact_id"
+      ],
+      "title": "MediaArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "send_animation",
+    "baseline": false,
+    "description": "Deliver a registered Telegram media artifact.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "caption": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Caption"
+        },
+        "reply_to": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reply To"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
+        }
+      },
+      "required": [
+        "artifact_id"
+      ],
+      "title": "MediaArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "send_sticker",
+    "baseline": false,
+    "description": "Deliver a registered Telegram media artifact.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "caption": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Caption"
+        },
+        "reply_to": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reply To"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
+        }
+      },
+      "required": [
+        "artifact_id"
+      ],
+      "title": "MediaArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "send_video_note",
+    "baseline": false,
+    "description": "Deliver a registered Telegram media artifact.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "caption": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Caption"
+        },
+        "reply_to": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reply To"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
+        }
+      },
+      "required": [
+        "artifact_id"
+      ],
+      "title": "MediaArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "send_media_group",
+    "baseline": false,
+    "description": "Deliver an ordered album of registered artifacts.",
+    "inputSchema": {
+      "$defs": {
+        "AlbumItem": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "photo",
+                "video",
+                "audio",
+                "document"
+              ],
+              "title": "Kind",
+              "type": "string"
+            },
+            "artifact_id": {
+              "title": "Artifact Id",
+              "type": "string"
+            },
+            "caption": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Caption"
+            }
+          },
+          "required": [
+            "kind",
+            "artifact_id"
+          ],
+          "title": "AlbumItem",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/AlbumItem"
+          },
+          "maxItems": 10,
+          "minItems": 2,
+          "title": "Items",
+          "type": "array"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
+        },
+        "reply_to": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reply To"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "title": "AlbumArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "send_contact",
+    "baseline": false,
+    "description": "Deliver a contact.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "phone_number": {
+          "title": "Phone Number",
+          "type": "string"
+        },
+        "first_name": {
+          "title": "First Name",
+          "type": "string"
+        },
+        "last_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Name"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
+        }
+      },
+      "required": [
+        "phone_number",
+        "first_name"
+      ],
+      "title": "ContactArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "send_venue",
+    "baseline": false,
+    "description": "Deliver a venue.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "latitude": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Latitude",
+          "type": "number"
+        },
+        "longitude": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Longitude",
+          "type": "number"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "destination_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Id"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "address": {
+          "title": "Address",
+          "type": "string"
+        }
+      },
+      "required": [
+        "latitude",
+        "longitude",
+        "title",
+        "address"
+      ],
+      "title": "VenueArgs",
       "type": "object"
     }
   }

@@ -1,4 +1,8 @@
-"""Operator-owned configuration. Provider credentials are never stored here."""
+"""Validate and persist operator-owned Theo configuration.
+
+Defines runtime limits, storage paths and allowed Telegram destinations, with
+atomic JSON writes. Native model-provider credentials are stored elsewhere.
+"""
 
 import json
 import os
@@ -9,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import Field, field_validator
 
-from theo.domain import StrictModel
+from theo.domain import StrictModel, TelegramDestination
 
 
 def default_root() -> Path:
@@ -24,6 +28,8 @@ class Settings(StrictModel):
     timezone: str = "Europe/Dublin"
     telegram_owner_id: int | None = None
     telegram_chat_id: int | None = None
+    telegram_keychain_service: str = "theo.telegram"
+    telegram_destinations: tuple[TelegramDestination, ...] = ()
     primary_backend: Literal["claude", "codex", "cursor", "grok"] | None = None
     primary_model: str | None = None
     max_runs: int = Field(default=2, ge=2, le=8)

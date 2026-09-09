@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: Theo
+    folder: Theo
+    type: file
+    updateIntervalSeconds: 30
+    disableDeletion: false
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

@@ -1,0 +1,3151 @@
+{
+  "uid": "theo-cli",
+  "title": "Theo / CLI",
+  "description": "Native Theo observability. Provisioned from source; unknown is never healthy.",
+  "tags": [
+    "theo",
+    "observability",
+    "local"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "refresh": "1m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "1m",
+      "5m",
+      "15m"
+    ]
+  },
+  "graphTooltip": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "environment",
+        "label": "Traffic",
+        "type": "custom",
+        "query": "Live Theo : local,Test fixtures : qualification",
+        "current": {
+          "text": "Live Theo",
+          "value": "local"
+        },
+        "options": [
+          {
+            "text": "Live Theo",
+            "value": "local",
+            "selected": true
+          },
+          {
+            "text": "Test fixtures",
+            "value": "qualification",
+            "selected": false
+          }
+        ]
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "Overview",
+      "url": "/d/theo-overview",
+      "type": "link",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Jobs & Tools",
+      "url": "/d/theo-jobs",
+      "type": "link",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Telegram",
+      "url": "/d/theo-telegram",
+      "type": "link",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "CLI",
+      "url": "/d/theo-cli",
+      "type": "link",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Codex",
+      "url": "/d/theo-codex",
+      "type": "link",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Infrastructure",
+      "url": "/d/theo-infrastructure",
+      "type": "link",
+      "keepTime": true,
+      "includeVars": true
+    },
+    {
+      "title": "Alerts",
+      "url": "/alerting/list?view=state",
+      "type": "link"
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 2
+      },
+      "transparent": true,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No samples",
+          "mappings": [],
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisBorderShow": false,
+            "axisColorMode": "text"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_core_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Theo core"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_observer_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Observer"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_queue_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Queued work"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_telegram_lag_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Telegram intake"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_outbox_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Delivery queue"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "mode": "html",
+        "content": "<h2 style=\"font-size:22px;margin:0 0 6px;font-weight:600\">Theo / CLI</h2><p style=\"font-size:13px;color:#b8bdc9;margin:0\">Compare submission, first reply and completion. No samples? Select a period with terminal activity.</p>"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Core available",
+      "description": "Latest observation for the selected traffic. Missing data is not zero. ",
+      "gridPos": {
+        "x": 0,
+        "y": 2,
+        "w": 6,
+        "h": 3
+      },
+      "transparent": false,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bool",
+          "noValue": "No samples",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Offline",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Ready",
+                  "color": "green"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "No samples",
+                  "color": "text"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisBorderShow": false,
+            "axisColorMode": "text"
+          },
+          "links": [
+            {
+              "title": "Open diagnostics",
+              "url": "/d/theo-infrastructure?var-environment=${environment}&${__url_time_range}",
+              "targetBlank": false
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_core_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Theo core"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_observer_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Observer"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_queue_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Queued work"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_telegram_lag_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Telegram intake"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_outbox_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Delivery queue"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "text": {
+          "valueSize": 30,
+          "titleSize": 13
+        },
+        "wideLayout": false
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(theo_core_ready{environment=~\"$environment\"})",
+          "legendFormat": "Core available",
+          "exemplar": true,
+          "range": false,
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "CLI queued",
+      "description": "Latest observation for the selected traffic. Missing data is not zero. ",
+      "gridPos": {
+        "x": 6,
+        "y": 2,
+        "w": 6,
+        "h": 3
+      },
+      "transparent": false,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No samples",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "No samples",
+                  "color": "text"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisBorderShow": false,
+            "axisColorMode": "text"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_core_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Theo core"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_observer_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Observer"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_queue_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Queued work"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_telegram_lag_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Telegram intake"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_outbox_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Delivery queue"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "text": {
+          "valueSize": 30,
+          "titleSize": 13
+        },
+        "wideLayout": false
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(theo_jobs_current{channel=\"cli\",status=\"queued\",environment=~\"$environment\"}) or on() (0 * (max(theo_database_readable{environment=~\"$environment\"}) == 1))",
+          "legendFormat": "CLI queued",
+          "exemplar": true,
+          "range": false,
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "CLI running",
+      "description": "Latest observation for the selected traffic. Missing data is not zero. ",
+      "gridPos": {
+        "x": 12,
+        "y": 2,
+        "w": 6,
+        "h": 3
+      },
+      "transparent": false,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No samples",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "No samples",
+                  "color": "text"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisBorderShow": false,
+            "axisColorMode": "text"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_core_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Theo core"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_observer_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Observer"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_queue_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Queued work"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_telegram_lag_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Telegram intake"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_outbox_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Delivery queue"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "text": {
+          "valueSize": 30,
+          "titleSize": 13
+        },
+        "wideLayout": false
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(theo_jobs_current{channel=\"cli\",status=\"running\",environment=~\"$environment\"}) or on() (0 * (max(theo_database_readable{environment=~\"$environment\"}) == 1))",
+          "legendFormat": "CLI running",
+          "exemplar": true,
+          "range": false,
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "CLI failures",
+      "description": "Latest observation for the selected traffic. Missing data is not zero. ",
+      "gridPos": {
+        "x": 18,
+        "y": 2,
+        "w": 6,
+        "h": 3
+      },
+      "transparent": false,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No samples",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "No samples",
+                  "color": "text"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisBorderShow": false,
+            "axisColorMode": "text"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_core_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Theo core"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_observer_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Observer"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_queue_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Queued work"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_telegram_lag_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Telegram intake"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_outbox_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Delivery queue"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "text": {
+          "valueSize": 30,
+          "titleSize": 13
+        },
+        "wideLayout": false
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(theo_operation_duration_seconds_count{channel=\"cli\",outcome=\"error\",environment=~\"$environment\"}[$__range]))",
+          "legendFormat": "CLI failures",
+          "exemplar": true,
+          "range": false,
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Connect and submit latency",
+      "description": "Computed from individually logged CLI observations, including short-lived sessions that cannot supply multiple counter samples. Open the log stream below to inspect correlated traces.",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "transparent": false,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No samples",
+          "mappings": [],
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisBorderShow": false,
+            "axisColorMode": "text"
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram|loki).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D2D5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(cli|alloy|job.run).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(codex|ai.run|tempo).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*grafana.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*prometheus.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram.receive|cli.connect).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D2D5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram.process|cli.submit).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram.send|delivery.send).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*telegram.poll_once.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*telegram.hydrate.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(success|succeeded|completed|done|healthy).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(queued|pending|waiting|retry|quota|auth).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(error|failed|uncertain).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(cancelled|interrupted).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8E8EA4"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_core_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Theo core"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_observer_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Observer"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_queue_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Queued work"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_telegram_lag_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Telegram intake"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_outbox_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Delivery queue"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "quantile_over_time(0.95,{service_name=~\"theo.*\",deployment_environment_name=~\"$environment\"} | event=~\"cli.(connect|submit).finished\" | unwrap duration_seconds | __error__=\"\" [5m]) by(event)",
+          "legendFormat": "{{event}}",
+          "range": true,
+          "queryType": "range",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          }
+        }
+      ],
+      "maxDataPoints": 480,
+      "interval": "30s"
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "CLI operations",
+      "description": "Computed from individually logged CLI observations, including short-lived sessions that cannot supply multiple counter samples. Open the log stream below to inspect correlated traces.",
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "transparent": false,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "No samples",
+          "mappings": [],
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisBorderShow": false,
+            "axisColorMode": "text"
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram|loki).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D2D5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(cli|alloy|job.run).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(codex|ai.run|tempo).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*grafana.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*prometheus.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram.receive|cli.connect).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D2D5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram.process|cli.submit).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram.send|delivery.send).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*telegram.poll_once.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*telegram.hydrate.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(success|succeeded|completed|done|healthy).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(queued|pending|waiting|retry|quota|auth).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(error|failed|uncertain).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(cancelled|interrupted).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8E8EA4"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_core_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Theo core"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_observer_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Observer"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_queue_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Queued work"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_telegram_lag_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Telegram intake"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_outbox_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Delivery queue"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(event)(rate({service_name=~\"theo.*\",deployment_environment_name=~\"$environment\"} | event=~\"cli.(connect|submit|cancel).finished\" [5m]))",
+          "legendFormat": "{{event}}",
+          "range": true,
+          "queryType": "range",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          }
+        }
+      ],
+      "maxDataPoints": 480,
+      "interval": "30s"
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Turn latency \u00b7 core execution",
+      "description": "Observed values over the selected time range. Gaps mean no samples. p95 is the duration below which 95% of sampled operations fall. ",
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 8
+      },
+      "transparent": false,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No samples",
+          "mappings": [],
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisBorderShow": false,
+            "axisColorMode": "text"
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram|loki).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D2D5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(cli|alloy|job.run).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(codex|ai.run|tempo).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*grafana.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*prometheus.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram.receive|cli.connect).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D2D5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram.process|cli.submit).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram.send|delivery.send).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*telegram.poll_once.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*telegram.hydrate.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(success|succeeded|completed|done|healthy).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(queued|pending|waiting|retry|quota|auth).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(error|failed|uncertain).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(cancelled|interrupted).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8E8EA4"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_core_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Theo core"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_observer_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Observer"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_queue_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Queued work"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_telegram_lag_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Telegram intake"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_outbox_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Delivery queue"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95,sum by(le)(rate(theo_operation_duration_seconds_bucket{operation=\"job.run\",channel=\"cli\",environment=~\"$environment\"}[$__rate_interval])))",
+          "legendFormat": "Turn latency \u00b7 core execution",
+          "exemplar": true,
+          "range": true
+        }
+      ],
+      "maxDataPoints": 480,
+      "interval": "30s"
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "CLI job outcomes",
+      "description": "Observed values over the selected time range. Gaps mean no samples. ",
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 8
+      },
+      "transparent": false,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No samples",
+          "mappings": [],
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisBorderShow": false,
+            "axisColorMode": "text"
+          },
+          "min": 0,
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram|loki).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D2D5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(cli|alloy|job.run).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(codex|ai.run|tempo).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*grafana.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*prometheus.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram.receive|cli.connect).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D2D5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram.process|cli.submit).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram.send|delivery.send).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*telegram.poll_once.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*telegram.hydrate.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(success|succeeded|completed|done|healthy).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(queued|pending|waiting|retry|quota|auth).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(error|failed|uncertain).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(cancelled|interrupted).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8E8EA4"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_core_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Theo core"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_observer_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Observer"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_queue_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Queued work"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_telegram_lag_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Telegram intake"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_outbox_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Delivery queue"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(outcome)(increase(theo_jobs_total{channel=\"cli\",environment=~\"$environment\"}[$__rate_interval]))",
+          "legendFormat": "{{outcome}}",
+          "exemplar": true,
+          "range": true
+        }
+      ],
+      "maxDataPoints": 480,
+      "interval": "30s"
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "First visible response \u00b7 terminal",
+      "description": "Computed from individually logged CLI observations, including short-lived sessions that cannot supply multiple counter samples. Open the log stream below to inspect correlated traces.",
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 12,
+        "h": 8
+      },
+      "transparent": false,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No samples",
+          "mappings": [],
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisBorderShow": false,
+            "axisColorMode": "text"
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram|loki).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D2D5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(cli|alloy|job.run).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(codex|ai.run|tempo).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*grafana.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*prometheus.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram.receive|cli.connect).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D2D5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram.process|cli.submit).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram.send|delivery.send).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*telegram.poll_once.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*telegram.hydrate.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(success|succeeded|completed|done|healthy).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(queued|pending|waiting|retry|quota|auth).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(error|failed|uncertain).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(cancelled|interrupted).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8E8EA4"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_core_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Theo core"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_observer_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Observer"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_queue_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Queued work"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_telegram_lag_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Telegram intake"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_outbox_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Delivery queue"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "quantile_over_time(0.95,{service_name=~\"theo.*\",deployment_environment_name=~\"$environment\"} | event=\"cli.first_visible.measured\" | unwrap duration_seconds | __error__=\"\" [5m]) by(event)",
+          "legendFormat": "{{event}}",
+          "range": true,
+          "queryType": "range",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          }
+        }
+      ],
+      "maxDataPoints": 480,
+      "interval": "30s"
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Completed turn \u00b7 terminal",
+      "description": "Computed from individually logged CLI observations, including short-lived sessions that cannot supply multiple counter samples. Open the log stream below to inspect correlated traces.",
+      "gridPos": {
+        "x": 12,
+        "y": 21,
+        "w": 12,
+        "h": 8
+      },
+      "transparent": false,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No samples",
+          "mappings": [],
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisBorderShow": false,
+            "axisColorMode": "text"
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram|loki).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D2D5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(cli|alloy|job.run).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(codex|ai.run|tempo).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*grafana.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*prometheus.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram.receive|cli.connect).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D2D5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram.process|cli.submit).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(telegram.send|delivery.send).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*telegram.poll_once.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*telegram.hydrate.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(success|succeeded|completed|done|healthy).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(queued|pending|waiting|retry|quota|auth).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FFB357"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(error|failed|uncertain).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*(cancelled|interrupted).*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8E8EA4"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_core_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Theo core"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_observer_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Observer"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_queue_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Queued work"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_telegram_lag_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Telegram intake"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_outbox_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Delivery queue"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "quantile_over_time(0.95,{service_name=~\"theo.*\",deployment_environment_name=~\"$environment\"} | event=\"cli.turn_complete.measured\" | unwrap duration_seconds | __error__=\"\" [5m]) by(event)",
+          "legendFormat": "{{event}}",
+          "range": true,
+          "queryType": "range",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          }
+        }
+      ],
+      "maxDataPoints": 480,
+      "interval": "30s"
+    },
+    {
+      "id": 12,
+      "type": "text",
+      "title": "",
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 24,
+        "h": 2
+      },
+      "transparent": true,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No samples",
+          "mappings": [],
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisBorderShow": false,
+            "axisColorMode": "text"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_core_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Theo core"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_observer_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Observer"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_queue_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Queued work"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_telegram_lag_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Telegram intake"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_outbox_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Delivery queue"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "mode": "html",
+        "content": "<p style=\"font-size:13px;line-height:1.5;color:#b8bdc9;margin:4px 0\"><strong>Reading the signals</strong> \u00b7 Live Theo shows real terminal activity; Test fixtures shows isolated validation traffic. No samples is expected before a terminal session emits an observation. CLI log charts use five-minute windows and include short-lived sessions. Native host availability is reported under Live Theo.</p>"
+      }
+    },
+    {
+      "id": 13,
+      "type": "logs",
+      "title": "Recent events \u00b7 expand a line to open its trace",
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 24,
+        "h": 9
+      },
+      "transparent": false,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No samples",
+          "mappings": [],
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisBorderShow": false,
+            "axisColorMode": "text"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_core_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Theo core"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_observer_memory_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Observer"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_queue_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Queued work"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_telegram_lag_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Telegram intake"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "theo_outbox_oldest_seconds"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Delivery queue"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none",
+        "enableLogDetails": true
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{service_name=~\"theo.*\",deployment_environment_name=~\"$environment\"} | channel=\"cli\"",
+          "queryType": "range",
+          "maxLines": 100,
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          }
+        }
+      ]
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  }
+}

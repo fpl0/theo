@@ -1,0 +1,482 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-09-09T01:30:25.395676+00:00",
+  "suite": "Actual Telegram Desktop outbound, native Stop and incoming album checks",
+  "bot_username": "theo_fpl0_test_bot",
+  "client_version": "7.2.7",
+  "destination": {
+    "chat_id": 8201332044,
+    "topic_id": 0
+  },
+  "synthetic_fixtures_only": true,
+  "model_inference_tested": false,
+  "production_qualified": false,
+  "prior_evidence": [
+    "telegram-client-2026-09-09.json",
+    "telegram-client-2026-09-09-extended.json"
+  ],
+  "client_checks": [
+    "Client accessibility tree identified delivered photos, document, voice, audio, video, GIF, sticker, video note, album, location, venue and synthetic contact. These receipts do not establish audio playback or semantic model understanding.",
+    "Screenshot confirmed rich bold/italic text, quote, code, list and literal angle brackets. Clicking Example link opened the exact example.com URL in Chrome with title Example Domain.",
+    "Owner selected Teal in the actual Telegram poll. Client showed one vote and Teal 100%; durable feedback points to the exact poll action and message.",
+    "Long delivery was viewed from the initial numbered lines through Line 180 and END-ORBIT29. All three continuation replies refer to poll message 63. Initial mid-word splitting was improved; the later run starts continuations at Line 071 and Line 142.",
+    "Live synthetic presentation probe showed typing, then a growing native draft and native Stop button. Stop was clicked in Telegram; the draft disappeared and the host acknowledged cancellation.",
+    "A photo and video were selected together in the Telegram file chooser with Group items enabled. The received album displayed both media; ingestion admitted one job and preserved two originals, with local video-audio transcription."
+  ],
+  "outbound": [
+    {
+      "case": "20260909:poll",
+      "action_id": "bdfdced6-0461-4828-ae06-509a654ec448",
+      "operation": "send_poll",
+      "status": "succeeded",
+      "deliveries": [
+        {
+          "ordinal": 0,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 63,
+          "message_ids": [],
+          "reply_to": null,
+          "utf16_units": null
+        }
+      ]
+    },
+    {
+      "case": "20260909:photo",
+      "action_id": "f44e511a-52a4-4eb4-91ab-16af56c13ed7",
+      "operation": "send_photo",
+      "status": "succeeded",
+      "deliveries": [
+        {
+          "ordinal": 0,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 64,
+          "message_ids": [],
+          "reply_to": null,
+          "utf16_units": null
+        }
+      ]
+    },
+    {
+      "case": "20260909:document",
+      "action_id": "dc873069-5e96-4057-af5d-7175b949cb3e",
+      "operation": "send_document",
+      "status": "succeeded",
+      "deliveries": [
+        {
+          "ordinal": 0,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 65,
+          "message_ids": [],
+          "reply_to": null,
+          "utf16_units": null
+        }
+      ]
+    },
+    {
+      "case": "20260909:voice",
+      "action_id": "8be07a5a-f1a1-4def-8867-aaf2c1c6341e",
+      "operation": "send_voice",
+      "status": "succeeded",
+      "deliveries": [
+        {
+          "ordinal": 0,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 66,
+          "message_ids": [],
+          "reply_to": null,
+          "utf16_units": null
+        }
+      ]
+    },
+    {
+      "case": "20260909:audio",
+      "action_id": "a406f82f-4d26-4a99-9d93-0a926b5466f8",
+      "operation": "send_audio",
+      "status": "succeeded",
+      "deliveries": [
+        {
+          "ordinal": 0,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 67,
+          "message_ids": [],
+          "reply_to": null,
+          "utf16_units": null
+        }
+      ]
+    },
+    {
+      "case": "20260909:video",
+      "action_id": "6b18bf73-ed10-40ed-94a1-754540a04701",
+      "operation": "send_video",
+      "status": "succeeded",
+      "deliveries": [
+        {
+          "ordinal": 0,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 68,
+          "message_ids": [],
+          "reply_to": null,
+          "utf16_units": null
+        }
+      ]
+    },
+    {
+      "case": "20260909:animation",
+      "action_id": "641f46a3-b885-4735-b8e8-1501dfa21c8f",
+      "operation": "send_animation",
+      "status": "succeeded",
+      "deliveries": [
+        {
+          "ordinal": 0,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 69,
+          "message_ids": [],
+          "reply_to": null,
+          "utf16_units": null
+        }
+      ]
+    },
+    {
+      "case": "20260909:sticker:label",
+      "action_id": "1bfee09c-d228-4e11-b595-bf796b71cd09",
+      "operation": "send_message",
+      "status": "succeeded",
+      "deliveries": [
+        {
+          "ordinal": 0,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 70,
+          "message_ids": [],
+          "reply_to": null,
+          "utf16_units": 81
+        }
+      ]
+    },
+    {
+      "case": "20260909:sticker",
+      "action_id": "99f9066a-14a0-43d0-a852-bae46e742d6b",
+      "operation": "send_sticker",
+      "status": "succeeded",
+      "deliveries": [
+        {
+          "ordinal": 0,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 71,
+          "message_ids": [],
+          "reply_to": null,
+          "utf16_units": null
+        }
+      ]
+    },
+    {
+      "case": "20260909:video_note:label",
+      "action_id": "f958b307-e0da-42b8-a4e0-00d0e0ddb634",
+      "operation": "send_message",
+      "status": "succeeded",
+      "deliveries": [
+        {
+          "ordinal": 0,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 72,
+          "message_ids": [],
+          "reply_to": null,
+          "utf16_units": 84
+        }
+      ]
+    },
+    {
+      "case": "20260909:video_note",
+      "action_id": "4aa53495-ef1a-459e-a4e9-5d18ef4845fb",
+      "operation": "send_video_note",
+      "status": "succeeded",
+      "deliveries": [
+        {
+          "ordinal": 0,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 73,
+          "message_ids": [],
+          "reply_to": null,
+          "utf16_units": null
+        }
+      ]
+    },
+    {
+      "case": "20260909:album",
+      "action_id": "f97f9b27-a9d7-47c3-92d1-be0067974b5b",
+      "operation": "send_media_group",
+      "status": "succeeded",
+      "deliveries": [
+        {
+          "ordinal": 0,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 74,
+          "message_ids": [
+            74,
+            75
+          ],
+          "reply_to": null,
+          "utf16_units": null
+        }
+      ]
+    },
+    {
+      "case": "20260909:location",
+      "action_id": "159662e8-4f5e-4e32-8a52-7871cac4f70f",
+      "operation": "send_location",
+      "status": "succeeded",
+      "deliveries": [
+        {
+          "ordinal": 0,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 76,
+          "message_ids": [],
+          "reply_to": null,
+          "utf16_units": null
+        }
+      ]
+    },
+    {
+      "case": "20260909:venue",
+      "action_id": "fa8299e6-9da9-424d-9e37-e89b37ac50b7",
+      "operation": "send_venue",
+      "status": "succeeded",
+      "deliveries": [
+        {
+          "ordinal": 0,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 77,
+          "message_ids": [],
+          "reply_to": null,
+          "utf16_units": null
+        }
+      ]
+    },
+    {
+      "case": "20260909:contact",
+      "action_id": "5f3ac553-6358-4527-a105-21c17039378f",
+      "operation": "send_contact",
+      "status": "succeeded",
+      "deliveries": [
+        {
+          "ordinal": 0,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 78,
+          "message_ids": [],
+          "reply_to": null,
+          "utf16_units": null
+        }
+      ]
+    },
+    {
+      "case": "20260909:links",
+      "action_id": "394f7960-60b3-4f2a-973b-fe0689e5f6b4",
+      "operation": "send_message",
+      "status": "succeeded",
+      "deliveries": [
+        {
+          "ordinal": 0,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 79,
+          "message_ids": [],
+          "reply_to": null,
+          "utf16_units": 223
+        }
+      ]
+    },
+    {
+      "case": "20260909:long_text",
+      "action_id": "a0e38bd1-8bcb-4896-97b2-debae344f18e",
+      "operation": "send_message",
+      "status": "succeeded",
+      "deliveries": [
+        {
+          "ordinal": 0,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 81,
+          "message_ids": [],
+          "reply_to": 63,
+          "utf16_units": 4096
+        },
+        {
+          "ordinal": 1,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 82,
+          "message_ids": [],
+          "reply_to": 63,
+          "utf16_units": 4096
+        },
+        {
+          "ordinal": 2,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 83,
+          "message_ids": [],
+          "reply_to": 63,
+          "utf16_units": 2138
+        }
+      ]
+    },
+    {
+      "case": "20260909-readable:long_text",
+      "action_id": "c714c0cf-a004-4567-9dc0-b6f6cd02e0b3",
+      "operation": "send_message",
+      "status": "succeeded",
+      "deliveries": [
+        {
+          "ordinal": 0,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 84,
+          "message_ids": [],
+          "reply_to": 63,
+          "utf16_units": 4058
+        },
+        {
+          "ordinal": 1,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 85,
+          "message_ids": [],
+          "reply_to": 63,
+          "utf16_units": 4047
+        },
+        {
+          "ordinal": 2,
+          "status": "succeeded",
+          "attempts": 1,
+          "message_id": 86,
+          "message_ids": [],
+          "reply_to": 63,
+          "utf16_units": 2234
+        }
+      ]
+    }
+  ],
+  "long_message": {
+    "action_id": "c714c0cf-a004-4567-9dc0-b6f6cd02e0b3",
+    "characters_preserved": true,
+    "utf16_limits_respected": true,
+    "complete_line_boundaries": true,
+    "reply_message_id": 63
+  },
+  "native_stop": {
+    "job": {
+      "id": "93b32398-6672-4308-849b-9ca8307d7c77",
+      "status": "cancelled",
+      "generation": 2,
+      "semantic_key": "presentation-probe:a625298c-e25e-4926-9664-3eac38592faf"
+    },
+    "update": {
+      "update_id": 285655359,
+      "status": "done"
+    },
+    "acknowledgement_action": {
+      "id": "46e07725-5801-4fc9-b8e8-3971efa7c161",
+      "status": "succeeded"
+    },
+    "preview_record_removed": true,
+    "native_model_process_cancellation_tested": false
+  },
+  "poll_feedback": [
+    {
+      "kind": "poll_answer",
+      "run_id": null,
+      "action_id": "bdfdced6-0461-4828-ae06-509a654ec448",
+      "body": {
+        "chat_id": 8201332044,
+        "conversation_id": "cfdd53c6-7f85-4dfd-a5b8-c148658df180",
+        "message_id": 63,
+        "option_ids": [
+          0
+        ],
+        "option_persistent_ids": [
+          "0"
+        ],
+        "poll_id": "5839352667087832279",
+        "user": {
+          "first_name": "Filipe",
+          "id": 8201332044,
+          "is_bot": false,
+          "is_premium": true,
+          "language_code": "en",
+          "last_name": "Lima"
+        }
+      },
+      "explicit": 1
+    }
+  ],
+  "incoming_album": {
+    "album": {
+      "id": "adaeb78b-0b37-436a-90d6-262ea31e1feb",
+      "status": "done",
+      "first_at": 1788917140.421908,
+      "last_at": 1788917140.425052
+    },
+    "job_id": "e59328a9-5a03-42cf-b654-bab42429389d",
+    "job_status": "waiting_for_auth",
+    "input_message_ids": [
+      90,
+      91
+    ],
+    "parts": [
+      {
+        "kind": "photo",
+        "artifact_id": "8459fd3f-8a64-4ee8-922c-ffa14fb625b9",
+        "state": "unsupported",
+        "text": "Original media preserved; local extraction or vision is required before describing its contents",
+        "derived_photos": [],
+        "video_coverage": null
+      },
+      {
+        "kind": "video",
+        "artifact_id": "f2fccdc1-baa0-48e5-8028-a5f0f95f1713",
+        "state": "ready",
+        "text": " This is a Theo Telegram audio test. The test code is orbit 29. Please repeat that code and keep your answer in text.",
+        "derived_photos": [
+          "307d1e4a-de20-4bab-94f1-79be96e639a5"
+        ],
+        "video_coverage": "1 timestamped samples; partial coverage"
+      }
+    ]
+  },
+  "validation": {
+    "focused_telegram_and_delivery": "41 passed",
+    "full_pytest": "200 passed, 1 skipped; Linux-only UID canary is not applicable on macOS",
+    "ruff_check": "passed",
+    "ruff_format": "97 files already formatted",
+    "strict_pyright": "0 errors, 0 warnings"
+  },
+  "pending": [
+    "Real Codex conversations and model streaming require the still-pending spending-control attestation. Native login, catalogue and OS isolation were verified earlier.",
+    "Group creation remains pending after automatic UI target verification rejected it; live group/topic checks remain untested.",
+    "Reaction changes/removals and poll revoting are covered offline but remain unverified in this client; native context-menu automation did not open the menu.",
+    "Remaining incoming media formats, actual voice/video playback, active model cancellation, adverse-network recovery and real seven-day observation remain unqualified."
+  ],
+  "source_sha256": {
+    "src/theo/channels.py": "4f9864cecc82461f45af4b75e28bcd416fdd6d75298a35e7faf73165a030d523",
+    "src/theo/delivery.py": "06ad88a68c2b17910a4d4bc947ce72ed497735b0acb96e4fb426c65d99c1fa90",
+    "src/theo/telegram_state.py": "7b9bab6f32097de2d07336adcffc34eba0552e06522268ef1cb53089b79f5f87",
+    "scripts/telegram_presentation_probe.py": "37e32322426b8772db3f6c0cffacebf908497d1aa7ab4bf1930fe06845cb5ad3",
+    "scripts/telegram_outbound_probe.py": "31b26fffb527defcd11b41973f7f62b1768c5e9b110e2da2e4225078f0fc5ed5",
+    "tests/test_telegram_integration.py": "4805cc628617958d56b808a08f8ac9e928e1343a26f5b5573fbe5c3911b340f1",
+    "tests/test_delivery_jobs.py": "0101015d7d7ba1de93f9d022c7bc634b66f5d1f908ff8e6f9ab30ada973eac06"
+  }
+}

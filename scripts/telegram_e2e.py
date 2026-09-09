@@ -45,8 +45,8 @@ class Observer:
             "SELECT j.* FROM jobs j JOIN inbox_updates i "
             "ON j.semantic_key='inbox:telegram:' || i.update_id AND j.owner_id=i.owner_id "
             "WHERE j.owner_id=? AND i.channel='telegram' "
-            "AND json_extract(j.payload,'$.text')=?",
-            (self.owner, prompt),
+            "AND (json_extract(j.payload,'$.text')=? OR EXISTS(SELECT 1 FROM telegram_messages t WHERE t.job_id=j.id AND json_extract(t.body,'$.text')=?))",
+            (self.owner, prompt, prompt),
         )
         if not jobs:
             return None
@@ -205,7 +205,7 @@ async def run(args):
             await client.disconnect()
     require(args.live, "Pass --live to send synthetic test messages to your configured Theo bot")
     require(
-        args.data_root and args.bot and args.backend and args.model,
+        args.data_root and args.bot and (args.transport_only or (args.backend and args.model)),
         "--data-root, --bot, --backend and --model are required",
     )
     settings = json.loads((args.data_root / "config.json").read_text())
@@ -273,11 +273,51 @@ async def run(args):
         )
         bot = await client.get_entity(args.bot)
         require(bot.bot, "--bot must resolve to a bot")
+        if args.transport_only:
+            from telegram_transport_cases import run_transport
+
+            return await run_transport(client, bot, observer, settings, args)
+        if args.media_cases:
+            media_cases = json.loads(args.media_cases.read_text())
+            require(isinstance(media_cases, list), "Media cases must be a JSON list")
+            for item in media_cases:
+                require(
+                    all(key in item for key in ("name", "path", "kind", "prompt", "expected")),
+                    "Each media case needs name, path, kind, prompt and expected",
+                )
+                require(
+                    item["kind"]
+                    in (
+                        "photo",
+                        "document",
+                        "audio",
+                        "voice",
+                        "video",
+                        "animation",
+                        "sticker",
+                        "video_note",
+                    ),
+                    "Unsupported media fixture kind",
+                )
+                item["prompt"] = f"[{tag}-{item['name']}] " + item["prompt"]
+                cases.append(item)
         for case in cases:
             started = time.monotonic()
             result = {"name": case["name"], "passed": False}
             try:
-                if "document" in case:
+                if "path" in case:
+                    source = (args.media_cases.parent / case["path"]).resolve()
+                    require(source.is_file(), "Media fixture missing")
+                    sent = await client.send_file(
+                        bot,
+                        str(source),
+                        caption=case["prompt"],
+                        voice_note=case["kind"] == "voice",
+                        video_note=case["kind"] == "video_note",
+                        force_document=case["kind"] == "document",
+                        parse_mode=None,
+                    )
+                elif "document" in case:
                     document = io.BytesIO(case["document"].encode())
                     document.name = tag + ".txt"
                     sent = await client.send_file(
@@ -355,6 +395,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--login-only", action="store_true")
     parser.add_argument("--live", action="store_true")
+    parser.add_argument(
+        "--transport-only",
+        action="store_true",
+        help="Exercise controls, edits, replies and configured topics without model inference",
+    )
+    parser.add_argument(
+        "--media-cases",
+        type=Path,
+        help="JSON manifest of synthetic media files, prompts and expected answers",
+    )
     parser.add_argument("--session", type=Path, default=Path.home() / ".local/share/theo-e2e/user")
     parser.add_argument("--data-root", type=Path)
     parser.add_argument("--bot", help="Your dedicated Theo bot's @username")

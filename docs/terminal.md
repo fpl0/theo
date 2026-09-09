@@ -4,16 +4,16 @@ Start the assistant normally, then open a second terminal:
 
 ```sh
 # Terminal 1, unless your Theo service is already running:
-uv run theo serve
+uv run --no-sync theo serve
 
 # Terminal 2:
-uv run theo chat
+uv run --no-sync theo chat
 ```
 
-After updating an existing installation, restart its daemon once so it can publish live previews and observe local cancellations. Use the same `--data-root` in both terminals when you have a custom installation:
+Restart the daemon after updating an existing installation so the client and service use the same implementation. Use the same `--data-root` in both terminals when you have a custom installation:
 
 ```sh
-uv run theo --data-root /absolute/path/to/theo chat
+uv run --no-sync theo --data-root /absolute/path/to/theo chat
 ```
 
 This is a local client of the running assistant. It uses Theo's existing subscription adapters, tool grants, durable jobs and SQLite memory. It starts no second model process or Telegram poller of its own. Telegram and terminal conversations are separate, while owner memory is shared. Native account verification and OS isolation requirements still apply.
@@ -47,10 +47,10 @@ The final response comes from the canonical job/action records. The terminal wai
 ## Conversations and controls
 
 ```sh
-uv run theo chat --session work
-uv run theo chat --session personal
-uv run theo chat --backend codex --model YOUR_INCLUDED_MODEL
-uv run theo chat --attach ./screenshot.png
+uv run --no-sync theo chat --session work
+uv run --no-sync theo chat --session personal
+uv run --no-sync theo chat --backend codex --model YOUR_INCLUDED_MODEL
+uv run --no-sync theo chat --attach ./screenshot.png
 ```
 
 The default named conversation resumes automatically. Recent messages appear when you reopen it. Model choices persist per conversation; they do not alter Telegram's route.
@@ -75,7 +75,7 @@ Ctrl+C during a response requests cancellation. The daemon observes it in its no
 Passing text still uses the existing JSON-returning queue command. Attachments work here too:
 
 ```sh
-uv run theo chat "Summarize this document" --attach ./design.pdf
+uv run --no-sync theo chat "Summarize this document" --attach ./design.pdf
 ```
 
 This preserves existing scripts. Omit the text argument for the interactive interface; it requires a real terminal. Shell input history is in memory for the current client only, while submitted conversation history is stored in Theo's canonical SQLite records.

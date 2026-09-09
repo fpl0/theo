@@ -7,16 +7,16 @@ from datetime import UTC, datetime
 
 import pytest
 
-from theo.artifacts import Artifacts
-from theo.autonomy import CADENCES, Autonomy
+from theo.content.artifacts import Artifacts
 from theo.domain import Conflict
-from theo.goals import Goals
-from theo.importer import import_luke
-from theo.memory import Memory
-from theo.operations import backup_create, backup_verify, restore_backup
-from theo.scheduling import Scheduler, next_cron
+from theo.memory.store import Memory
+from theo.operations.backups import backup_create, backup_verify, restore_backup
+from theo.operations.importer import import_luke
 from theo.storage import Database
 from theo.supervisor import service_definition
+from theo.work.autonomy import CADENCES, Autonomy
+from theo.work.goals import Goals
+from theo.work.scheduling import Scheduler, next_cron
 
 
 def test_a22_dst_gap_skipped_fold_once_earlier():

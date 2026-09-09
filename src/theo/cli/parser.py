@@ -1,0 +1,158 @@
+"""Define the public Theo command-line grammar and argument defaults.
+
+Contains no command execution or credential lookup; both the console entry point
+and tests can inspect the CLI without initializing the daemon.
+"""
+
+import argparse
+from pathlib import Path
+
+from theo import __version__
+from theo.backends.policy import BACKENDS
+from theo.config import default_root
+
+
+def parser() -> argparse.ArgumentParser:
+    cli = argparse.ArgumentParser(
+        prog="theo", description="Theo — durable personal assistance, included subscriptions only"
+    )
+    cli.add_argument("--data-root", type=Path, default=default_root())
+    cli.add_argument("--version", action="version", version=__version__)
+    sub = cli.add_subparsers(dest="command", required=True)
+    init = sub.add_parser("init")
+    init.add_argument("--owner", default="owner")
+    init.add_argument("--timezone", default="Europe/Dublin")
+    init.add_argument("--telegram-owner-id", type=int)
+    init.add_argument("--telegram-chat-id", type=int)
+    init.add_argument("--worker-home", type=Path)
+    init.add_argument("--encrypted-storage", action="store_true")
+    configure = sub.add_parser("configure")
+    configure.add_argument("--file", type=Path, required=True)
+    doctor = sub.add_parser("doctor")
+    doctor.add_argument("--json", action="store_true")
+    telegram = sub.add_parser("telegram").add_subparsers(dest="operation", required=True)
+    telegram.add_parser("doctor")
+    telegram.add_parser("status")
+    retry_event = telegram.add_parser("retry-event")
+    retry_event.add_argument("update_id", type=int)
+    retry_event.add_argument("--bot-id", type=int, required=True)
+    sub.add_parser("serve")
+    sub.add_parser("status")
+    chat = sub.add_parser("chat")
+    chat.add_argument("text", nargs="?", help="Omit to open the interactive terminal")
+    chat.add_argument("--backend", choices=BACKENDS)
+    chat.add_argument("--model")
+    chat.add_argument("--session", default="default", help="Interactive conversation name")
+    chat.add_argument("--attach", type=Path, action="append", default=[])
+    accounts = sub.add_parser("accounts").add_subparsers(dest="operation", required=True)
+    accounts.add_parser("list")
+    quota = accounts.add_parser("quota")
+    quota.add_argument("backend", choices=BACKENDS)
+    quota.add_argument("--available", action="store_true", required=True)
+    verify = accounts.add_parser("verify")
+    verify.add_argument("backend", choices=BACKENDS)
+    verify.add_argument("--evidence", type=Path, required=True)
+    models = sub.add_parser("models").add_subparsers(dest="operation", required=True)
+    models.add_parser("list")
+    for noun in ("jobs", "runs", "actions"):
+        commands = sub.add_parser(noun).add_subparsers(dest="operation", required=True)
+        commands.add_parser("list")
+        inspect = commands.add_parser("inspect")
+        inspect.add_argument("id")
+        if noun == "jobs":
+            cancel = commands.add_parser("cancel")
+            cancel.add_argument("id")
+            retry = commands.add_parser("retry")
+            retry.add_argument("id")
+        if noun == "actions":
+            for decision in ("approve", "reject"):
+                approval = commands.add_parser(decision)
+                approval.add_argument("id")
+                approval.add_argument("--request-hash", required=True)
+            reconcile = commands.add_parser("reconcile")
+            reconcile.add_argument("id")
+            reconcile.add_argument("--receipt", type=Path)
+            reconcile.add_argument("--confirmed-no-effect", action="store_true")
+            reconcile.add_argument(
+                "--delivery-id", help="Exact uncertain chunk from actions inspect"
+            )
+    memory = sub.add_parser("memory").add_subparsers(dest="operation", required=True)
+    memory.add_parser("list")
+    search = memory.add_parser("search")
+    search.add_argument("query")
+    for verb in ("show", "history", "archive", "erase"):
+        command = memory.add_parser(verb)
+        command.add_argument("id")
+    remember = memory.add_parser("remember")
+    remember.add_argument("body")
+    edit = memory.add_parser("edit")
+    edit.add_argument("id")
+    edit.add_argument("--file", type=Path)
+    edit.add_argument("--expected-revision", type=int)
+    restore = memory.add_parser("restore")
+    restore.add_argument("id")
+    restore.add_argument("--revision", type=int)
+    export = memory.add_parser("export")
+    export.add_argument("--format", choices=("jsonl", "markdown"), default="jsonl")
+    export.add_argument("--output", type=Path, required=True)
+    review = memory.add_parser("review")
+    review.add_argument("id")
+    decision = review.add_mutually_exclusive_group(required=True)
+    decision.add_argument("--accept", action="store_true")
+    decision.add_argument("--reject", action="store_true")
+    imports = sub.add_parser("import").add_subparsers(dest="operation", required=True)
+    luke = imports.add_parser("luke")
+    luke.add_argument("--source", type=Path, required=True)
+    mode = luke.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--dry-run", action="store_true")
+    mode.add_argument("--apply", action="store_true")
+    backup = sub.add_parser("backup").add_subparsers(dest="operation", required=True)
+    backup.add_parser("create")
+    verify_backup = backup.add_parser("verify")
+    verify_backup.add_argument("snapshot", type=Path)
+    restore_app = sub.add_parser("restore")
+    restore_app.add_argument("--source", type=Path, required=True)
+    restore_app.add_argument("--target", type=Path, required=True)
+    recovery = sub.add_parser("recovery").add_subparsers(dest="operation", required=True)
+    recovery.add_parser("inspect")
+    release_recovery = recovery.add_parser("release")
+    release_recovery.add_argument("--snapshot-time", type=float, required=True)
+    services = sub.add_parser("service").add_subparsers(dest="operation", required=True)
+    install = services.add_parser("install")
+    install.add_argument("--output", type=Path)
+    for command in ("pause", "resume"):
+        services.add_parser(command)
+    for command in ("upgrade", "rollback"):
+        release = sub.add_parser(command)
+        release.add_argument("--release", required=True)
+    stage = sub.add_parser("release-stage")
+    stage.add_argument("source", type=Path)
+    isolation = sub.add_parser("isolation").add_subparsers(dest="operation", required=True)
+    isolation.add_parser("verify")
+    asset = sub.add_parser("assets").add_subparsers(dest="operation", required=True)
+    asset.add_parser("install-embeddings")
+    asset.add_parser("repair-embeddings")
+    asset.add_parser("install-browser")
+    evaluate = sub.add_parser("evaluate")
+    evaluate.add_argument("--suite", default="acceptance", choices=("acceptance",))
+    evaluate.add_argument("--offline", action="store_true", required=True)
+    sub.add_parser("goals")
+    qualification = sub.add_parser("qualification").add_subparsers(dest="operation", required=True)
+    qualification.add_parser("status")
+    qualification_record = qualification.add_parser("record")
+    qualification_record.add_argument("--file", type=Path, required=True)
+    skills = sub.add_parser("skills").add_subparsers(dest="operation", required=True)
+    skills.add_parser("list")
+    for operation in ("evaluate", "activate", "rollback"):
+        skill = skills.add_parser(operation)
+        skill.add_argument("id")
+        if operation == "evaluate":
+            skill.add_argument("--cases", type=Path, required=True)
+    facts = sub.add_parser("facts").add_subparsers(dest="operation", required=True)
+    facts.add_parser("list")
+    fact = facts.add_parser("set")
+    for field in ("subject", "predicate", "value"):
+        fact.add_argument(field)
+    fact.add_argument("--expected-revision", type=int, default=0)
+    fact.add_argument("--valid-until", type=float)
+    return cli

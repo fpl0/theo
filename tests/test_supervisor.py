@@ -4,6 +4,8 @@ import os
 import signal
 import socket
 import sys
+import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -13,8 +15,9 @@ from theo.storage import Database
 
 async def test_a33_core_crash_recovers_and_maintenance_does_not_restart(tmp_path):
     try:
-        probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        probe.close()
+        with tempfile.TemporaryDirectory(prefix="theo-probe-", dir="/tmp") as directory:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+                probe.bind(str(Path(directory) / "probe.sock"))
     except PermissionError:
         pytest.skip(
             "Host denies Unix server sockets; supervisor/core integration requires a service-capable host"

@@ -53,6 +53,7 @@ jobs:
         shell: bash
         run: |
           uv venv "$RUNNER_TEMP/theo-wheel" --python 3.14
-          uv pip install --python "$RUNNER_TEMP/theo-wheel/bin/python" --no-deps dist/*.whl
+          uv export --locked --no-dev --no-emit-project --no-hashes --format requirements-txt --output-file "$RUNNER_TEMP/theo-wheel-requirements.txt"
+          uv pip install --python "$RUNNER_TEMP/theo-wheel/bin/python" -r "$RUNNER_TEMP/theo-wheel-requirements.txt" dist/*.whl
           cd "$RUNNER_TEMP"
-          "$RUNNER_TEMP/theo-wheel/bin/python" -c 'from importlib.resources import files; import theo; assert len(list(files("theo").joinpath("migrations").iterdir())) >= 2; print("Installed package and migrations verified")'
+          "$RUNNER_TEMP/theo-wheel/bin/python" "$GITHUB_WORKSPACE/scripts/check_installed_package.py"

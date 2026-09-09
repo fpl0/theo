@@ -2,27 +2,25 @@
 
 [![Quality checks](https://github.com/fpl0/theo/actions/workflows/ci.yml/badge.svg)](https://github.com/fpl0/theo/actions/workflows/ci.yml)
 
-Theo is a personal assistant you run yourself.
+Theo is a personal assistant you run yourself, with persistent memory, durable work and conversations in Telegram or your terminal.
 
-It remembers what you tell it, and lets you correct it when it gets something wrong. It takes on work that outlives a single conversation, survives a restart in the middle of it, and tells you honestly whether it finished. It reaches you on Telegram or in your terminal, keeps track of what you asked for and when it is due, and asks before it acts in the world on your behalf.
+It remembers what you tell it, records corrections without losing history, and keeps track of jobs, goals and reminders beyond a single conversation. You can inspect what it used, what it changed and whether an action actually completed.
 
-Everything it knows lives in one SQLite database on your machine. Its thinking comes from native subscription apps you already pay for, so there is no metered model API and no per-token bill.
+Theo keeps canonical memory and work state in SQLite on your machine, with large media stored as content-addressed files. Reasoning comes from Claude Code, Codex App Server, Cursor ACP or Grok ACP through their native subscription runtimes. Theo requires verified included usage and has no metered model API fallback. Selected context and attachments are sent to the chosen provider; local storage does not mean local-only inference.
 
-**Status: implementation with deterministic integration tests; not production-qualified.** Native account canaries, target Mac isolation/service tests, local model assets, live behavioural grades and a genuine seven-day soak remain required. See the [acceptance report](docs/acceptance.md) and [requirement matrix](docs/requirements.md). Theo starts with no eligible accounts and background autonomy paused.
+**Status — 9 September 2026:** implemented, with offline integration coverage, successful local Codex/Claude evaluations, real Telegram client checks and a locally tested observability stack. **Production qualification remains incomplete.** A fresh installation has no verified accounts and starts with background autonomy paused. See [current acceptance status](docs/acceptance.md) for the evidence and remaining gates.
 
 ## What Theo can do
 
-**Remember you accurately.** Memory is revisioned rather than overwritten, so a correction is recorded as a correction and you can see what it used to think. Facts carry the period they were true for. Search combines full-text with optional local vectors, and every answer can show you the exact context it was built from.
+- **Remember with history.** Revisioned memories, reviewed corrections, time-bounded facts, archive/restore and lexical search with optional local embeddings. Each model run records its selected context and sources.
+- **Keep work durable.** Jobs, child jobs, goals and checkpoints survive process restarts. Cancellation stops owned work; authentication, quota and uncertain effects remain visible for recovery instead of being reported as success.
+- **Use Telegram day to day.** Owner private chat and configured groups/topics; replies, edits, albums, typing and private answer drafts; rich messages, media, in-chat approvals, memory review, job controls and delivery reconciliation. Group context and tools enforce private-memory boundaries. [Telegram guide](docs/telegram.md).
+- **Chat locally.** An interactive terminal with Markdown, code highlighting, attachments, live drafts, named sessions and cancellation. Terminal conversations stay separate from Telegram and deliver locally. [Terminal guide](docs/terminal.md).
+- **Schedule reliably.** Requested reminders and recurring schedules use the owner's timezone and explicit daylight-saving rules. Due reminders can deliver while models or background autonomy are paused, provided the service and channel are available.
+- **Work through controlled tools.** Public-web reads, scoped files and commands, artifacts, local voice creation, goals and delegation. Cross-destination sends, forwards and deletions require approval. Outbound actions retain receipts; an ambiguous send requires reconciliation before retry. [All 51 tools](docs/tools.md).
+- **Operate and investigate.** Online backups, quarantined restores, structured export, staged releases, code rollback and a separate supervisor. Optional Grafana dashboards connect logs, traces, metrics and test-bot alerts. [Operations](docs/operations.md) · [Observability](docs/observability.md).
 
-**Finish what it starts.** Work is durable: a job survives a restart, a crash or a cancelled run, and picks up where it left off. Long tasks split into child jobs. When a run cannot finish because an account is out of quota or needs a login, Theo says that instead of inventing a result.
-
-**Act on your behalf, with a check.** It reads and writes files in a scoped workspace, runs commands, keeps artifacts, creates voice notes and tracks goals. Actions that reach the outside world go through a durable approval step, and delivery is receipted, so a send whose outcome is uncertain gets reconciled rather than blindly retried. [Tool catalogue](docs/tools.md).
-
-**Reach you where you are.** Telegram handles text, photos, documents and voice, and the terminal client gives you the same assistant locally. Reminders and schedules are timezone- and DST-aware and fire whether or not a model is available.
-
-**Work on its own, within limits.** Bounded autonomy loops let it make progress between your messages, and a separate critic decides whether anything is worth interrupting you about.
-
-**Stay recoverable.** Online backups, quarantined restores, staged immutable releases, code rollback and an independent supervisor, all driven from the CLI. Your data exports in structured form.
+Background autonomy, reflection and reviewed skills are implemented, with activation gated by production evidence. Generated commands require verified macOS isolation. Automatic provider failover, unlimited semantic history compaction and unattended self-patch deployment remain incomplete.
 
 ## Start locally
 
@@ -31,49 +29,81 @@ Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then:
 ```sh
 git clone https://github.com/fpl0/theo.git
 cd theo
-uv sync --frozen
-uv run theo init
-uv run theo doctor --json
-uv run theo memory remember "I prefer concise, direct answers."
-uv run theo memory search "concise"
-uv run theo status
+uv sync --locked
+uv run --no-sync theo init --timezone Europe/Dublin
+uv run --no-sync theo doctor --json
+uv run --no-sync theo memory remember "I prefer concise, direct answers."
+uv run --no-sync theo memory search "concise"
+uv run --no-sync theo status
 ```
 
-Python 3.14 is selected by `.python-version`. `uv.lock` pins the dependency graph. These commands do not call a model or send a Telegram message. macOS state defaults to `~/Library/Application Support/Theo`; Linux uses the XDG data directory. Put `--data-root /absolute/path` **before** the subcommand to select an isolated root.
+Choose your IANA timezone at initialization. Python 3.14 is selected by `.python-version`; `uv.lock` pins dependencies. These commands initialize and inspect local state without calling a model or sending messages. Missing account/isolation/qualification checks in `doctor` are expected on a fresh root.
 
-For development:
+On macOS, state defaults to `~/Library/Application Support/Theo`; on Linux, `$XDG_DATA_HOME/theo` or `~/.local/share/theo`. Put `--data-root /absolute/path` **before** the subcommand to use another root, and use that same root for the daemon and client. Apple Silicon macOS is the deployment target; Linux supports core development and offline tests but is not the qualified generated-code runtime.
+
+### Enable model conversations
+
+1. Follow [installation and isolation](docs/operations.md#installation-and-isolation) to configure a separate native runner home and a readable worker environment for the MCP shim. Run `theo isolation verify` against that setup.
+2. Sign in through the selected vendor's subscription login under the runner identity. Verify included models and spending controls, with extra usage, on-demand charging and top-ups disabled.
+3. Record genuine [account evidence](docs/operations.md#account-evidence) using `theo accounts verify BACKEND --evidence /path/evidence.json`. Evidence must match the installed runtime and effective configuration; it expires after 24 hours or drift.
+4. Start the daemon and open the client in separate terminals:
+
+   ```sh
+   # Terminal 1
+   uv run --no-sync theo serve
+
+   # Terminal 2 — replace YOUR_INCLUDED_MODEL with a verified catalogue entry
+   uv run --no-sync theo chat --backend codex --model YOUR_INCLUDED_MODEL
+   ```
+
+Use `--session work` to resume a named interactive conversation. Passing text, as in `theo chat "Hello Theo"`, queues a message and returns JSON; the running daemon processes it. The default route comes from `primary_backend` and `primary_model` in configuration. Interactive route choices apply to that conversation.
+
+### Connect Telegram
+
+Create a dedicated bot with [BotFather](https://t.me/BotFather), then pair its private chat:
+
+```sh
+uv run --no-sync python scripts/telegram_setup.py --bot YOUR_TEST_BOT
+```
+
+The helper prompts for the token without echoing it, verifies bot identity, and asks you to send a unique pairing message. It uses a separate `Theo-Telegram-Test` data root and starts the normal daemon. By default, the token stays in process memory. Optional private token files support repeat runs without Keychain; see [setup and controls](docs/telegram.md). Keep one poller per bot, and configure native accounts/isolation for this separate root before expecting model replies. Host commands and requested reminders work without inference.
+
+### Optional local assets
+
+The base install supports lexical memory search and local document extraction. Install the extras you need:
+
+```sh
+uv sync --locked --extra embeddings --extra browser --extra speech
+uv run --no-sync theo assets install-embeddings
+uv run --no-sync theo assets install-browser
+```
+
+The asset commands download embedding weights and a browser respectively. Speech transcription requires Apple Silicon, a separately provisioned local MLX Whisper model and FFmpeg; voice creation uses macOS `say` and FFmpeg. Telegram video extraction uses at most eight timestamped samples and available audio transcription, with partial coverage disclosed. See [assets and media](docs/operations.md#local-assets-and-media).
+
+## What has been verified
+
+These are scoped, dated results; they do not qualify every current feature or deployment.
+
+| Area | Recorded evidence |
+| --- | --- |
+| Native adapters | Codex and Claude each passed four local response/memory/document cases through the production adapters, coordinator, MCP broker and local delivery. [8 September review](docs/review-2026-09-08.md). |
+| Complex behavior | Codex gpt-5.6-sol and Claude Opus 5 passed 40 native turns, four host-state checks and separate transcript review on a frozen source snapshot. Telegram edits were excluded. [9 September evaluation](docs/complex-evaluation-2026-09-09.md). |
+| Telegram | Real client checks cover controls, reminders, edits, media intake/delivery, approvals, memory review, synthetic drafts/Stop and lost-acknowledgement recovery. Model-backed Telegram, live groups/topics and remaining media/feedback checks are still pending. [Implementation status](docs/telegram-implementation.md). |
+| Observability | A ten-minute local load test with 8,680 synthetic operations peaked at about 1.82 GB for the whole stack, within its 2 GB budget. [Runbook and evidence](docs/observability.md). |
+
+The [acceptance report](docs/acceptance.md) tracks current offline verification, native spending-control and deployment requirements, asset coverage, and the outstanding seven-day service soak. The [evidence index](docs/evidence/README.md) links raw reports, including failed and partial runs.
+
+## Development and documentation
 
 ```sh
 uv sync --locked --extra browser --extra embeddings
-uv run pytest -q
-uv run ruff check src tests scripts
-uv run ruff format --check src tests scripts
-uv run pyright
+THEO_TEST_OFFLINE=1 HF_HUB_OFFLINE=1 uv run --no-sync pytest -q
+uv run --no-sync ruff check src tests scripts
+uv run --no-sync ruff format --check src tests scripts
+uv run --no-sync pyright
+uv build
 ```
 
-Tests use temporary databases, synthetic data and native-protocol subprocess fixtures. They do not log in, call paid services, contact model accounts or modify an existing assistant. Host-restricted OS tests report explicit skips.
+Tests use temporary state, synthetic data and native-protocol subprocess fixtures. Live native entry points require `--live` and reject CI/offline environments. CI runs lint, formatting, types, tests, distribution builds and an installed-package check on standard Linux/macOS runners; it skips private repositories and uses no model accounts, persistent caches or artifact uploads. [Quality practices](docs/code-quality.md) · [Live test guide](docs/live-testing.md).
 
-CI runs these checks plus distribution builds and an installed-package check on standard Linux and macOS GitHub runners. It uses no paid model services, persistent caches or artifact uploads, and skips if the repository becomes private. See [quality practices and review findings](docs/code-quality.md).
-
-For real **Telegram → Theo → native model → Telegram** tests, use the [live test guide](docs/live-testing.md). It includes a runnable four-case suite, JSON/JUnit reports, and the results of an actual small local model experiment (1/4 initial checks passed).
-
-## Interactive terminal
-
-With Theo running, open a second terminal and run `uv run theo chat`. Paste or drag file paths, attach images with `/attach`, and read live Markdown/code output. Named sessions resume with `--session work`; Ctrl+C cancels a turn and `/quit` leaves the assistant running. See the [terminal guide](docs/terminal.md) for setup, attachments and commands.
-
-## Connect a native runtime
-
-1. Follow [the operator guide](docs/operations.md) to create a separate runner home, install a readable worker shim and verify the real OS boundary. A working directory alone is insufficient. Generated code remains unavailable without the qualified Mac sandbox.
-2. Sign in using each vendor's supported **subscription** login. Disable extra usage, on-demand charging and top-ups in the account's native settings. Do not put API keys in Theo's environment.
-3. Use `theo accounts verify BACKEND --evidence /path/to/evidence.json` to bind the account catalogue and billing evidence to the installed runtime fingerprint. The command reports the required fingerprint/configuration hash when evidence does not match. [Account evidence format](docs/operations.md#account-evidence).
-4. Select a backend and an included model from that account's actual catalogue. For example, `theo chat --backend codex --model INCLUDED_MODEL "Hello Theo"`, then `theo serve` in the service session. `chat` durably queues input; `serve` processes it. No universal model name is hardcoded.
-
-Telegram requires the exact numeric owner and chat IDs in configuration and the bot token in macOS Keychain service `theo.telegram` or `THEO_TELEGRAM_TOKEN`. Inbound updates are committed before the next polling acknowledgement. Local CLI conversations stay local even when Telegram is configured.
-
-## Going deeper
-
-Under the hood it is Python on SQLite, with reasoning supplied by Claude Code, Codex App Server, Cursor ACP or Grok ACP over their native protocols. Read [architecture and decisions](docs/architecture.md), [operations](docs/operations.md), [compatibility](docs/compatibility.json), [performance measurements](docs/capacity-results.json) and [remaining qualification work](docs/acceptance.md).
-
-Claims here are meant to be checkable. [Captured evidence](docs/evidence/) holds the raw terminal recordings and JSON reports behind the testing statements above.
-
-A read-only importer brings across a snapshot from an earlier assistant, Luke. That source was inspected as reference evidence only; Theo imports none of its modules and requires none of its files. A fixed 30-case behavioural evaluation pack measures answer quality.
+Start with the [documentation index](docs/README.md) for user guides, architecture, the tool catalogue and qualification records. The [source organization guide](docs/architecture.md#source-organization) maps the responsibility-based packages and contribution rules. Theo is an independent implementation; its read-only Luke importer accepts disconnected snapshots and does not depend on Luke at runtime.

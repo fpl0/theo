@@ -1,0 +1,799 @@
+{
+  "qualification": "Local observability, 2026-09-09",
+  "memory": {
+    "started_at": 1788915310.381099,
+    "finished_at": 1788915910.537087,
+    "duration_seconds": 600.1540910840267,
+    "operations": 8680,
+    "samples": [
+      {
+        "theo_observability_memory_bytes": 1816876816.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 0.02,
+        "operations": 10,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1816860432.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 15.07,
+        "operations": 160,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1816860432.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 30.12,
+        "operations": 310,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1816860432.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 45.18,
+        "operations": 460,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1816975120.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 60.23,
+        "operations": 610,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1809618704.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 75.29,
+        "operations": 760,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1809618704.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 90.34,
+        "operations": 910,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1809520400.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 105.4,
+        "operations": 1060,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817237264.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 120.46,
+        "operations": 1210,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817286416.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 135.5,
+        "operations": 1360,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817220880.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 150.56,
+        "operations": 1510,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817794320.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 165.61,
+        "operations": 1660,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817761552.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 180.66,
+        "operations": 1810,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817761552.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 195.72,
+        "operations": 1960,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817712400.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 210.77,
+        "operations": 3100,
+        "burst": true
+      },
+      {
+        "theo_observability_memory_bytes": 1817777936.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 225.82,
+        "operations": 4600,
+        "burst": true
+      },
+      {
+        "theo_observability_memory_bytes": 1817843472.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 240.87,
+        "operations": 5110,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817892624.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 255.91,
+        "operations": 5260,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817794320.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 270.96,
+        "operations": 5410,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817794320.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 286.0,
+        "operations": 5560,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817810704.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 301.05,
+        "operations": 5710,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817810704.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 316.1,
+        "operations": 5860,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817859856.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 331.15,
+        "operations": 6010,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817810704.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 346.21,
+        "operations": 6160,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817859856.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 361.26,
+        "operations": 6310,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817892624.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 376.3,
+        "operations": 6460,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817777936.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 391.34,
+        "operations": 6610,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817827088.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 406.39,
+        "operations": 6760,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817827088.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 421.45,
+        "operations": 6910,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817827088.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 436.5,
+        "operations": 7060,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817974544.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 451.55,
+        "operations": 7210,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817925392.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 466.58,
+        "operations": 7360,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1818023696.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 481.63,
+        "operations": 7510,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1818072848.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 496.68,
+        "operations": 7660,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817892624.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 511.73,
+        "operations": 7810,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817909008.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 526.78,
+        "operations": 7960,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817892624.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 541.84,
+        "operations": 8110,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817892624.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 556.88,
+        "operations": 8260,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817941776.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 571.93,
+        "operations": 8410,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 1817941776.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 586.99,
+        "operations": 8560,
+        "burst": false
+      }
+    ],
+    "errors": [],
+    "peak_physical_footprint_bytes": 1818072848.0,
+    "budget_bytes": 2000000000,
+    "container_restarts": {
+      "/theo-observability-grafana-1": 0,
+      "/theo-observability-tempo-1": 0,
+      "/theo-observability-prometheus-1": 0,
+      "/theo-observability-alloy-1": 0,
+      "/theo-observability-loki-1": 0
+    },
+    "oom_killed": false,
+    "method": "macOS footprint sum: all Apple VZ helpers, Colima Lima/SSH helpers, native observer; guest Linux/Docker/containers included in VZ footprint. Shared VZ helpers are conservatively overcounted.",
+    "oom_events": 0,
+    "passed": true
+  },
+  "fault_recovery": {
+    "operations": 3000,
+    "started_at": 1788915249.1405928,
+    "native_progress_seconds": 0.5892092080030125,
+    "native_rss_growth_bytes": 5292032,
+    "recovered_trace_id": "3ad170cade05f1fb2d6a581b3a096199",
+    "dropped_records_reported": 10848.0,
+    "trace_export_recovered": true,
+    "passed": true
+  },
+  "correlation": {
+    "trace_id": "759c46679fe9b9083d28fbfb81b862b2",
+    "trace_stored": true,
+    "logs_correlated": true,
+    "exemplar_correlated": true,
+    "grafana_trace_to_logs_correlated": true,
+    "health": {
+      "grafana": {
+        "ready": true,
+        "status": 200
+      },
+      "alloy": {
+        "ready": true,
+        "status": 200
+      },
+      "prometheus": {
+        "ready": true,
+        "status": 200
+      },
+      "loki": {
+        "ready": true,
+        "status": 200
+      },
+      "tempo": {
+        "ready": true,
+        "status": 200
+      },
+      "observer": {
+        "ready": true,
+        "status": 200
+      }
+    },
+    "dashboard_queries": 83,
+    "log_queries": 10,
+    "query_errors": [],
+    "whole_stack_memory_verified": true,
+    "alert_queries": 18
+  },
+  "alert_transport": [
+    {
+      "name": "webhook",
+      "type": null,
+      "lastNotifyAttempt": "2026-09-09T01:03:23.378Z",
+      "lastNotifyAttemptError": null,
+      "lastNotifyAttemptDuration": "2ms"
+    },
+    {
+      "name": "telegram",
+      "type": null,
+      "lastNotifyAttempt": "2026-09-09T01:03:23.378Z",
+      "lastNotifyAttemptError": null,
+      "lastNotifyAttemptDuration": "114ms"
+    }
+  ],
+  "visual_review": {
+    "dashboards": [
+      "Overview",
+      "Jobs & Tools",
+      "Telegram",
+      "CLI",
+      "Codex",
+      "Infrastructure"
+    ],
+    "native_telegram_traffic": true,
+    "unknown_codex_usage_is_not_reported_as_zero": true,
+    "log_to_trace_link_visible": true,
+    "live_delivery_trace_rendered": true,
+    "live_trace_id": "b8ffd6e55df9b44146124de38fe9dd4e",
+    "trace_to_logs_link_uses_metadata": true,
+    "trace_to_metrics_link_scopes_environment": true,
+    "trace_to_logs_roundtrip_verified": true,
+    "matching_delivery_log_lines": 4
+  },
+  "tests": {
+    "full_suite_passed": 202,
+    "platform_skips": 1,
+    "additional_heartbeat_tests_passed": true,
+    "ruff": "pass",
+    "pyright": "pass",
+    "telemetry_tests_passed": 11,
+    "durable_telegram_retry_restart_tool_delivery": "pass",
+    "album_trace_parent_and_links": "pass"
+  },
+  "open_qualification_items": [
+    "External heartbeat URL required to detect whole-laptop or network outages",
+    "Live successful Codex inference and real allowance observations await native account attestation in the Telegram task"
+  ],
+  "notes": [
+    "Initial Grafana 256 MiB container limit caused an OOM; reallocated memory within unchanged 1344 MiB total and repeated qualification successfully.",
+    "Native Theo, Codex and unrelated desktop applications are not part of the Docker VM and observer memory measurement.",
+    "CLI and native Codex protocol fixtures use the qualification environment; they are not real model usage."
+  ],
+  "post_review_physical_footprint_bytes": 1794365200.0,
+  "recorded_at": 1788917415.1512551,
+  "live_telegram_album_correlation": {
+    "trace_id": "d24cac14ae1acd9c527890a919d22055",
+    "span_names": [
+      "telegram.poll_once",
+      "telegram.receive",
+      "telegram.receive",
+      "telegram.process",
+      "telegram.process",
+      "telegram.album",
+      "job.run",
+      "telegram.hydrate",
+      "telegram.hydrate",
+      "ai.run",
+      "delivery.send",
+      "telegram.send"
+    ],
+    "span_links": 1,
+    "correlated_log_count": 27,
+    "metric_exemplars": [
+      {
+        "operation": "ai.run",
+        "exemplars": 1
+      },
+      {
+        "operation": "job.run",
+        "exemplars": 1
+      },
+      {
+        "operation": "telegram.album",
+        "exemplars": 1
+      },
+      {
+        "operation": "telegram.process",
+        "exemplars": 1
+      },
+      {
+        "operation": "telegram.receive",
+        "exemplars": 1
+      },
+      {
+        "operation": "delivery.send",
+        "exemplars": 1
+      },
+      {
+        "operation": "telegram.send",
+        "exemplars": 1
+      },
+      {
+        "operation": "telegram.hydrate",
+        "exemplars": 1
+      },
+      {
+        "operation": "telegram.poll_once",
+        "exemplars": 1
+      },
+      {
+        "operation": "telegram.hydrate",
+        "exemplars": 1
+      }
+    ],
+    "live_model_success": false,
+    "qualification": "Actual test bot album receipt and delivery; AI run reaches existing account-attestation gate",
+    "recorded_at": 1788917364.4795241
+  },
+  "completion_audit": {
+    "checked_at": 1788917531.157737,
+    "rules": [
+      {
+        "name": "Theo core unavailable",
+        "state": "inactive",
+        "health": "ok",
+        "last_error": null
+      },
+      {
+        "name": "Theo observer missing",
+        "state": "inactive",
+        "health": "ok",
+        "last_error": null
+      },
+      {
+        "name": "Theo queue stalled",
+        "state": "inactive",
+        "health": "ok",
+        "last_error": null
+      },
+      {
+        "name": "Theo delivery stalled",
+        "state": "inactive",
+        "health": "ok",
+        "last_error": null
+      },
+      {
+        "name": "Theo uncertain delivery",
+        "state": "inactive",
+        "health": "ok",
+        "last_error": null
+      },
+      {
+        "name": "Theo Telegram poller stale",
+        "state": "inactive",
+        "health": "ok",
+        "last_error": null
+      },
+      {
+        "name": "Theo Codex authentication required",
+        "state": "firing",
+        "health": "ok",
+        "last_error": null
+      },
+      {
+        "name": "Theo Codex allowance exhausted",
+        "state": "inactive",
+        "health": "ok",
+        "last_error": null
+      },
+      {
+        "name": "Theo host disk pressure",
+        "state": "inactive",
+        "health": "ok",
+        "last_error": null
+      },
+      {
+        "name": "Theo observability memory pressure",
+        "state": "inactive",
+        "health": "ok",
+        "last_error": null
+      },
+      {
+        "name": "Theo telemetry backend unavailable",
+        "state": "inactive",
+        "health": "ok",
+        "last_error": null
+      },
+      {
+        "name": "Theo observability test",
+        "state": "inactive",
+        "health": "ok",
+        "last_error": null
+      },
+      {
+        "name": "Theo whole-stack memory budget exceeded",
+        "state": "inactive",
+        "health": "ok",
+        "last_error": null
+      },
+      {
+        "name": "Theo telemetry container restarted",
+        "state": "inactive",
+        "health": "ok",
+        "last_error": null
+      },
+      {
+        "name": "Theo native telemetry stale",
+        "state": "inactive",
+        "health": "ok",
+        "last_error": null
+      },
+      {
+        "name": "Theo telemetry records dropped",
+        "state": "inactive",
+        "health": "ok",
+        "last_error": null
+      },
+      {
+        "name": "Theo collector export failures",
+        "state": "inactive",
+        "health": "ok",
+        "last_error": null
+      },
+      {
+        "name": "Theo schedule overdue",
+        "state": "inactive",
+        "health": "ok",
+        "last_error": null
+      }
+    ],
+    "live_metrics": {
+      "theo_core_ready": 1.0,
+      "theo_observability_memory_bytes": 1794250512.0,
+      "theo_host_swap_bytes": 0.0,
+      "theo_external_heartbeat_configured": 0.0
+    },
+    "current_verified_codex_accounts": 0,
+    "requirements": [
+      {
+        "requirement": "Native macOS Theo and Codex; only observability in Docker",
+        "status": "verified",
+        "evidence": "Native observer and test daemon; isolated five-container Compose project"
+      },
+      {
+        "requirement": "Entire observability stack within 2 GB",
+        "status": "verified_for_recorded_workload",
+        "evidence": "Ten-minute physical-footprint qualification, including VM and helpers; burst, query and outage tests"
+      },
+      {
+        "requirement": "Six dashboards covering Theo, jobs/tools, Telegram, CLI, Codex and infrastructure",
+        "status": "verified",
+        "evidence": "Provisioned dashboard API, visual review and all 93 expressions"
+      },
+      {
+        "requirement": "Correlated logs, traces and metric exemplars",
+        "status": "verified",
+        "evidence": "Live 12-span Telegram album trace, 27 logs and exemplars; durable retry/restart/tool regression"
+      },
+      {
+        "requirement": "Alerts and recovery through existing test bot, no Keychain",
+        "status": "verified",
+        "evidence": "Observed FIRING/RESOLVED notifications, transport acceptance and shared private token match"
+      },
+      {
+        "requirement": "Codex usage and successful live inference telemetry",
+        "status": "incomplete",
+        "evidence": "Protocol fixtures pass; real account attestation missing; current auth-required alert correctly fires"
+      },
+      {
+        "requirement": "External notification for total laptop or network outage",
+        "status": "incomplete",
+        "evidence": "Heartbeat adapter tests pass; private external endpoint not supplied"
+      }
+    ]
+  },
+  "post_reconciliation_restart_check": {
+    "recorded_at": 1788919187.618973,
+    "metrics": {
+      "current_uncertain": 0.0,
+      "recent_uncertain_peak": 1.0,
+      "native_telemetry_age_seconds": 13.455908060073853,
+      "memory_bytes": 1817270032.0
+    },
+    "alerts": [
+      {
+        "name": "Theo uncertain delivery",
+        "state": "inactive",
+        "health": "ok"
+      },
+      {
+        "name": "Theo Telegram poller stale",
+        "state": "inactive",
+        "health": "ok"
+      },
+      {
+        "name": "Theo native telemetry stale",
+        "state": "inactive",
+        "health": "ok"
+      }
+    ],
+    "pipeline": {
+      "trace_id": "5d8e4da4c808c0ccf5aecec8d77319f9",
+      "trace_stored": true,
+      "logs_correlated": true,
+      "exemplar_correlated": true,
+      "grafana_trace_to_logs_correlated": true,
+      "health": {
+        "grafana": {
+          "ready": true,
+          "status": 200
+        },
+        "alloy": {
+          "ready": true,
+          "status": 200
+        },
+        "prometheus": {
+          "ready": true,
+          "status": 200
+        },
+        "loki": {
+          "ready": true,
+          "status": 200
+        },
+        "tempo": {
+          "ready": true,
+          "status": 200
+        },
+        "observer": {
+          "ready": true,
+          "status": 200
+        }
+      },
+      "dashboard_queries": 83,
+      "log_queries": 10,
+      "query_errors": [],
+      "whole_stack_memory_verified": true,
+      "alert_queries": 18
+    },
+    "related_evidence": "telegram-client-2026-09-09-recovery.json",
+    "scope": "Observer gauge and native daemon continuity verified; standalone lost-ack fault probe did not initialize its own telemetry."
+  },
+  "dashboard_design_review": {
+    "recorded_at": "2026-09-09T08:31:57.647896+00:00",
+    "report": "docs/evidence/dashboard-design-2026-09-09.md",
+    "validation": {
+      "trace_id": "1afb6915648aa5617727e1f0b9e717cf",
+      "trace_stored": true,
+      "logs_correlated": true,
+      "exemplar_correlated": true,
+      "grafana_trace_to_logs_correlated": true,
+      "health": {
+        "grafana": {
+          "ready": true,
+          "status": 200
+        },
+        "alloy": {
+          "ready": true,
+          "status": 200
+        },
+        "prometheus": {
+          "ready": true,
+          "status": 200
+        },
+        "loki": {
+          "ready": true,
+          "status": 200
+        },
+        "tempo": {
+          "ready": true,
+          "status": 200
+        },
+        "observer": {
+          "ready": true,
+          "status": 200
+        }
+      },
+      "dashboard_queries": 86,
+      "log_queries": 10,
+      "query_errors": [],
+      "whole_stack_memory_verified": true,
+      "poller_alert_behavior": {
+        "cases": 5,
+        "passed": true
+      },
+      "alert_queries": 18
+    },
+    "telemetry_tests_passed": 11,
+    "ruff_passed": true,
+    "pyright_passed": true,
+    "ui": {
+      "dashboards_reviewed": 6,
+      "cli_panel_warnings": 0,
+      "filter_and_time_preservation_verified": true,
+      "blocked_work_codex_link_verified": true,
+      "full_accessibility_audit": false
+    },
+    "whole_observability_memory_bytes": 1817777984,
+    "screenshots_directory": ".local/observability/dashboard-design",
+    "limits": [
+      "Current Theo core is offline",
+      "Codex account verification remains required",
+      "Full keyboard, screen-reader and mobile coverage not established"
+    ]
+  }
+}

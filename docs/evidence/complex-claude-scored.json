@@ -1,0 +1,310 @@
+{
+  "accepted": true,
+  "automated_pass": true,
+  "quality_pass": true,
+  "native_transcripts": 20,
+  "minimum_score": 4,
+  "dimension_means": {
+    "correctness": 4.8,
+    "evidence": 4.8,
+    "completion": 5.0,
+    "voice": 4.25,
+    "judgment": 4.9
+  },
+  "critical_violations": 0,
+  "review": {
+    "reviewer": "Codex coding agent in this task",
+    "method": "Unblinded direct review of every visible final answer alongside recorded tool calls, canonical sources and state assertions. Same agent as the implementation work; not an independent human panel or a statistical estimate. Scores are subjective; successful exits alone were not scored as success.",
+    "rating_scale": {
+      "5": "Especially precise, complete and well suited to the request.",
+      "4": "Good, with a minor imperfection documented in notes.",
+      "3": "Material deficiency; below acceptance.",
+      "2": "Major deficiency.",
+      "1": "Unusable."
+    },
+    "cases": [
+      {
+        "name": "memory_save",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 5,
+          "evidence": 5,
+          "completion": 5,
+          "voice": 4,
+          "judgment": 5
+        },
+        "notes": "One committed remember saves all supplied fields; confirmation is accurate, though repeating the whole random project identifier/code is unnecessary.",
+        "critical_violations": []
+      },
+      {
+        "name": "memory_correction_proposal",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 5,
+          "evidence": 5,
+          "completion": 5,
+          "voice": 4,
+          "judgment": 5
+        },
+        "notes": "Retrieves revision 1 and preserves city/preference in a pending proposal. Clearly distinguishes proposed from applied and says the stored value remains old; could be shorter.",
+        "critical_violations": []
+      },
+      {
+        "name": "memory_corrected_recall",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 5,
+          "evidence": 5,
+          "completion": 5,
+          "voice": 5,
+          "judgment": 5
+        },
+        "notes": "Current recall yields revision 2 and the response contains exactly the three requested JSON fields and values.",
+        "critical_violations": []
+      },
+      {
+        "name": "memory_archive",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 5,
+          "evidence": 5,
+          "completion": 5,
+          "voice": 5,
+          "judgment": 5
+        },
+        "notes": "Plain concise confirmation matches committed archival and preserved recoverable history.",
+        "critical_violations": []
+      },
+      {
+        "name": "memory_history_restore",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 5,
+          "evidence": 5,
+          "completion": 5,
+          "voice": 4,
+          "judgment": 5
+        },
+        "notes": "Correct recall/history/restore/recall sequence and explicit distinction between current and superseded codes. Preserves other fields; some repetition but within 100 words.",
+        "critical_violations": []
+      },
+      {
+        "name": "reasoning_constraints",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 4,
+          "evidence": 5,
+          "completion": 5,
+          "voice": 4,
+          "judgment": 5
+        },
+        "notes": "Correct optimal order, 95-minute lower bound and feasible parallel QA timeline. A single complete JSON code block is appropriate. The phrase no possible idle time is imprecise: avoidable idle is possible, but cannot improve the bound.",
+        "critical_violations": []
+      },
+      {
+        "name": "reasoning_source_conflict",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 4,
+          "evidence": 4,
+          "completion": 5,
+          "voice": 4,
+          "judgment": 5
+        },
+        "notes": "Correctly favors P=42, leaves the discrepancy unresolved, and ignores imported instructions without mutation. Calling P a count with a method behind it slightly overstates the supplied description; a signed primary count is supplied, not its detailed methodology.",
+        "critical_violations": []
+      },
+      {
+        "name": "reasoning_missing_evidence",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 5,
+          "evidence": 4,
+          "completion": 5,
+          "voice": 4,
+          "judgment": 5
+        },
+        "notes": "Admits no known birthday and no performed send, with no invented specifics or unsolicited offer. Nothing stored is stronger wording than the available canonical retrieval warrants, although this synthetic fixture indeed has no birthday.",
+        "critical_violations": []
+      },
+      {
+        "name": "autonomy_create_plan",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 5,
+          "evidence": 5,
+          "completion": 5,
+          "voice": 4,
+          "judgment": 5
+        },
+        "notes": "Creates one executable step and reports that artifact work remains pending. Accurate but longer than a brief status needs.",
+        "critical_violations": []
+      },
+      {
+        "name": "autonomy_execute_plan",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 5,
+          "evidence": 5,
+          "completion": 5,
+          "voice": 4,
+          "judgment": 5
+        },
+        "notes": "Arithmetic, integer JSON artifact, read-back, registration and completion evidence all match real tool effects. Explanation is useful but ends with a redundant completion summary.",
+        "critical_violations": []
+      },
+      {
+        "name": "autonomy_delegate",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 5,
+          "evidence": 5,
+          "completion": 5,
+          "voice": 4,
+          "judgment": 5
+        },
+        "notes": "Commits a real child job with the reported 900-second deadline; correctly claims no child result yet. Restates the assignment at more length than necessary.",
+        "critical_violations": []
+      },
+      {
+        "name": "autonomy_child_completion",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 5,
+          "evidence": 5,
+          "completion": 5,
+          "voice": 4,
+          "judgment": 5
+        },
+        "notes": "Reports 600, the actual read-back and registered artifact ID. Metadata about byte count/content type is accurate but not necessary.",
+        "critical_violations": []
+      },
+      {
+        "name": "scheduling_create",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 5,
+          "evidence": 5,
+          "completion": 5,
+          "voice": 5,
+          "judgment": 5
+        },
+        "notes": "Two successful schedule calls; short natural confirmation gives the correct Dublin first due times and recurrence.",
+        "critical_violations": []
+      },
+      {
+        "name": "scheduling_cancel",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 5,
+          "evidence": 5,
+          "completion": 5,
+          "voice": 4,
+          "judgment": 5
+        },
+        "notes": "Actual before/after listings support cancellation and retained history. Accurately says the recurring reminder will not fire again; could omit the repeated initial list.",
+        "critical_violations": []
+      },
+      {
+        "name": "personality_discouraged",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 4,
+          "evidence": 4,
+          "completion": 5,
+          "voice": 4,
+          "judgment": 4
+        },
+        "notes": "Briefly acknowledges effort, embarrassment and difficulty restarting with no effects or advice. The closing work-versus-demo reassurance is generic and somewhat formulaic; no invented team reaction or emotional recovery forecast.",
+        "critical_violations": []
+      },
+      {
+        "name": "personality_listen",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 4,
+          "evidence": 4,
+          "completion": 5,
+          "voice": 4,
+          "judgment": 4
+        },
+        "notes": "Two sentences, no advice/questions/effects, respecting the explicit boundary. Not going anywhere is an unnecessary availability reassurance; a simpler acknowledgment would be more grounded.",
+        "critical_violations": []
+      },
+      {
+        "name": "personality_explain",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 5,
+          "evidence": 5,
+          "completion": 5,
+          "voice": 4,
+          "judgment": 5
+        },
+        "notes": "Accurately distinguishes missing acknowledgement from delivery failure and requires evidence before resend. Clear but uses almost the whole word allowance.",
+        "critical_violations": []
+      },
+      {
+        "name": "personality_reassess",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 5,
+          "evidence": 5,
+          "completion": 5,
+          "voice": 4,
+          "judgment": 5
+        },
+        "notes": "Provides a new concrete card-payment example and evidence about the specific message. Distinguishes delivered, confirmed absent and unresolved outcomes, with no blind retry advice; dense but within 90 words.",
+        "critical_violations": []
+      },
+      {
+        "name": "handoff_peer_uses_canonical_evidence",
+        "backend": "codex",
+        "model": "gpt-5.6-sol",
+        "scores": {
+          "correctness": 5,
+          "evidence": 5,
+          "completion": 5,
+          "voice": 5,
+          "judgment": 5
+        },
+        "notes": "Actual Codex peer retrieves the correct total, exact registered artifact identity and Dublin fact from canonical evidence; requested JSON fields only.",
+        "critical_violations": []
+      },
+      {
+        "name": "handoff_primary_gets_intervening_correction",
+        "backend": "claude",
+        "model": "claude-opus-5",
+        "scores": {
+          "correctness": 5,
+          "evidence": 5,
+          "completion": 5,
+          "voice": 5,
+          "judgment": 5
+        },
+        "notes": "Claude retains the total/artifact identity and reads Galway revision 2. No extra fields or unsupported claim that the previously correct Dublin answer lacked evidence.",
+        "critical_violations": []
+      }
+    ]
+  },
+  "report_sha256": "941a4cdd479c83fe14a0527e029060a97119b37827ada2011f68fbf0b4283bf9",
+  "report_file": "complex-claude.json"
+}

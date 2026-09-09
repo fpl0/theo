@@ -1,0 +1,21 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+storage:
+  tsdb:
+    retention:
+      time: 7d
+      size: 1GB
+scrape_configs:
+  - job_name: theo-observer
+    sample_limit: 5000
+    static_configs:
+      - targets: ['host.docker.internal:19464']
+  - job_name: infrastructure
+    sample_limit: 5000
+    static_configs:
+      - targets: ['prometheus:9090', 'alloy:12345', 'loki:3100', 'tempo:3200', 'grafana:3000']
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: '(process_.*|go_memstats_.*|prometheus_tsdb_head_series|prometheus_remote_storage_.*|otelcol_.*|loki_discarded_.*|tempo_discarded_.*|grafana_alerting_.*)'
+        action: keep

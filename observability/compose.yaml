@@ -1,0 +1,72 @@
+name: theo-observability
+x-service: &service
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: {max-size: 5m, max-file: '2'}
+  security_opt: [no-new-privileges:true]
+  cap_drop: [ALL]
+services:
+  grafana:
+    <<: *service
+    image: grafana/grafana:13.2.1
+    mem_limit: 384m
+    environment:
+      GOMEMLIMIT: 240MiB
+      GF_LOG_LEVEL: warn
+      THEO_ALERT_BOT_TOKEN: ${THEO_ALERT_BOT_TOKEN:-}
+      THEO_ALERT_CHAT_ID: ${THEO_ALERT_CHAT_ID:-}
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_VIEWERS_CAN_EDIT: 'true'
+      GF_USERS_DEFAULT_THEME: dark
+      GF_AUTH_DISABLE_LOGIN_FORM: 'false'
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Run scripts/observability.py up to create local credentials}
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/theo-overview.json
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'
+      GF_ANALYTICS_CHECK_FOR_UPDATES: 'false'
+      GF_UNIFIED_ALERTING_ENABLED: 'true'
+    ports: ['127.0.0.1:13000:3000']
+    volumes:
+      - grafana:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+  alloy:
+    <<: *service
+    image: grafana/alloy:v1.19.2
+    user: alloy
+    mem_limit: 128m
+    environment: {GOMEMLIMIT: 85MiB}
+    command: [run, --server.http.listen-addr=0.0.0.0:12345, --storage.path=/var/lib/alloy, /etc/alloy/config.alloy]
+    ports: ['127.0.0.1:14318:4318', '127.0.0.1:12345:12345']
+    volumes: ['./config.alloy:/etc/alloy/config.alloy:ro', 'alloy:/var/lib/alloy']
+  prometheus:
+    <<: *service
+    image: prom/prometheus:v3.14.0
+    mem_limit: 256m
+    environment: {GOMEMLIMIT: 180MiB}
+    command: [--config.file=/etc/prometheus/prometheus.yml, --storage.tsdb.path=/prometheus, --web.enable-remote-write-receiver, --enable-feature=exemplar-storage]
+    ports: ['127.0.0.1:19090:9090']
+    volumes: ['./prometheus.yaml:/etc/prometheus/prometheus.yml:ro', 'prometheus:/prometheus']
+  loki:
+    <<: *service
+    image: grafana/loki:3.7.7
+    mem_limit: 320m
+    environment: {GOMEMLIMIT: 220MiB}
+    command: [-config.file=/etc/loki/config.yaml]
+    ports: ['127.0.0.1:13100:3100']
+    volumes: ['./loki.yaml:/etc/loki/config.yaml:ro', 'loki:/loki']
+  tempo:
+    <<: *service
+    image: grafana/tempo:3.0.3
+    mem_limit: 256m
+    environment: {GOMEMLIMIT: 170MiB}
+    command: [-config.file=/etc/tempo/config.yaml, -backend-scheduler.provider.work.compaction.block-retention=24h]
+    ports: ['127.0.0.1:13200:3200']
+    volumes: ['./tempo.yaml:/etc/tempo/config.yaml:ro', 'tempo:/var/tempo']
+volumes:
+  grafana:
+  alloy:
+  prometheus:
+  loki:
+  tempo:

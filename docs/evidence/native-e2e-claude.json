@@ -1,0 +1,74 @@
+{
+  "scope": "local native adapter + coordinator + MCP + SQLite + local delivery",
+  "backend": "claude",
+  "model": "claude-sonnet-4-5",
+  "python": "3.14.7",
+  "telegram_tested": false,
+  "deployment_qualification_tested": false,
+  "cases": [
+    {
+      "name": "round_trip",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "answer": true,
+        "delivered": true,
+        "receipt": true,
+        "tool": true
+      },
+      "passed": true,
+      "output": "theo-e2e-6139fa53",
+      "error": null
+    },
+    {
+      "name": "remember",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "answer": true,
+        "delivered": true,
+        "receipt": true,
+        "tool": true,
+        "persisted": true
+      },
+      "passed": true,
+      "output": "SAVED.",
+      "error": null
+    },
+    {
+      "name": "recall",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "answer": true,
+        "delivered": true,
+        "receipt": true,
+        "tool": true,
+        "retrieved": true
+      },
+      "passed": true,
+      "output": "violet-otter-a51a9bfd",
+      "error": null
+    },
+    {
+      "name": "document",
+      "checks": {
+        "completed": true,
+        "canonical_context": true,
+        "single_terminal": true,
+        "answer": true,
+        "delivered": true,
+        "receipt": true,
+        "tool": true
+      },
+      "passed": true,
+      "output": "amber-lark-964d14c6",
+      "error": null
+    }
+  ],
+  "passed": true,
+  "runtime_version": "2.1.265 (Claude Code)"
+}

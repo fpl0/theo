@@ -1,8 +1,14 @@
 # Code quality and free CI
 
-Review date: 7 September 2026. This was a focused review of storage, transport/resource lifetimes, daemon startup, dependency declarations and CI. It is not a claim that every module has undergone an exhaustive security audit.
+The current workflow checks source quality, deterministic behavior and installed distributions. Live native and Telegram evaluations are separate, opt-in activities; CI receives no model or Telegram credentials.
 
-## Concrete fixes
+During the 9 September documentation refresh, the current macOS checkout passed **238 offline tests, with one expected Linux root-only skip** in 66.50 seconds. Ruff lint and formatting passed across 131 files; strict Pyright reported zero errors or warnings. This result includes the source reorganization and later Telegram/telemetry tests; it does not retroactively extend the earlier native evaluation's scope.
+
+The [8 September review](review-2026-09-08.md) records fifteen fixes across delivery, recovery, memory, scheduling and native execution, **156 passing offline tests on its frozen build**, and local Codex/Claude adapter E2E evidence. The [complex evaluation](complex-evaluation-2026-09-09.md) records 40 passing native turns and four host-state checks with separate answer-quality review. See [acceptance status](acceptance.md) for the remaining production gates.
+
+## Historical fixes — 7 September 2026
+
+This earlier review focused on storage, transport/resource lifetimes, daemon startup, dependency declarations and CI. It is not a claim that every module has undergone an exhaustive security audit.
 
 | Finding | Change and verification |
 | --- | --- |
@@ -33,6 +39,10 @@ The job condition requires `github.event.repository.private == false`. If visibi
 
 ## Validation and remaining work
 
-Local verification after the fixes: **95 tests passed, 2 host-restriction skips**, zero Pyright errors/warnings, clean Ruff lint/format checks, and successful wheel/source distribution builds. The two local skips concern UID transitions and Unix sockets; hosted Linux/macOS jobs provide the corresponding independent results. See the [Actions page](https://github.com/fpl0/theo/actions/workflows/ci.yml) for the actual hosted result for each commit.
+The 7 September verification after those fixes reported: **95 tests passed, 2 host-restriction skips**, zero Pyright errors/warnings, clean Ruff lint/format checks, and successful wheel/source distribution builds. Its skips concerned UID transitions and Unix sockets on that test host. Later local Mac checks run the socket/supervisor cases. See the [Actions page](https://github.com/fpl0/theo/actions/workflows/ci.yml) for the actual hosted result for each commit.
 
-The next maintainability work is to split the large tool dispatcher along existing capability boundaries and narrow internal `Json`/`Any` types where values have stable schemas. Those changes need focused behavior-preserving tests, rather than a blanket rewrite. Model quality, real subscription integration and deployment isolation remain separate live acceptance gates. CI success does not establish production qualification.
+The source is now organized into responsibility-based packages described in [the architecture guide](architecture.md#source-organization). Tool schemas, explicit effect policies, authorization and capability handlers are separate; daemon composition, native protocols, terminal interactions, Telegram delivery/media and operator data operations have dedicated modules. An immutable typed invocation and tool definition connect the broker to handlers. Internal `Json`/`Any` values remain where payloads are still dynamic.
+
+Architecture tests guard import cycles and dependency direction, verify that CLI syntax imports do not load execution services, and compare the published tool schemas with the catalog. Ruff requires production module docstrings. The installed-wheel smoke check imports every production module outside the checkout, checks console/process entry points, and applies the bundled migrations to a temporary database.
+
+Model quality, real subscription integration and deployment isolation remain separate live acceptance gates. CI success does not establish production qualification.

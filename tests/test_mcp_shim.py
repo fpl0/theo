@@ -10,8 +10,8 @@ import pytest
 from mcp import Client, StdioServerParameters
 
 from theo.domain import ToolContext, uid
-from theo.jobs import Jobs
-from theo.tools import ToolBroker
+from theo.tools.broker import ToolBroker
+from theo.work.jobs import Jobs
 
 GRANTED = frozenset({"remember", "recall"})
 

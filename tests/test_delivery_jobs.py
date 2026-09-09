@@ -4,11 +4,13 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from theo.delivery import Delivery, NoEffect, split_text
+from theo.delivery.chunking import split_text
+from theo.delivery.contracts import NoEffect
+from theo.delivery.ledger import Delivery
 from theo.domain import Conflict, Denied, Outcome
-from theo.jobs import Jobs
-from theo.memory import Memory
+from theo.memory.store import Memory
 from theo.storage import Database
+from theo.work.jobs import Jobs
 
 
 async def test_a16_inbox_atomic_deduplication_restart(db, conversation):
@@ -191,6 +193,18 @@ def test_a38_unicode_split_round_trip(text):
     chunks = split_text(text, 32)
     assert "".join(chunks) == text
     assert all(len(chunk.encode("utf-16-le")) // 2 <= 32 for chunk in chunks)
+
+
+def test_long_telegram_chunks_prefer_complete_lines_and_words():
+    lines = [f"Line {n:03}: orbit 29 is the synthetic code.\n" for n in range(1, 20)]
+    text = "".join(lines)
+    chunks = split_text(text, 150)
+    assert "".join(chunks) == text
+    assert all(chunk.endswith("\n") for chunk in chunks)
+    words = split_text("orbit " * 100, 100)
+    assert "".join(words) == "orbit " * 100
+    assert all(chunk.endswith(" ") for chunk in words)
+    assert split_text("x" * 100, 32) == ["x" * 32, "x" * 32, "x" * 32, "xxxx"]
 
 
 async def test_a38_caption_overflow_retains_media_first(db, conversation, settings):

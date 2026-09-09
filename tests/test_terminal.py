@@ -6,22 +6,16 @@ import pytest
 from PIL import Image
 from rich.console import Console
 
-from theo.backends.native import NativeBackend
-from theo.cli import parser
-from theo.delivery import Delivery
+from theo.application.coordinator import Coordinator
+from theo.backends.base import NativeBackend
+from theo.channels.terminal.attachments import attachment_parts, extract_references, pasted_paths
+from theo.channels.terminal.client import TerminalClient
+from theo.channels.terminal.presentation import TurnView, render_turn, safe_text
+from theo.cli.parser import parser
+from theo.delivery.ledger import Delivery
 from theo.domain import Denied, ExecutionOutcome, Outcome
-from theo.jobs import Jobs
-from theo.runtime import Coordinator
-from theo.terminal import (
-    TerminalClient,
-    TurnView,
-    attachment_parts,
-    extract_references,
-    pasted_paths,
-    render_turn,
-    safe_text,
-)
-from theo.tools import ToolBroker
+from theo.tools.broker import ToolBroker
+from theo.work.jobs import Jobs
 
 
 @pytest.fixture
@@ -213,7 +207,7 @@ async def test_real_prompt_session_exits_without_stopping_daemon(
     from prompt_toolkit.input import create_pipe_input
     from prompt_toolkit.output import DummyOutput
 
-    import theo.terminal as ui
+    import theo.channels.terminal.interface as ui
 
     output = io.StringIO()
     monkeypatch.setattr(ui.sys.stdin, "isatty", lambda: True)
@@ -249,7 +243,7 @@ async def test_bracketed_multiline_paste_is_submitted_as_one_message(
     from prompt_toolkit.input import create_pipe_input
     from prompt_toolkit.output import DummyOutput
 
-    import theo.terminal as ui
+    import theo.channels.terminal.interface as ui
 
     captured = []
     submitted = asyncio.Event()

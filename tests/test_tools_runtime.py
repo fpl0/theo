@@ -1,18 +1,20 @@
 import asyncio
 import io
+from datetime import datetime
 
 import pytest
 from aiogram.types import Update
 from PIL import Image
 
-from theo.artifacts import Artifacts, scoped_path
-from theo.backends.native import NativeBackend
-from theo.channels import Telegram
-from theo.delivery import Delivery
+from theo.application.coordinator import Coordinator
+from theo.backends.base import NativeBackend
+from theo.channels.telegram.adapter import Telegram
+from theo.content.artifacts import Artifacts, scoped_path
+from theo.delivery.ledger import Delivery
 from theo.domain import Denied, ExecutionOutcome, Outcome, ToolContext, uid
-from theo.jobs import Jobs
-from theo.runtime import Coordinator
-from theo.tools import BASELINE, REGISTRY, ToolBroker
+from theo.tools.broker import ToolBroker
+from theo.tools.registry import BASELINE, REGISTRY
+from theo.work.jobs import Jobs
 
 
 async def test_a15_revocation_cancels_inflight_broker_operation(broker_run, monkeypatch):
@@ -92,6 +94,72 @@ async def test_a28_tool_mutation_rechecks_generation_at_transaction(broker_run, 
     assert not await db.one("SELECT * FROM memory_records")
 
 
+async def test_command_cancellation_reaches_the_active_worker(broker_run, db, settings, tmp_path):
+    from unittest.mock import AsyncMock
+
+    broker, token, context = broker_run
+    coordinator = Coordinator(db, settings, broker, tmp_path / "broker.sock")
+    backend = AsyncMock(spec=NativeBackend)
+    coordinator.active[context.job_id] = (backend, context.run_id)
+
+    await coordinator.command(context.conversation_id, f"/cancel {context.job_id}")
+
+    backend.cancel.assert_awaited_once()
+    assert token not in broker.tokens
+    assert (await db.one("SELECT status FROM jobs WHERE id=?", (context.job_id,)))[
+        "status"
+    ] == "cancelled"
+
+
+async def test_catalog_order_does_not_change_effect_receipts(broker_run, db, monkeypatch):
+    import theo.tools.broker as broker_module
+
+    broker, token, context = broker_run
+    monkeypatch.setattr(broker_module, "REGISTRY", dict(reversed(tuple(REGISTRY.items()))))
+
+    first = await broker.call(token, "remember", {"body": "one durable memory"})
+    replay = await broker.call(token, "remember", {"body": "one durable memory"})
+    assert replay == first
+    assert len(await db.read("SELECT id FROM memory_records")) == 1
+
+    assert (await broker.call(token, "recall", {"query": "durable"})).status == "ok"
+    outgoing = await broker.call(token, "send_message", {"text": "one queued message"})
+    assert outgoing.action_id
+    assert await db.one("SELECT id FROM actions WHERE id=?", (outgoing.action_id,))
+    receipts = await db.read("SELECT result FROM tool_receipts WHERE job_id=?", (context.job_id,))
+    assert len(receipts) == 1
+
+
+async def test_bulk_memory_checks_each_source_before_writing(broker_run, db):
+    broker, token, context = broker_run
+    other = await db.conversation("owner", "local", "another-conversation")
+    source = await db.message("owner", other, "user", "private source")
+
+    result = await broker.call(
+        token,
+        "bulk_memory",
+        {"memories": [{"body": "invalid provenance", "source_message_id": source}]},
+    )
+
+    assert result.status == "denied"
+    assert not await db.one("SELECT id FROM memory_records")
+
+
+async def test_schedule_receipt_reports_actual_first_occurrence(broker_run, db):
+    broker, token, _ = broker_run
+    result = await broker.call(
+        token,
+        "schedule_task",
+        {"text": "review", "interval_seconds": 7200, "timezone": "America/New_York"},
+    )
+    assert result.status == "committed"
+    row = await db.one("SELECT * FROM schedules WHERE id=?", (result.data["id"],))
+    assert result.data["next_due"] == row["next_due"] == db.clock() + 7200
+    assert result.data["kind"] == "interval"
+    assert result.data["timezone"] == "America/New_York"
+    assert datetime.fromisoformat(result.data["next_due_local"]).timestamp() == row["next_due"]
+
+
 async def test_a37_all_baseline_handlers_commit_or_return_typed_result(
     broker_run, db, settings, monkeypatch
 ):
@@ -105,7 +173,7 @@ async def test_a37_all_baseline_handlers_commit_or_return_typed_result(
     async def fake_browse(url):
         return {"url": url, "text": "Observed fixture web evidence", "untrusted": True}
 
-    monkeypatch.setattr("theo.tools.browse", fake_browse)
+    monkeypatch.setattr("theo.tools.handlers.workspace.browse_public", fake_browse)
     first = (await broker.call(token, "remember", {"body": "first memory"})).data["id"]
     second = (await broker.call(token, "remember", {"body": "second memory"})).data["id"]
     schedule = (

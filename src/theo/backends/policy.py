@@ -1,7 +1,12 @@
-"""A single hard eligibility gate used by all interactive and autonomous inference."""
+"""Verify native account eligibility and construct worker environments.
+
+Matches backend, model, runtime and configuration evidence, tracks shared quota
+pools and rejects unverified or metered routes before inference starts.
+"""
 
 import json
 import os
+import pwd
 import re
 from pathlib import Path
 
@@ -24,15 +29,20 @@ def inspect_environment(environment: dict[str, str]) -> list[str]:
     return sorted(key for key, value in environment.items() if value and FORBIDDEN_ENV.search(key))
 
 
-def worker_environment(home: Path, environment: dict[str, str] | None = None) -> dict[str, str]:
+def worker_environment(
+    home: Path, environment: dict[str, str] | None = None, *, runner_uid: int | None = None
+) -> dict[str, str]:
     source = dict(os.environ) if environment is None else environment
     contaminated = inspect_environment(source)
     if contaminated:
         raise Denied("Disallowed worker environment keys: " + ", ".join(contaminated))
     clean = {key: value for key, value in source.items() if key in SAFE_ENV}
+    username = pwd.getpwuid(os.geteuid() if runner_uid is None else runner_uid).pw_name
     clean.update(
         {
             "HOME": str(home),
+            "USER": username,
+            "LOGNAME": username,
             "TMPDIR": str(home / "tmp"),
             "PYTHONNOUSERSITE": "1",
             "PYTHONDONTWRITEBYTECODE": "1",

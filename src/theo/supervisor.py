@@ -1,4 +1,8 @@
-"""Independent core supervisor with maintenance pause and bounded restart backoff."""
+"""Independent daemon supervision with bounded restart and recovery alerts.
+
+Writes host heartbeats, honors maintenance pauses and generates macOS service
+definitions. Core state mutation and native inference remain in the daemon.
+"""
 
 import argparse
 import asyncio
@@ -10,6 +14,8 @@ import signal
 import sys
 import time
 from pathlib import Path
+
+from theo.execution.processes import terminate_tree
 
 
 async def alert_owner(root: Path, circuit_open: bool) -> None:
@@ -56,25 +62,6 @@ async def alert_owner(root: Path, circuit_open: bool) -> None:
     (root / "health-alert-receipt.json").write_text(
         json.dumps({"timestamp": time.time(), "status": result})
     )
-
-
-def terminate_tree(pid: int) -> None:
-    import psutil
-
-    try:
-        parent = psutil.Process(pid)
-        children = parent.children(recursive=True)
-        for process in reversed(children):
-            with contextlib.suppress(psutil.NoSuchProcess, psutil.AccessDenied):
-                process.terminate()
-        with contextlib.suppress(psutil.NoSuchProcess):
-            parent.terminate()
-        _, alive = psutil.wait_procs([*children, parent], timeout=3)
-        for process in alive:
-            with contextlib.suppress(psutil.NoSuchProcess, psutil.AccessDenied):
-                process.kill()
-    except psutil.NoSuchProcess:
-        return
 
 
 def service_definition(root: Path, executable: Path) -> bytes:

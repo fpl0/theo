@@ -1,13 +1,63 @@
 """Regressions for filesystem paths and interrupted transport operations."""
 
 import asyncio
+import contextlib
+import os
+import signal
+import sys
 from unittest.mock import AsyncMock
 
+import psutil
 import pytest
 
-from theo.backends.process import RpcProcess
-from theo.operations import backup_create, backup_verify
+from theo.backends.process import RpcProcess, stop_process
+from theo.operations.backups import backup_create, backup_verify
 from theo.storage import Database
+
+
+@pytest.mark.parametrize("parent_exits", [False, True])
+async def test_stop_process_reaps_stubborn_children_even_after_leader_exit(tmp_path, parent_exits):
+    marker = tmp_path / "child.pid"
+    child_code = (
+        "import os,signal,time; from pathlib import Path; "
+        "signal.signal(signal.SIGTERM,signal.SIG_IGN); "
+        f"Path({str(marker)!r}).write_text(str(os.getpid())); time.sleep(60)"
+    )
+    parent_code = (
+        "import subprocess,sys,time; from pathlib import Path\n"
+        f"subprocess.Popen([sys.executable,'-c',{child_code!r}], "
+        "stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)\n"
+        f"while not Path({str(marker)!r}).exists(): time.sleep(0.01)\n"
+        + ("sys.exit(0)\n" if parent_exits else "time.sleep(60)\n")
+    )
+    process = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-c",
+        parent_code,
+        start_new_session=True,
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    try:
+        async with asyncio.timeout(5):
+            while not marker.exists() or not marker.read_text():
+                await asyncio.sleep(0.01)
+        child = psutil.Process(int(marker.read_text()))
+        if parent_exits:
+            await asyncio.wait_for(process.wait(), 5)
+            assert child.is_running()
+        await stop_process(process)
+        async with asyncio.timeout(5):
+            while child.is_running() and child.status() != psutil.STATUS_ZOMBIE:
+                await asyncio.sleep(0.01)
+        assert process.returncode is not None
+        # NativeBackend.cancel and RpcProcess.__aexit__ can both clean up.
+        await stop_process(process)
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGKILL)
+        await process.wait()
 
 
 async def test_database_and_backups_support_uri_reserved_characters(tmp_path, settings):

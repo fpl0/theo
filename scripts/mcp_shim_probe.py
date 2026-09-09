@@ -9,6 +9,7 @@ It does consume one included run on the selected subscription account.
 
 import argparse
 import asyncio
+import contextlib
 import importlib.metadata
 import json
 import os
@@ -18,11 +19,14 @@ import tempfile
 import uuid
 from pathlib import Path
 
+from native_e2e import require_local_live
+
+from theo.backends.process import stop_process
 from theo.config import Settings
 from theo.domain import ToolContext, uid
-from theo.jobs import Jobs
 from theo.storage import Database
-from theo.tools import ToolBroker
+from theo.tools.broker import ToolBroker
+from theo.work.jobs import Jobs
 
 GRANTED = frozenset({"remember", "recall"})
 
@@ -77,8 +81,12 @@ async def capture(command: list[str], workspace: Path) -> tuple[int | None, str,
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        start_new_session=True,
     )
-    out, err = await asyncio.wait_for(process.communicate(), 300)
+    try:
+        out, err = await asyncio.wait_for(process.communicate(), 300)
+    finally:
+        await stop_process(process)
     return process.returncode, out.decode(errors="replace"), err.decode(errors="replace")
 
 
@@ -143,17 +151,28 @@ async def run_codex(socket_path: Path, token: str, workspace: Path, model: str, 
 
 async def main() -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--live", action="store_true", required=True)
     parser.add_argument("--backend", choices=["claude", "codex"], required=True)
     parser.add_argument("--model", required=True, help="Exact included model ID for that account")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
+    require_local_live(args.live)
 
     marker = "theo-mcp-probe-" + uuid.uuid4().hex[:12]
     root = Path(tempfile.mkdtemp(prefix="theo-probe-"))
     # An AF_UNIX path must fit ~104 bytes, so the socket gets its own short directory.
-    socket_root = Path(tempfile.mkdtemp(prefix="theo-sock-"))
+    socket_root = Path(tempfile.mkdtemp(prefix="theo-sock-", dir="/tmp"))
     socket_path = socket_root / "t.sock"
     db, broker, token, workspace = await build_broker(root, socket_path)
+
+    async def renew_lease():
+        job = await db.one("SELECT id,generation FROM jobs WHERE status='running'")
+        assert job
+        while True:
+            await asyncio.sleep(15)
+            await Jobs(db, "owner").heartbeat(job["id"], job["generation"])
+
+    heartbeat = asyncio.create_task(renew_lease())
     try:
         runner = run_claude if args.backend == "claude" else run_codex
         code, out, err = await runner(socket_path, token, workspace, args.model, marker)
@@ -176,6 +195,9 @@ async def main() -> int:
         print(json.dumps(report, indent=2))
         return 0 if persisted and code == 0 else 1
     finally:
+        heartbeat.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await heartbeat
         await broker.close()
         await db.close()
         shutil.rmtree(root, ignore_errors=True)

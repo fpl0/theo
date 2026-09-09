@@ -1,7 +1,7 @@
 import asyncio
 import sys
 
-from theo.jobs import Jobs
+from theo.work.jobs import Jobs
 
 
 async def test_a16_committed_inbox_survives_real_process_kill(db, conversation):
@@ -9,7 +9,7 @@ async def test_a16_committed_inbox_survives_real_process_kill(db, conversation):
 import asyncio,sys
 from pathlib import Path
 from theo.storage import Database
-from theo.jobs import Jobs
+from theo.work.jobs import Jobs
 async def main():
  db=Database(Path(sys.argv[1]))
  await db.initialize()
