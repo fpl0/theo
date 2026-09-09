@@ -234,29 +234,34 @@ class Jobs:
 
         await self.db.write(finish)
 
-    async def cancel(self, job_id: str) -> list[str]:
-        def cancel(db: sqlite3.Connection) -> list[str]:
-            rows = db.execute(
-                "WITH RECURSIVE descendants(id) AS (SELECT id FROM jobs WHERE id=? AND owner_id=? UNION ALL SELECT j.id FROM jobs j JOIN descendants d ON j.parent_id=d.id) SELECT id FROM descendants",
-                (job_id, self.owner),
-            ).fetchall()
-            for row in rows:
-                db.execute(
-                    "UPDATE jobs SET status='cancelled',generation=generation+1,lease_until=NULL,updated_at=? WHERE id=? AND status NOT IN ('completed','failed','cancelled')",
-                    (self.db.clock(), row[0]),
-                )
-                db.execute(
-                    "UPDATE actions SET status='cancelled' WHERE job_id=? AND status IN ('prepared','ready','awaiting_approval')",
-                    (row[0],),
-                )
-                db.execute(
-                    "UPDATE outbox SET status='cancelled',error='job_cancelled' WHERE action_id IN (SELECT id FROM actions WHERE job_id=?) AND status='ready'",
-                    (row[0],),
-                )
-                db.execute("DELETE FROM resource_claims WHERE job_id=?", (row[0],))
-            return [str(x[0]) for x in rows]
+    def cancel_in(self, db: sqlite3.Connection, job_id: str) -> list[str]:
+        """Cancel owned work and pending effects in the caller's transaction."""
+        rows = db.execute(
+            "WITH RECURSIVE descendants(id) AS (SELECT id FROM jobs WHERE id=? AND owner_id=? UNION ALL SELECT j.id FROM jobs j JOIN descendants d ON j.parent_id=d.id) SELECT id FROM descendants",
+            (job_id, self.owner),
+        ).fetchall()
+        for row in rows:
+            db.execute(
+                "UPDATE jobs SET status='cancelled',generation=generation+1,lease_until=NULL,updated_at=? WHERE id=? AND status NOT IN ('completed','failed','cancelled')",
+                (self.db.clock(), row[0]),
+            )
+            db.execute(
+                "UPDATE actions SET cancel_requested=1,updated_at=? WHERE job_id=? AND status NOT IN ('succeeded','failed','cancelled')",
+                (self.db.clock(), row[0]),
+            )
+            db.execute(
+                "UPDATE actions SET status='cancelled',error='job_cancelled' WHERE job_id=? AND status IN ('prepared','ready','awaiting_approval')",
+                (row[0],),
+            )
+            db.execute(
+                "UPDATE outbox SET status='cancelled',error='job_cancelled' WHERE action_id IN (SELECT id FROM actions WHERE job_id=?) AND status='ready'",
+                (row[0],),
+            )
+            db.execute("DELETE FROM resource_claims WHERE job_id=?", (row[0],))
+        return [str(x[0]) for x in rows]
 
-        return await self.db.write(cancel)
+    async def cancel(self, job_id: str) -> list[str]:
+        return await self.db.write(lambda db: self.cancel_in(db, job_id))
 
     async def recover(self) -> Json:
         # Called only after exclusive daemon lock and old runtime process termination.

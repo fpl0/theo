@@ -87,13 +87,21 @@ class NativeBackend:
             "--version",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
+            start_new_session=True,
         )
         try:
-            raw, _ = await asyncio.wait_for(process.communicate(), 10)
+            assert process.stdout
+            async with asyncio.timeout(10):
+                raw = bytearray()
+                while chunk := await process.stdout.read(4097):
+                    raw.extend(chunk)
+                    if len(raw) > 4096:
+                        raise ProtocolError("Runtime version probe exceeded the output limit")
+                await process.wait()
         except TimeoutError:
-            process.kill()
-            await process.wait()
             raise AuthWait("Runtime version probe timed out") from None
+        finally:
+            await stop_process(process)
         if process.returncode or len(raw) > 4096:
             raise ProtocolError("Runtime version probe failed")
         return raw.decode(errors="replace").strip()
@@ -227,11 +235,24 @@ class NativeBackend:
                     status=Outcome.FAILED, error=f"Native adapter failure: {type(exc).__name__}"
                 )
             await emit("terminal", outcome.model_dump(mode="json"))
-            await queue.put(None)
+
+        def finished(_: asyncio.Task[None]) -> None:
+            # A failure before the first event must wake the consumer too. If
+            # full, the consumer drains queued events and observes task.done().
+            if not queue.full():
+                queue.put_nowait(None)
 
         task = asyncio.create_task(run())
+        task.add_done_callback(finished)
         try:
-            while (event := await queue.get()) is not None:
+            while True:
+                if task.done() and queue.empty():
+                    await task
+                    break
+                event = await queue.get()
+                if event is None:
+                    await task
+                    break
                 yield event
         finally:
             task.cancel()

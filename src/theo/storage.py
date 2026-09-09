@@ -119,7 +119,8 @@ class Database:
 
         def seed(db: sqlite3.Connection) -> None:
             db.execute(
-                "INSERT OR IGNORE INTO owners VALUES(?,?,?)", (owner, timezone, self.clock())
+                "INSERT INTO owners VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET timezone=excluded.timezone",
+                (owner, timezone, self.clock()),
             )
             db.execute(
                 "INSERT OR IGNORE INTO persona_versions VALUES(?,?,?,?)",

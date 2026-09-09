@@ -160,6 +160,57 @@ async def test_schedule_receipt_reports_actual_first_occurrence(broker_run, db):
     assert datetime.fromisoformat(result.data["next_due_local"]).timestamp() == row["next_due"]
 
 
+@pytest.mark.parametrize("timezone,offset", [("America/New_York", -4), ("Europe/Dublin", 1)])
+async def test_schedule_defaults_to_configured_owner_timezone(broker_run, db, timezone, offset):
+    broker, token, _ = broker_run
+    broker.settings = broker.settings.model_copy(update={"timezone": timezone})
+    arguments = {"text": "morning review", "cron": "0 9 * * *"}
+    result = await broker.call(token, "schedule_task", arguments)
+    assert result.status == "committed"
+    assert result.data["timezone"] == timezone
+    local = datetime.fromisoformat(result.data["next_due_local"])
+    assert local.hour == 9
+    assert local.utcoffset().total_seconds() == offset * 3600
+    assert await broker.call(token, "schedule_task", arguments) == result
+    assert await broker.call(token, "schedule_task", {**arguments, "timezone": timezone}) == result
+    assert len(await db.read("SELECT id FROM schedules")) == 1
+
+
+async def test_fact_proposal_returns_existing_durable_id_across_jobs(broker_run, db):
+    broker, token, context = broker_run
+    message = await db.message("owner", context.conversation_id, "user", "I live in Dublin")
+    arguments = {
+        "subject": "owner",
+        "predicate": "lives_in",
+        "value": "Dublin",
+        "source_message_id": message,
+    }
+    first = await broker.call(token, "fact_propose", arguments)
+    assert first.status == "pending_review"
+    jobs = Jobs(db, "owner")
+    await jobs.finish(context.job_id, context.generation, Outcome.COMPLETED, {})
+    job_id = await jobs.enqueue(context.conversation_id, "delegated", {"text": "retry"}, "retry")
+    job = await jobs.claim("background", "retry-worker")
+    run_id = uid()
+    await db.execute(
+        "INSERT INTO runs(id,owner_id,job_id,generation,backend,model,status,started_at) VALUES(?,?,?,?,?,?,?,?)",
+        (run_id, "owner", job_id, job["generation"], "fixture", "fixture", "running", db.clock()),
+    )
+    retry_token = broker.grant(
+        context.model_copy(
+            update={
+                "job_id": job_id,
+                "generation": job["generation"],
+                "run_id": run_id,
+            }
+        )
+    )
+    second = await broker.call(retry_token, "fact_propose", arguments)
+    assert second == first
+    assert await db.one("SELECT id FROM proposals WHERE id=?", (second.data["proposal_id"],))
+    assert len(await db.read("SELECT id FROM proposals")) == 1
+
+
 async def test_a37_all_baseline_handlers_commit_or_return_typed_result(
     broker_run, db, settings, monkeypatch
 ):

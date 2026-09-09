@@ -5,11 +5,12 @@ Authorized calls are dispatched through the catalog to capability handlers.
 """
 
 import asyncio
+import contextlib
 import json
 import secrets
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from pydantic import ValidationError
 
@@ -34,6 +35,7 @@ class ToolBroker:
         self.db, self.settings = db, settings
         self.tokens: dict[str, ToolContext] = {}
         self.calls: dict[str, set[asyncio.Task[Any]]] = {}
+        self.connections: set[asyncio.Task[None]] = set()
         self.server: asyncio.Server | None = None
 
     def grant(self, context: ToolContext) -> str:
@@ -90,6 +92,10 @@ class ToolBroker:
         try:
             await db.write(lambda connection: None)
             args = REGISTRY[name].schema.model_validate(arguments).model_dump(exclude_none=True)
+            if name == "schedule_task":
+                # Resolve the host-owned default before hashing so equivalent
+                # explicit/implicit zones reuse the same durable receipt.
+                args.setdefault("timezone", self.settings.timezone)
             receipt_key = digest({"tool": name, "arguments": args})
             if REGISTRY[name].effect == "write":
 
@@ -156,7 +162,13 @@ class ToolBroker:
     async def listen(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         path.unlink(missing_ok=True)
-        self.server = await asyncio.start_unix_server(self._handle, str(path), limit=1024 * 1024)
+
+        def connected(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+            task = asyncio.create_task(self._handle(reader, writer))
+            self.connections.add(task)
+            task.add_done_callback(self.connections.discard)
+
+        self.server = await asyncio.start_unix_server(connected, str(path), limit=1024 * 1024)
         path.chmod(0o600)
         if self.settings.runner_gid is not None:
             import os
@@ -169,7 +181,14 @@ class ToolBroker:
     async def _handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         try:
             while raw := await asyncio.wait_for(reader.readline(), 60):
-                packet: Json = json.loads(raw)
+                decoded: object = json.loads(raw)
+                if not isinstance(decoded, dict):
+                    raise ValueError("Malformed broker packet")
+                packet = cast(Json, decoded)
+                if not all(
+                    isinstance(packet.get(field, ""), str) for field in ("token", "method", "name")
+                ) or not isinstance(packet.get("arguments", {}), dict):
+                    raise ValueError("Malformed broker packet")
                 token = packet.get("token", "")
                 context = self.tokens.get(token)
                 if context is None:
@@ -186,12 +205,23 @@ class ToolBroker:
             pass
         finally:
             writer.close()
-            await writer.wait_closed()
+            with contextlib.suppress(ConnectionError):
+                await writer.wait_closed()
 
     async def close(self) -> None:
+        if self.server:
+            self.server.close()
+            # A newly accepted handler can be cancelled before entering its
+            # finally block, so close the transports independently as well.
+            self.server.close_clients()
+        pending = self.connections | {task for calls in self.calls.values() for task in calls}
+        if current := asyncio.current_task():
+            pending.discard(current)
         for run_id in list(self.calls):
             self.revoke(run_id)
         self.tokens.clear()
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
         if self.server:
-            self.server.close()
             await self.server.wait_closed()

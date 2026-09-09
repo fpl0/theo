@@ -37,9 +37,8 @@ async def execute(args: argparse.Namespace) -> Any:
     from theo.observability import telemetry
 
     telemetry.configure(root, "theo" if args.command == "serve" else "theo-cli")
-    if args.command == "init":
-        if (root / "config.json").exists():
-            return {"initialized": True, "existing_configuration_preserved": True}
+    existing_configuration = (root / "config.json").exists()
+    if args.command == "init" and not existing_configuration:
         settings = Settings(
             owner_id=args.owner,
             timezone=args.timezone,
@@ -58,17 +57,21 @@ async def execute(args: argparse.Namespace) -> Any:
         await db.initialize(settings.owner_id, settings.timezone)
         owner = settings.owner_id
         if args.command == "init":
+            if existing_configuration:
+                return {"initialized": True, "existing_configuration_preserved": True}
             return {
                 "initialized": True,
                 "name": settings.name,
                 "autonomy": "paused",
                 "accounts": "none",
+                "existing_configuration_preserved": existing_configuration,
             }
         if args.command == "configure":
             new = Settings.model_validate_json(args.file.read_text())
             if new.owner_id != owner:
                 raise Denied("Owner binding cannot be changed by configuration replacement")
             save_settings(root, new)
+            await db.execute("UPDATE owners SET timezone=? WHERE id=?", (new.timezone, owner))
             await db.execute("UPDATE backend_accounts SET status='requires_reverification'")
             return {"configured": True, "account_reverification_required": True}
         if args.command == "telegram":
@@ -395,8 +398,13 @@ async def execute(args: argparse.Namespace) -> Any:
                 await improvement.rollback_skill(args.id)
             return {"skill_id": args.id, "operation": args.operation}
         if args.command == "evaluate":
-            tests = Path(__file__).resolve().parents[2] / "tests"
-            if not tests.exists():
+            source = Path(__file__).resolve().parents[2]
+            tests = source.parent / "tests"
+            if (
+                source.name != "src"
+                or not tests.is_dir()
+                or not (source.parent / "pyproject.toml").is_file()
+            ):
                 raise Denied(
                     "Offline evaluation requires the source checkout and locked dev environment"
                 )

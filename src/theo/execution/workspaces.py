@@ -7,6 +7,7 @@ serialized fast-forward promotion against the owning job lease.
 import asyncio
 from pathlib import Path
 
+from theo.backends.process import stop_process
 from theo.config import Settings
 from theo.domain import Conflict, Denied, Json
 from theo.execution.isolation import launch_options
@@ -22,8 +23,12 @@ async def git(repository: Path, *args: str) -> str:
         *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        start_new_session=True,
     )
-    stdout, _ = await asyncio.wait_for(process.communicate(), 60)
+    try:
+        stdout, _ = await asyncio.wait_for(process.communicate(), 60)
+    finally:
+        await stop_process(process)
     if process.returncode:
         raise Conflict("Git operation failed; inspect the isolated worktree")
     return stdout.decode().strip()

@@ -300,6 +300,13 @@ async def test_group_tool_retrieval_and_mutation_boundaries(db, telegram, tmp_pa
     private = await telegram.state.destination(123)
     group = await telegram.state.destination(-456, 7)
     private_memory = await Memory(db, "owner").remember("private secret", source="owner")
+    private_correction = await Memory(db, "owner").propose(
+        private_memory, 1, "private correction secret", "owner"
+    )
+    shared_memory = await Memory(db, "owner", group).remember("shared memory", source="owner")
+    shared_correction = await Memory(db, "owner", group).propose(
+        shared_memory, 1, "shared correction", "owner"
+    )
     private_action = await Delivery(db, telegram.settings).prepare(
         private, "send_message", {"text": "SECRET"}, "private-action"
     )
@@ -327,6 +334,13 @@ async def test_group_tool_retrieval_and_mutation_boundaries(db, telegram, tmp_pa
     ):
         assert (await broker.call(token, name, args)).status == "denied"
     assert not (await broker.call(token, "recall", {"query": "private secret"})).data
+    corrections = await broker.call(token, "review_corrections", {})
+    assert corrections.status == "ok"
+    assert [row["id"] for row in corrections.data] == [shared_correction]
+    assert private_correction not in encode(corrections.model_dump())
+    assert "private correction secret" not in encode(
+        await db.read("SELECT content FROM messages WHERE conversation_id=?", (group,))
+    )
     assert (await Memory(db, "owner").show(private_memory))["status"] == "active"
 
 

@@ -62,6 +62,40 @@ def test_a12_custom_provider_configuration_denied(tmp_path):
         inspect_configuration([config])
 
 
+@pytest.mark.parametrize(
+    "filename,content",
+    [
+        ("settings.json", '{"apiKey":"secret-sentinel","extraUsage":false}'),
+        ("settings.json", '{"api\\u004bey":"secret-sentinel","extraUsage":false}'),
+        ("settings.json", '{"profiles":[{"baseUrl":"secret-sentinel","extraUsage":false}]}'),
+        ("config.toml", 'profile = {api_key="secret-sentinel", extra_usage=false}'),
+        ("config.toml", 'model_provider="custom" # extra_usage=false'),
+        ("settings.json", '{"apiKey":"openai"}'),
+        ("settings.json", "not valid JSON: secret-sentinel"),
+        ("settings.json", "[]"),
+    ],
+)
+def test_provider_controls_are_validated_individually(tmp_path, filename, content):
+    config = tmp_path / filename
+    config.write_text(content)
+    with pytest.raises(Denied) as error:
+        inspect_configuration([config])
+    assert "secret-sentinel" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "filename,content",
+    [
+        ("settings.json", '{"extraUsage":false,"env":{"API_KEY":null},"theme":"dark"}'),
+        ("config.toml", 'model_provider="openai"\nextra_usage=false\napi_key=""'),
+    ],
+)
+def test_disabled_provider_controls_remain_supported(tmp_path, filename, content):
+    config = tmp_path / filename
+    config.write_text(content)
+    assert len(inspect_configuration([config])) == 64
+
+
 def test_worker_environment_has_os_account_identity_without_inheriting_secrets(tmp_path):
     identity = pwd.getpwuid(os.geteuid()).pw_name
     env = worker_environment(tmp_path, {"USER": "wrong", "LOGNAME": "wrong", "SECRET": "private"})

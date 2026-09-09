@@ -15,8 +15,16 @@ from theo.storage import Database
 
 
 class Memory:
-    def __init__(self, db: Database, owner: str, scope: str | None = None):
+    def __init__(
+        self,
+        db: Database,
+        owner: str,
+        scope: str | None = None,
+        *,
+        mutation_run_id: str | None = None,
+    ):
         self.db, self.owner, self.scope = db, owner, scope
+        self.mutation_run_id = mutation_run_id
 
     def _get(self, db: sqlite3.Connection, memory_id: str) -> sqlite3.Row:
         row = db.execute(
@@ -119,18 +127,21 @@ class Memory:
         return version
 
     def _invalidate(self, db: sqlite3.Connection) -> None:
-        # Conservative invalidation prevents an old draft from reintroducing corrected state.
+        # Private conversations may also recall group memories. Invalidate all
+        # owner snapshots so an old private draft cannot reintroduce group state.
+        # The initiating tool run observes its own committed change. Exclude it
+        # without clearing any invalidation caused by an earlier external edit.
         db.execute(
-            "UPDATE context_snapshots SET invalidated=1 WHERE owner_id=? AND (? IS NULL OR conversation_id=?)",
-            (self.owner, self.scope, self.scope),
+            "UPDATE context_snapshots SET invalidated=1 WHERE owner_id=? AND id NOT IN (SELECT context_id FROM runs WHERE id=? AND owner_id=? AND context_id IS NOT NULL)",
+            (self.owner, self.mutation_run_id, self.owner),
         )
         db.execute(
-            "UPDATE sessions SET valid=0 WHERE owner_id=? AND (? IS NULL OR conversation_id=?)",
-            (self.owner, self.scope, self.scope),
+            "UPDATE sessions SET valid=0 WHERE owner_id=?",
+            (self.owner,),
         )
         db.execute(
-            "UPDATE actions SET status='cancelled',error='canonical_state_changed' WHERE owner_id=? AND status IN ('ready','awaiting_approval') AND scope='draft' AND (? IS NULL OR conversation_id=?)",
-            (self.owner, self.scope, self.scope),
+            "UPDATE actions SET status='cancelled',error='canonical_state_changed' WHERE owner_id=? AND status IN ('ready','awaiting_approval') AND scope='draft'",
+            (self.owner,),
         )
         db.execute(
             "UPDATE outbox SET status='cancelled' WHERE action_id IN (SELECT id FROM actions WHERE owner_id=? AND status='cancelled') AND status='ready'",
@@ -237,7 +248,8 @@ class Memory:
             # Erase all materialized context/checkpoints conservatively, never inspect only IDs.
             db.execute("DELETE FROM context_snapshots WHERE owner_id=?", (self.owner,))
             db.execute("DELETE FROM messages WHERE owner_id=? AND role='checkpoint'", (self.owner,))
-            db.execute("UPDATE runs SET context_id=NULL WHERE owner_id=?", (self.owner,))
+            # Retain the opaque snapshot ID on runs: a missing snapshot must
+            # still fence late output from workers that already received it.
             self._invalidate(db)
             db.execute("DELETE FROM memory_records WHERE id=?", (memory_id,))
 

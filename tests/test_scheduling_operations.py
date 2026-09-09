@@ -155,6 +155,37 @@ async def test_a36_import_idempotent_tombstones_conflicts_and_no_live_dependency
     assert (await Memory(db, "owner").search("Archived"))[0]["body"] == "Archived full body"
 
 
+@pytest.mark.parametrize(
+    "expires",
+    [
+        "2026-09-09T14:30:00+05:30",
+        "2026-09-09T05:00:00-04:00",
+        "2026-09-09T09:00:00Z",
+        "2026-09-09T09:00:00",
+    ],
+)
+async def test_import_preserves_relationship_expiry_timezone(db, tmp_path, expires):
+    source = tmp_path / "legacy"
+    source.mkdir()
+    connection = sqlite3.connect(source / "luke.db")
+    try:
+        connection.executescript(
+            "CREATE TABLE memory_fts(id TEXT,type TEXT,content TEXT);"
+            "INSERT INTO memory_fts VALUES('first','entity','First memory'),('second','entity','Second memory');"
+            "CREATE TABLE memory_links(from_id TEXT,to_id TEXT,relationship TEXT,valid_until TEXT);"
+        )
+        connection.execute(
+            "INSERT INTO memory_links VALUES('first','second','related',?)", (expires,)
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    result = await import_luke(db, "owner", source, True)
+    assert result["imported"] == 2
+    edge = await db.one("SELECT valid_to FROM memory_edges")
+    assert edge["valid_to"] == datetime(2026, 9, 9, 9, tzinfo=UTC).timestamp()
+
+
 def test_service_definition_is_parameterized(tmp_path):
     data = plistlib.loads(service_definition(tmp_path, tmp_path / "python"))
     assert data["ProgramArguments"][-1] == str(tmp_path)

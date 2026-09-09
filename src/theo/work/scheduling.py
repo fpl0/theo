@@ -116,18 +116,7 @@ class Scheduler:
             for occurrence in db.execute(
                 "SELECT job_id FROM occurrences WHERE schedule_id=?", (schedule_id,)
             ).fetchall():
-                db.execute(
-                    "UPDATE jobs SET status='cancelled',generation=generation+1 WHERE id=? AND status IN ('queued','interrupted')",
-                    (occurrence[0],),
-                )
-                db.execute(
-                    "UPDATE actions SET status='cancelled' WHERE job_id=? AND status IN ('ready','awaiting_approval')",
-                    (occurrence[0],),
-                )
-                db.execute(
-                    "UPDATE outbox SET status='cancelled' WHERE action_id IN (SELECT id FROM actions WHERE job_id=? AND status='cancelled') AND status='ready'",
-                    (occurrence[0],),
-                )
+                self.jobs.cancel_in(db, occurrence[0])
 
         await self.db.write(change)
 
@@ -228,6 +217,15 @@ class Scheduler:
         return await self.db.write(admit)
 
     async def cancel(self, schedule_id: str) -> None:
-        await self.db.execute(
-            "UPDATE schedules SET active=0 WHERE id=? AND owner_id=?", (schedule_id, self.owner)
-        )
+        def cancel(db: sqlite3.Connection) -> None:
+            if not db.execute(
+                "SELECT 1 FROM schedules WHERE id=? AND owner_id=?", (schedule_id, self.owner)
+            ).fetchone():
+                raise ValueError("Schedule unavailable")
+            db.execute("UPDATE schedules SET active=0 WHERE id=?", (schedule_id,))
+            for occurrence in db.execute(
+                "SELECT job_id FROM occurrences WHERE schedule_id=?", (schedule_id,)
+            ).fetchall():
+                self.jobs.cancel_in(db, occurrence[0])
+
+        await self.db.write(cancel)

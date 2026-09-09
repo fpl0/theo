@@ -8,7 +8,9 @@ import json
 import os
 import pwd
 import re
+import tomllib
 from pathlib import Path
+from typing import cast
 
 from theo.domain import AuthWait, Denied, Json, QuotaWait, digest, encode, uid
 from theo.storage import Database
@@ -53,6 +55,21 @@ def worker_environment(
 
 
 def inspect_configuration(files: list[Path]) -> str:
+    def validate(value: object) -> None:
+        if isinstance(value, dict):
+            for key, item in cast(Json, value).items():
+                if FORBIDDEN_CONFIG.search(key):
+                    control = re.sub(r"[^a-z0-9]", "", key.lower())
+                    disabled = item is None or item is False or item == ""
+                    if not disabled and not (control == "modelprovider" and item == "openai"):
+                        raise Denied(
+                            "Provider configuration contains a paid or custom route control"
+                        )
+                validate(item)
+        elif isinstance(value, list):
+            for item in cast(list[object], value):
+                validate(item)
+
     fingerprints: list[Json] = []
     for path in files:
         if not path.exists():
@@ -61,14 +78,23 @@ def inspect_configuration(files: list[Path]) -> str:
         if path.is_symlink() or path.stat().st_size > 1024 * 1024:
             raise Denied("Unsafe provider configuration file")
         text = path.read_text()
-        # Fail closed on ambiguous configuration, retaining hashes, never its secret content.
-        for line in text.splitlines():
-            if line.lstrip().startswith("#"):
-                continue
-            if FORBIDDEN_CONFIG.search(line) and not re.search(
-                r"[:=]\s*(false|null|\"openai\"|\"\")\s*[,}]?\s*$", line, re.I
-            ):
-                raise Denied("Provider configuration contains a paid or custom route control")
+        # Parse before inspection: whitespace, escaped keys, inline tables and
+        # adjacent disabled controls must not conceal a configured paid route.
+        try:
+            if path.suffix == ".json":
+                configuration = json.loads(text)
+            elif path.suffix == ".toml":
+                configuration = tomllib.loads(text)
+            else:
+                raise ValueError("Unsupported configuration format")
+            if not isinstance(configuration, dict):
+                raise ValueError("Expected configuration object")
+        except ValueError, RecursionError:
+            raise Denied("Provider configuration could not be safely parsed") from None
+        try:
+            validate(cast(Json, configuration))
+        except RecursionError:
+            raise Denied("Provider configuration nesting exceeds the inspection limit") from None
         fingerprints.append({"path": str(path), "hash": digest(text)})
     return digest(fingerprints)
 

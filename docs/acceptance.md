@@ -6,6 +6,8 @@ Updated 9 September 2026 against the current working tree and the dated evidence
 
 ## Verified scope
 
+The later [9 September code audit](review-2026-09-09.md) adds regression coverage for privacy, delivery cancellation, stale output, process lifecycle and operator data integrity. Its [frozen-build evidence](evidence/code-audit-2026-09-09.json) records the newer offline result and exact tested files. This audit performed no live model or Telegram calls and does not extend the native or deployment qualification claims below.
+
 The 9 September documentation refresh ran the current checkout on macOS: **238 offline tests passed, 1 skipped in 66.50 seconds**. The skip is the Linux root-only dedicated-UID canary. Ruff lint/format and strict Pyright passed. The README initialization, diagnostics, memory and status commands also passed against a temporary root with no model calls or messages. These checks are separate from the historical native/model reports below.
 
 | Area | Evidence | What it establishes |

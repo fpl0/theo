@@ -4,6 +4,7 @@ These reports preserve observations from specific dates, hosts and source snapsh
 
 | Evidence | Scope and reading guide |
 | --- | --- |
+| [Code audit](code-audit-2026-09-09.json), [dependency advisory audit](dependency-audit-2026-09-09.json) | Frozen offline suite, source fingerprints, strict checks, installed-package validation and host-applicable dependency advisories. [Review and fixes](../review-2026-09-09.md) distinguish this work from concurrent personality changes and live qualification. |
 | [Native Codex](native-e2e-codex.json), [native Claude](native-e2e-claude.json) | Four local production-adapter cases each on 8 September. [Code review](../review-2026-09-08.md) explains the harness and fixes. |
 | [Complex Codex](complex-codex.json), [complex Claude](complex-claude.json) | Raw native transcripts and state assertions. Read with the [evaluation report](../complex-evaluation-2026-09-09.md). |
 | [Codex review](complex-codex-review.json), [Claude review](complex-claude-review.json), [Codex scored](complex-codex-scored.json), [Claude scored](complex-claude-scored.json) | Separate subjective reviews and scored results bound to the raw reports. |

@@ -28,7 +28,7 @@ async def schedule_task(call: ToolCall, args: Json) -> ToolResult:
         due=args.get("due_at"),
         cron=args.get("cron"),
         interval=args.get("interval_seconds"),
-        timezone=args["timezone"],
+        timezone=args.get("timezone") or call.settings.timezone,
     )
     scheduled = await db.one(
         "SELECT id,kind,next_due,timezone FROM schedules WHERE id=? AND owner_id=?",

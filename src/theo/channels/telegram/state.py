@@ -317,24 +317,7 @@ class TelegramState:
                     }
                 )
             if queued and queued["status"] != "queued":
-                descendants = db.execute(
-                    "WITH RECURSIVE tree(id) AS (SELECT id FROM jobs WHERE id=? UNION ALL SELECT j.id FROM jobs j JOIN tree t ON j.parent_id=t.id) SELECT id FROM tree",
-                    (prior["job_id"],),
-                ).fetchall()
-                for child in descendants:
-                    db.execute(
-                        "UPDATE jobs SET status='cancelled',generation=generation+1,lease_until=NULL WHERE id=? AND status NOT IN ('completed','failed','cancelled')",
-                        (child[0],),
-                    )
-                    db.execute(
-                        "UPDATE actions SET status='cancelled' WHERE job_id=? AND status IN ('ready','awaiting_approval')",
-                        (child[0],),
-                    )
-                    db.execute(
-                        "UPDATE outbox SET status='cancelled' WHERE status='ready' AND action_id IN (SELECT id FROM actions WHERE job_id=?)",
-                        (child[0],),
-                    )
-                    db.execute("DELETE FROM resource_claims WHERE job_id=?", (child[0],))
+                Jobs(self.db, self.owner).cancel_in(db, prior["job_id"])
         if effects:
             text += (
                 "\nPRIOR EFFECTS: These effects must not be repeated. A fresh explicit owner request is required for new effects.\n"

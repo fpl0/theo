@@ -60,7 +60,7 @@ async def forget(call: ToolCall, args: Json) -> ToolResult:
     db = call.db
     owner = call.context.owner_id
     scope = call.scope
-    memory = Memory(db, owner, scope)
+    memory = Memory(db, owner, scope, mutation_run_id=call.context.run_id)
     await memory.archive(args["id"])
     return ToolResult(status="committed")
 
@@ -69,7 +69,7 @@ async def restore(call: ToolCall, args: Json) -> ToolResult:
     db = call.db
     owner = call.context.owner_id
     scope = call.scope
-    memory = Memory(db, owner, scope)
+    memory = Memory(db, owner, scope, mutation_run_id=call.context.run_id)
     data = {"revision": await memory.restore(args["id"], args.get("revision"))}
     return ToolResult(status="committed", data=data)
 
@@ -87,7 +87,8 @@ async def review_corrections(call: ToolCall, args: Json) -> ToolResult:
     db = call.db
     owner = call.context.owner_id
     data = await db.read(
-        "SELECT * FROM corrections WHERE owner_id=? AND status='proposed'", (owner,)
+        "SELECT c.* FROM corrections c WHERE c.owner_id=? AND c.status='proposed' AND (? IS NULL OR EXISTS(SELECT 1 FROM resource_scopes s WHERE s.kind='memory' AND s.resource_id=c.memory_id AND s.conversation_id=?))",
+        (owner, call.scope, call.scope),
     )
     return ToolResult(status="ok", data=data)
 
@@ -172,4 +173,9 @@ async def fact_propose(call: ToolCall, args: Json) -> ToolResult:
             db.clock(),
         ),
     )
-    return ToolResult(status="pending_review", data={"proposal_id": proposal})
+    stored = await db.one(
+        "SELECT id FROM proposals WHERE owner_id=? AND kind='fact' AND source_key=?",
+        (owner, digest(args)),
+    )
+    assert stored is not None
+    return ToolResult(status="pending_review", data={"proposal_id": stored["id"]})

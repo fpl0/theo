@@ -41,6 +41,14 @@ async def serve(db: Database, settings: Settings, token: str | None = None) -> N
     except BlockingIOError:
         lock.close()
         raise Denied("Theo already has a daemon for this data root") from None
+    try:
+        await _serve_locked(db, settings, token)
+    finally:
+        lock.close()
+
+
+async def _serve_locked(db: Database, settings: Settings, token: str | None) -> None:
+    """Release channel/socket resources even if recovery fails before startup."""
     broker = ToolBroker(db, settings)
     # Darwin's sockaddr_un has a 104-byte path limit. Data roots and the default
     # macOS temporary directory can both exceed it. A private /tmp directory is
@@ -48,28 +56,37 @@ async def serve(db: Database, settings: Settings, token: str | None = None) -> N
     socket_path = (
         Path(tempfile.mkdtemp(prefix="theo-", dir=settings.worker_home or "/tmp")) / "broker.sock"
     )
+    telegram: Telegram | None = None
     try:
         if len(os.fsencode(socket_path)) >= 104:
             raise Denied("Native runner home is too long for a portable Unix socket path")
         await broker.listen(socket_path)
-    except BaseException:
+        telegram = (
+            Telegram(db, settings, token)
+            if token
+            and settings.telegram_owner_id is not None
+            and settings.telegram_chat_id is not None
+            else None
+        )
+        await _run_service(db, settings, broker, socket_path, telegram)
+    finally:
         await broker.close()
+        if telegram:
+            await telegram.close()
         socket_path.unlink(missing_ok=True)
         socket_path.parent.rmdir()
-        lock.close()
-        raise
-    telegram = (
-        Telegram(db, settings, token)
-        if token
-        and settings.telegram_owner_id is not None
-        and settings.telegram_chat_id is not None
-        else None
-    )
+
+
+async def _run_service(
+    db: Database,
+    settings: Settings,
+    broker: ToolBroker,
+    socket_path: Path,
+    telegram: Telegram | None,
+) -> None:
     coordinator = Coordinator(db, settings, broker, socket_path, telegram=telegram)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
-    for signum in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(signum, stop.set)
     tasks: set[asyncio.Task[None]] = set()
     lifecycle = uid()
     from theo.execution.registry import terminate_registered
@@ -80,6 +97,8 @@ async def serve(db: Database, settings: Settings, token: str | None = None) -> N
         "INSERT INTO lifecycle_intervals VALUES(?,?,?,?,?,?)",
         (lifecycle, settings.owner_id, db.clock(), None, db.clock(), 0),
     )
+    for signum in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(signum, stop.set)
 
     async def poll() -> None:
         assert telegram
@@ -238,13 +257,9 @@ async def serve(db: Database, settings: Settings, token: str | None = None) -> N
             for task in pending:
                 task.cancel()
             await asyncio.gather(*pending, return_exceptions=True)
-        await broker.close()
-        if telegram:
-            await telegram.close()
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            loop.remove_signal_handler(signum)
         await db.execute(
             "UPDATE lifecycle_intervals SET ended_at=?,heartbeat_at=? WHERE id=?",
             (db.clock(), db.clock(), lifecycle),
         )
-        socket_path.unlink(missing_ok=True)
-        socket_path.parent.rmdir()
-        lock.close()

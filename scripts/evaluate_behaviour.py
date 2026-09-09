@@ -39,7 +39,7 @@ async def evaluate(
         raise ValueError("Each backend/model comparison requires its own report")
     done = {case["id"] for case in records["cases"] if case["outcome"] == "completed"}
     db = Database(root)
-    await db.initialize(settings.owner_id)
+    await db.initialize(settings.owner_id, settings.timezone)
     broker = ToolBroker(db, settings)
     try:
         with tempfile.TemporaryDirectory(prefix="theo-evaluation-") as folder:

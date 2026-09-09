@@ -10,6 +10,7 @@ import shutil
 import sys
 from pathlib import Path
 
+from theo.backends.process import stop_process
 from theo.config import Settings
 from theo.domain import Denied, Json
 
@@ -103,9 +104,13 @@ async def verify_isolation(settings: Settings, root: Path) -> Json:
             cwd=root.parent,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
+            start_new_session=True,
             **options,
         )
-        code_result = await asyncio.wait_for(process.wait(), 10)
+        try:
+            code_result = await asyncio.wait_for(process.wait(), 10)
+        finally:
+            await stop_process(process)
         return {
             "verified": code_result == 0 and probe.read_text() == "protected",
             "test": "real process denied protected read and write",

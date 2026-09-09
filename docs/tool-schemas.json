@@ -934,9 +934,18 @@
           "title": "Interval Seconds"
         },
         "timezone": {
-          "default": "Europe/Dublin",
-          "title": "Timezone",
-          "type": "string"
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Defaults to the owner's configured timezone.",
+          "title": "Timezone"
         }
       },
       "required": [

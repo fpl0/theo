@@ -275,11 +275,10 @@ async def import_luke(db: Database, owner: str, source: Path, apply: bool = Fals
             )
             if link.get("valid_until"):
                 try:
-                    valid_to = (
-                        datetime.fromisoformat(link["valid_until"].replace("Z", "+00:00"))
-                        .replace(tzinfo=UTC)
-                        .timestamp()
-                    )
+                    expiry = datetime.fromisoformat(link["valid_until"].replace("Z", "+00:00"))
+                    if expiry.tzinfo is None:
+                        expiry = expiry.replace(tzinfo=UTC)
+                    valid_to = expiry.timestamp()
                     await db.execute(
                         "UPDATE memory_edges SET valid_to=? WHERE source_id=? AND target_id=? AND relation=?",
                         (

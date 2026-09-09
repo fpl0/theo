@@ -104,7 +104,9 @@ class ScheduleArgs(StrictModel):
     due_at: float | None = None
     cron: str | None = None
     interval_seconds: int | None = None
-    timezone: str = "Europe/Dublin"
+    timezone: str | None = Field(
+        default=None, min_length=1, description="Defaults to the owner's configured timezone."
+    )
 
 
 class IdArgs(StrictModel):

@@ -23,8 +23,19 @@ async def export_data(db: Database, target: Path, format: str = "jsonl") -> Path
         await snapshot_database(db, snapshot)
         connection = sqlite3.connect(snapshot)
         connection.row_factory = sqlite3.Row
+        temporary: Path | None = None
         try:
-            with target.open("w") as stream:
+            # The temporary is private from creation and lives on the target
+            # filesystem so a completed export can replace its predecessor atomically.
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=target.parent,
+                prefix=f".{target.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as stream:
+                temporary = Path(stream.name)
                 if format == "markdown":
                     stream.write(
                         "# Theo memory export\n\nRead-only projection; JSONL or a backup preserves all structured history.\n\n"
@@ -66,7 +77,9 @@ async def export_data(db: Database, target: Path, format: str = "jsonl") -> Path
                             stream.write(encode({"table": table, "record": data}) + "\n")
                 stream.flush()
                 os.fsync(stream.fileno())
-            target.chmod(0o600)
+            temporary.replace(target)
         finally:
             connection.close()
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
     return target

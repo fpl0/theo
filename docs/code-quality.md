@@ -2,6 +2,8 @@
 
 The current workflow checks source quality, deterministic behavior and installed distributions. Live native and Telegram evaluations are separate, opt-in activities; CI receives no model or Telegram credentials.
 
+The subsequent [9 September code audit](review-2026-09-09.md) fixes privacy, cancellation, context freshness, process cleanup, export atomicity, timezone and durable-reference defects. Its [frozen-build verification](evidence/code-audit-2026-09-09.json) and [dependency advisory report](evidence/dependency-audit-2026-09-09.json) record the newer results separately from the historical runs below.
+
 During the 9 September documentation refresh, the current macOS checkout passed **238 offline tests, with one expected Linux root-only skip** in 66.50 seconds. Ruff lint and formatting passed across 131 files; strict Pyright reported zero errors or warnings. This result includes the source reorganization and later Telegram/telemetry tests; it does not retroactively extend the earlier native evaluation's scope.
 
 The [8 September review](review-2026-09-08.md) records fifteen fixes across delivery, recovery, memory, scheduling and native execution, **156 passing offline tests on its frozen build**, and local Codex/Claude adapter E2E evidence. The [complex evaluation](complex-evaluation-2026-09-09.md) records 40 passing native turns and four host-state checks with separate answer-quality review. See [acceptance status](acceptance.md) for the remaining production gates.

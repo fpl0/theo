@@ -50,6 +50,10 @@ class Delivery:
         ).fetchone()
         if conv is None:
             raise Denied("Conversation unavailable")
+        context = db.execute(
+            "SELECT c.sequence FROM runs r JOIN context_snapshots c ON c.id=r.context_id WHERE r.id=? AND r.owner_id=? AND c.conversation_id=?",
+            (run_id, self.owner, conversation),
+        ).fetchone()
         if job_id and generation is not None:
             Jobs(self.db, self.owner).check(db, job_id, generation)
         request = dict(request)
@@ -134,7 +138,7 @@ class Delivery:
                 1,
                 status,
                 expiry,
-                conv["sequence"],
+                context["sequence"] if context else conv["sequence"],
                 encode(freshness or {}),
                 timestamp,
                 timestamp,
@@ -259,6 +263,12 @@ class Delivery:
         if row["expires_at"] <= self.db.clock():
             return "expired"
         if row["scope"] == "draft":
+            context = db.execute(
+                "SELECT c.invalidated FROM runs r LEFT JOIN context_snapshots c ON c.id=r.context_id WHERE r.id=? AND r.owner_id=? AND r.context_id IS NOT NULL",
+                (row["run_id"], self.owner),
+            ).fetchone()
+            if context is not None and context["invalidated"] != 0:
+                return "stale_context"
             newer = db.execute(
                 "SELECT 1 FROM messages WHERE conversation_id=? AND role='user' AND sequence>?",
                 (row["conversation_id"], row["source_sequence"]),
@@ -328,6 +338,7 @@ class Delivery:
                     "expired",
                     "new_owner_input",
                     "stale_fact",
+                    "stale_context",
                     "authorization_missing",
                     "job_cancelled",
                 ):
@@ -470,7 +481,7 @@ class Delivery:
     def _job_cancelled(self, db: sqlite3.Connection, action_id: str) -> bool:
         return (
             db.execute(
-                "SELECT 1 FROM actions a JOIN jobs j ON j.id=a.job_id WHERE a.id=? AND a.owner_id=? AND j.status='cancelled'",
+                "SELECT 1 FROM actions a LEFT JOIN jobs j ON j.id=a.job_id WHERE a.id=? AND a.owner_id=? AND (a.cancel_requested=1 OR j.status='cancelled')",
                 (action_id, self.owner),
             ).fetchone()
             is not None

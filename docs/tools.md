@@ -28,7 +28,7 @@ The current catalogue contains **51 tools: 33 baseline tools and 18 additions**.
 | `send_buttons` | Yes | Send URL buttons; approval callbacks are host-owned. |
 | `react` | Yes | React to a specific message. |
 | `get_reactions` | Yes | Read reactions observed by the bot; absence is unknown. |
-| `schedule_task` | Yes | Persist a reminder before promising it. |
+| `schedule_task` | Yes | Persist a reminder before promising it; an omitted timezone uses the owner's configured timezone. |
 | `list_tasks` | Yes | List persisted schedules. |
 | `delete_task` | Yes | Cancel a schedule without deleting its history. |
 | `remember` | Yes | Save an inference or propose a reviewed correction; no silent overwrite. |
