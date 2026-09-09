@@ -1,9 +1,14 @@
 """Generate the provisioned Theo dashboards and Grafana alerts deterministically."""
 
 import json
+import os
 import re
 from html import escape
 from pathlib import Path
+
+from observability_alerts import build_alerting
+
+from theo.observability.budget import MEMORY_BUDGET_BYTES
 
 ROOT = Path(__file__).resolve().parents[1] / "observability/grafana"
 P = {"type": "prometheus", "uid": "prometheus"}
@@ -51,7 +56,7 @@ def polish(dashboard):
         "theo-telegram": "A long poll can wait about 30 seconds by design; it is excluded from processing latency. Delivery success means Telegram acknowledged the message. Uncertain delivery must be reconciled before retrying. No recent polling signal needs investigation even when the bot is configured.",
         "theo-cli": "Live Theo shows real terminal activity; Test fixtures shows isolated validation traffic. No samples is expected before a terminal session emits an observation. CLI log charts use five-minute windows and include short-lived sessions. Native host availability is reported under Live Theo.",
         "theo-codex": "Account verification is required before inference. Empty usage and allowance charts stay empty until Codex reports them; they never imply free usage or zero allowance. Work inventory is persisted over the last 24 hours. Use logs to distinguish authentication, quota and execution failures.",
-        "theo-infrastructure": "The 2 GB limit includes the Docker VM, observer and host helpers. Container memory is already inside that total. Native Theo/Codex memory is separate. Load test result refers to the last completed qualification; use live memory and headroom for the current state. An unconfigured external monitor cannot detect a whole-laptop outage.",
+        "theo-infrastructure": "The 4 GB limit includes the Docker VM, observer and host helpers. Container memory is already inside that total. Native Theo/Codex memory is separate. Load test result refers to the last completed qualification; use live memory and headroom for the current state. An unconfigured external monitor cannot detect a whole-laptop outage.",
     }
     # Logs remain at the end so important operating signals are not buried below a log wall.
     ordered = [p for p in dashboard.panels if p["type"] != "logs"]
@@ -122,11 +127,11 @@ def polish(dashboard):
                 defaults.update(unit="decbytes", decimals=2)
                 defaults["thresholds"]["steps"] = [
                     {"value": None, "color": "green"},
-                    {"value": 1_800_000_000, "color": "orange"},
-                    {"value": 2_000_000_000, "color": "red"},
+                    {"value": int(MEMORY_BUDGET_BYTES * 0.9), "color": "orange"},
+                    {"value": MEMORY_BUDGET_BYTES, "color": "red"},
                 ]
                 panel["description"] = (
-                    "Whole physical footprint: Docker VM, host helpers and native observer. Budget: 2.00 GB decimal. Amber at 90%, red at the budget."
+                    "Whole physical footprint: Docker VM, host helpers and native observer. Budget: 4.00 GB decimal. Amber at 90%, red at the budget."
                 )
             if title in {
                 "Uncertain actions",
@@ -174,12 +179,14 @@ def polish(dashboard):
                 ]
         if panel["type"] == "timeseries" and defaults["unit"] == "percentunit":
             defaults["custom"].update(axisSoftMax=1)
-        if title == "Whole stack · 2 GB ceiling":
-            defaults["custom"].update(axisSoftMax=2_100_000_000, thresholdsStyle={"mode": "line"})
+        if title == "Whole stack · 4 GB ceiling":
+            defaults["custom"].update(
+                axisSoftMax=int(MEMORY_BUDGET_BYTES * 1.05), thresholdsStyle={"mode": "line"}
+            )
             defaults["thresholds"]["steps"] = [
                 {"value": None, "color": "green"},
-                {"value": 1_800_000_000, "color": "orange"},
-                {"value": 2_000_000_000, "color": "red"},
+                {"value": int(MEMORY_BUDGET_BYTES * 0.9), "color": "orange"},
+                {"value": MEMORY_BUDGET_BYTES, "color": "red"},
             ]
         for metric, label in {
             "theo_core_memory_bytes": "Theo core",
@@ -705,7 +712,7 @@ def build():
                 '{__name__=~"theo_queue_oldest_seconds|theo_telegram_lag_seconds|theo_outbox_oldest_seconds"}',
                 "s",
             ),
-            ("Memory per component · 2 GB total budget", "theo_container_memory_bytes", "bytes"),
+            ("Memory per component · 4 GB total budget", "theo_container_memory_bytes", "bytes"),
         ]
     )
     d.logs()
@@ -987,7 +994,7 @@ def build():
     d = Dashboard(
         "theo-infrastructure",
         "Theo / Infrastructure",
-        "Watch the full 2 GB budget, then inspect container pressure and telemetry delivery.",
+        "Watch the full 4 GB budget, then inspect container pressure and telemetry delivery.",
     )
     d.stats(
         [
@@ -1003,7 +1010,7 @@ def build():
     )
     d.charts(
         [
-            ("Whole stack · 2 GB ceiling", "theo_observability_memory_bytes", "decbytes"),
+            ("Whole stack · 4 GB ceiling", "theo_observability_memory_bytes", "decbytes"),
             (
                 "Container memory / hard limit",
                 "theo_container_memory_bytes / theo_container_memory_limit_bytes",
@@ -1049,7 +1056,7 @@ def build():
     d.charts(
         [
             (
-                "Whole stack / 2 GB budget",
+                "Whole stack / 4 GB budget",
                 "theo_observability_memory_bytes / theo_observability_budget_bytes",
                 "percentunit",
             ),
@@ -1092,304 +1099,15 @@ def build():
     )
     d.save()
 
-    rules = []
-    definitions = [
-        (
-            "codex-evidence-expiring",
-            "Theo model access requires attention",
-            'sum(theo_jobs_current{status="waiting_for_auth"}) > bool 0',
-            "1m",
-            "warning",
-            "Inspect the waiting job's model-access error. Codex checks subscription login and included allowance automatically; resolve the reported condition, then explicitly retry the preserved job.",
-        ),
-        (
-            "core-unavailable",
-            "Theo core unavailable",
-            "max(theo_core_ready) < 1",
-            "2m",
-            "critical",
-            "Inspect native Theo logs and heartbeat; the observer remains independent.",
-        ),
-        (
-            "observer-missing",
-            "Theo observer missing",
-            'up{job="theo-observer"} < 1',
-            "2m",
-            "critical",
-            "Restart the native observer and inspect its log.",
-        ),
-        (
-            "queue-stalled",
-            "Theo queue stalled",
-            "max(theo_queue_oldest_seconds) > 300",
-            "5m",
-            "warning",
-            "Inspect waiting jobs, Codex auth and allowance, and deliberate pause controls.",
-        ),
-        (
-            "delivery-stalled",
-            "Theo delivery stalled",
-            "max(theo_outbox_oldest_seconds) > 300",
-            "5m",
-            "warning",
-            "Inspect Telegram API failures, retry delays and the delivery ledger.",
-        ),
-        (
-            "uncertain-delivery",
-            "Theo uncertain delivery",
-            "max(theo_actions_uncertain) > 0",
-            "1m",
-            "warning",
-            "Reconcile the existing receipt before retrying; do not blindly resend.",
-        ),
-        (
-            "telegram-poller",
-            "Theo Telegram poller stale",
-            '((time()-max by(environment)(last_over_time(theo_telegram_poll_success_timestamp[24h])) > bool 120) or (max by(environment)(theo_channel_configured{channel="telegram"}) unless on(environment) max by(environment)(last_over_time(theo_telegram_poll_success_timestamp[24h])))) and on(environment) (max by(environment)(theo_channel_configured{channel="telegram"})==1)',
-            "2m",
-            "warning",
-            "Check network and bot credentials; do not start a second poller.",
-        ),
-        (
-            "codex-auth",
-            "Theo Codex authentication required",
-            'sum(theo_jobs_current{status="waiting_for_auth"}) > 0',
-            "1m",
-            "warning",
-            "Reauthenticate through supported Codex subscription login.",
-        ),
-        (
-            "codex-quota",
-            "Theo Codex allowance exhausted",
-            'sum(theo_jobs_current{status="waiting_for_quota"}) > 0',
-            "1m",
-            "warning",
-            "Wait for reported allowance reset; no paid fallback.",
-        ),
-        (
-            "disk-pressure",
-            "Theo host disk pressure",
-            "max(theo_host_disk_used_ratio)>0.85",
-            "5m",
-            "warning",
-            "Inspect retention and telemetry disk use.",
-        ),
-        (
-            "container-memory",
-            "Theo observability memory pressure",
-            "max(theo_container_memory_bytes/theo_container_memory_limit_bytes)>0.9",
-            "5m",
-            "warning",
-            "Inspect per-component queries and ingestion; total budget is 2 GB.",
-        ),
-        (
-            "backend-missing",
-            "Theo telemetry backend unavailable",
-            'up{job="infrastructure"}<1',
-            "2m",
-            "critical",
-            "Inspect the affected Compose service and its native health endpoint.",
-        ),
-        (
-            "alert-test",
-            "Theo observability test",
-            "max(theo_observability_test_alert)>0",
-            "0s",
-            "test",
-            "Labelled local alert delivery and recovery test. No user action required.",
-        ),
-        (
-            "whole-memory",
-            "Theo whole-stack memory budget exceeded",
-            "max(theo_observability_memory_bytes)> bool 2000000000",
-            "1m",
-            "critical",
-            "Inspect the Infrastructure dashboard. The budget includes the Docker VM and native observer.",
-        ),
-        (
-            "container-restarted",
-            "Theo telemetry container restarted",
-            "max(delta(theo_container_restarts[5m]))> bool 0",
-            "0s",
-            "warning",
-            "Inspect container OOM events and logs; a recovered process can still have lost data.",
-        ),
-        (
-            "native-telemetry-stale",
-            "Theo native telemetry stale",
-            "((time()-max(theo_runtime_telemetry_timestamp))> bool 120) or absent(theo_runtime_telemetry_timestamp)",
-            "3m",
-            "warning",
-            "The independent observer may be healthy while native OTLP export is unavailable. Check telemetry configuration and Alloy.",
-        ),
-        (
-            "telemetry-loss",
-            "Theo telemetry records dropped",
-            'sum(increase({__name__=~"otelcol_.*(refused|send_failed|enqueue_failed).*_total|otel_sdk_processor_(span|log)_processed_total",error_type!=""}[5m]))> bool 0',
-            "1m",
-            "warning",
-            "Inspect SDK buffers and Alloy queues. Missing telemetry is not evidence of successful operations.",
-        ),
-        (
-            "collector-loss",
-            "Theo collector export failures",
-            'sum(increase(label_replace({__name__=~"otelcol_.*(refused|send_failed|enqueue_failed).*_total"},"signal","$1","__name__","(.*)")[5m:30s]))> bool 0',
-            "1m",
-            "warning",
-            "Inspect downstream backends and bounded collector queues.",
-        ),
-        (
-            "schedule-late",
-            "Theo schedule overdue",
-            "max(theo_schedule_overdue_seconds)> bool 300",
-            "5m",
-            "warning",
-            "Inspect the scheduler and deliberate background pause controls.",
-        ),
-    ]
-    for uid, title, expr, period, severity, description in definitions:
-        rules.append(
-            {
-                "uid": "theo-" + uid,
-                "title": title,
-                "condition": "C",
-                "for": period,
-                "noDataState": "OK"
-                if uid not in {"observer-missing", "core-unavailable"}
-                else "NoData",
-                "execErrState": "Error",
-                "annotations": {
-                    "summary": title,
-                    "description": description,
-                    "runbook_url": "http://localhost:13000/d/theo-overview",
-                },
-                "labels": {"service": "theo", "severity": severity},
-                "data": [
-                    {
-                        "refId": "A",
-                        "relativeTimeRange": {"from": 600, "to": 0},
-                        "datasourceUid": "prometheus",
-                        "model": {
-                            "refId": "A",
-                            "expr": expr,
-                            "instant": True,
-                            "range": False,
-                            "intervalMs": 1000,
-                            "maxDataPoints": 43200,
-                        },
-                    },
-                    {
-                        "refId": "C",
-                        "relativeTimeRange": {"from": 0, "to": 0},
-                        "datasourceUid": "__expr__",
-                        "model": {
-                            "refId": "C",
-                            "type": "threshold",
-                            "expression": "A",
-                            "conditions": [
-                                {
-                                    "evaluator": {"type": "gt", "params": [0]},
-                                    "operator": {"type": "and"},
-                                    "reducer": {"type": "last", "params": []},
-                                    "type": "query",
-                                }
-                            ],
-                        },
-                    },
-                ],
-            }
-        )
-    # Boolean comparisons below must return 1 rather than the compared original value.
-    for r in rules:
-        r["data"][0]["model"]["expr"] = (
-            r["data"][0]["model"]["expr"]
-            .replace(" < 1", " < bool 1")
-            .replace(" > 300", " > bool 300")
-            .replace(" > 0", " > bool 0")
-            .replace(">0.85", "> bool 0.85")
-            .replace(">0.9", "> bool 0.9")
-            .replace("<1", "< bool 1")
-            .replace(">0", "> bool 0")
-            .replace(">120", "> bool 120")
-        )
-    (ROOT / "provisioning/alerting/rules.yaml").write_text(
-        json.dumps(
-            {
-                "apiVersion": 1,
-                "groups": [
-                    {
-                        "orgId": 1,
-                        "name": "Theo health",
-                        "folder": "Theo",
-                        "interval": "30s",
-                        "rules": rules,
-                    }
-                ],
-            },
-            indent=2,
-        )
-        + "\n"
-    )
     env_path = ROOT.parent / ".env"
-    telegram_enabled = env_path.exists() and any(
-        line.startswith("THEO_ALERT_BOT_TOKEN=") and line.split("=", 1)[1]
-        for line in env_path.read_text().splitlines()
-    )
-    telegram_receivers = (
-        [
-            {
-                "uid": "theo-telegram-test",
-                "type": "telegram",
-                "settings": {
-                    "bottoken": "$THEO_ALERT_BOT_TOKEN",
-                    "chatid": "$THEO_ALERT_CHAT_ID",
-                    "parse_mode": "",
-                    "disable_web_page_preview": True,
-                    "message": "[$THEO_ALERT_LABEL] {{ .Status | toUpper }}\n{{ range .Alerts }}{{ .Annotations.summary }}\n{{ end }}",
-                },
-                "disableResolveMessage": False,
-            }
-        ]
-        if telegram_enabled
-        else []
-    )
-    (ROOT / "provisioning/alerting/contact-points.yaml").write_text(
-        json.dumps(
-            {
-                "apiVersion": 1,
-                "contactPoints": [
-                    {
-                        "orgId": 1,
-                        "name": "Theo operational alerts",
-                        "receivers": [
-                            {
-                                "uid": "theo-local-receipts",
-                                "type": "webhook",
-                                "settings": {
-                                    "url": "http://host.docker.internal:19464/alerts",
-                                    "httpMethod": "POST",
-                                },
-                                "disableResolveMessage": False,
-                            }
-                        ]
-                        + telegram_receivers,
-                    }
-                ],
-                "policies": [
-                    {
-                        "orgId": 1,
-                        "receiver": "Theo operational alerts",
-                        "group_by": ["alertname"],
-                        "group_wait": "10s",
-                        "group_interval": "1m",
-                        "repeat_interval": "4h",
-                    }
-                ],
-            },
-            indent=2,
+    telegram_enabled = bool(os.getenv("THEO_ALERT_BOT_TOKEN")) or (
+        env_path.exists()
+        and any(
+            line.startswith("THEO_ALERT_BOT_TOKEN=") and line.split("=", 1)[1]
+            for line in env_path.read_text().splitlines()
         )
-        + "\n"
     )
+    build_alerting(ROOT, telegram_enabled)
 
 
 if __name__ == "__main__":

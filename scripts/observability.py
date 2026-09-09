@@ -14,6 +14,8 @@ from pathlib import Path
 import httpx
 import psutil
 
+from theo.observability.budget import MEMORY_BUDGET_BYTES
+
 ROOT = Path(__file__).resolve().parents[1]
 STACK = ROOT / "observability"
 STATE = ROOT / ".local/observability"
@@ -221,7 +223,8 @@ def check():
         log_queries=log_queries,
         query_errors=errors,
         whole_stack_memory_verified=qualification.exists()
-        and json.loads(qualification.read_text()).get("passed") is True,
+        and json.loads(qualification.read_text()).get("passed") is True
+        and json.loads(qualification.read_text()).get("budget_bytes") == MEMORY_BUDGET_BYTES,
     )
     rule_queries = 0
     for group in json.loads((STACK / "grafana/provisioning/alerting/rules.yaml").read_text())[

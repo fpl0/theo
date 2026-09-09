@@ -22,6 +22,8 @@ import psutil
 from aiohttp import web
 from prometheus_client import CollectorRegistry, Gauge, generate_latest
 
+from theo.observability.budget import MEMORY_BUDGET_BYTES
+
 
 class Observer:
     def __init__(self, root: Path):
@@ -60,10 +62,13 @@ class Observer:
             with contextlib.suppress(OSError, ValueError, TypeError):
                 report = json.loads(Path(report_path).read_text())
                 qualified = (
-                    report.get("passed") is True and report.get("budget_bytes") == 2_000_000_000
+                    report.get("passed") is True
+                    and report.get("budget_bytes") == MEMORY_BUDGET_BYTES
                 )
         self.set("theo_observability_budget_verified", float(qualified))
-        self.set("theo_observability_budget_bytes", 2_000_000_000)
+        self.set("theo_observability_budget_bytes", MEMORY_BUDGET_BYTES)
+        # A scrape during refresh must not interpret a partially rebuilt inventory as zero.
+        self.set("theo_database_readable", 0)
         for name, gauge in self.gauges.items():
             if name in {
                 "theo_jobs_current",
@@ -87,7 +92,6 @@ class Observer:
                 ).fetchone()[0]
                 self.set("theo_core_heartbeat_timestamp_seconds", heartbeat or 0)
                 self.set("theo_core_ready", float(bool(heartbeat and now - heartbeat < 90)))
-                self.set("theo_database_readable", 1)
                 for status, count in db.execute(
                     "SELECT status,count(*) FROM goals GROUP BY status"
                 ):
@@ -190,6 +194,7 @@ class Observer:
                         > 0
                     ),
                 )
+                self.set("theo_database_readable", 1)
         except sqlite3.Error:
             self.set("theo_database_readable", 0)
             self.set("theo_core_ready", 0)
@@ -374,6 +379,28 @@ def memory_bytes(text: str) -> float:
     raise ValueError("Unknown memory unit")
 
 
+def alert_receipt(payload: dict[str, Any]) -> dict[str, Any]:
+    """Retain bounded routing context and state reasons, never notification bodies."""
+    reasons = {"No Data", "NoData", "Error", "MissingSeries", "Paused", "Updated", "RuleDeleted"}
+    alerts: list[dict[str, Any]] = []
+    for item in payload.get("alerts", [])[:100]:
+        labels = item.get("labels", {})
+        reason = item.get("annotations", {}).get("grafana_state_reason")
+        alerts.append(
+            {
+                "status": item.get("status"),
+                "alertname": str(labels.get("alertname", ""))[:160],
+                "fingerprint": str(item.get("fingerprint", ""))[:64],
+                **{
+                    key: str(labels.get(key, ""))[:128]
+                    for key in ("environment", "host", "incident")
+                },
+                "state_reason": reason if reason in reasons else "Other" if reason else None,
+            }
+        )
+    return {"received_at": time.time(), "status": payload.get("status"), "alerts": alerts}
+
+
 async def application(root: Path) -> web.Application:
     observer = Observer(root)
     app = web.Application(client_max_size=128 * 1024)
@@ -392,18 +419,7 @@ async def application(root: Path) -> web.Application:
 
     async def alerts(request: web.Request) -> web.Response:
         payload: dict[str, Any] = await request.json()
-        receipt = {
-            "received_at": time.time(),
-            "status": payload.get("status"),
-            "alerts": [
-                {
-                    "status": a.get("status"),
-                    "alertname": a.get("labels", {}).get("alertname"),
-                    "fingerprint": a.get("fingerprint"),
-                }
-                for a in payload.get("alerts", [])
-            ][:100],
-        }
+        receipt = alert_receipt(payload)
         receipts.emit(
             logging.LogRecord("alerts", logging.INFO, "", 0, json.dumps(receipt), (), None)
         )

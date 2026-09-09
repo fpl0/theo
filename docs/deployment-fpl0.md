@@ -42,6 +42,18 @@ services read the owner-only environment file. Service logs rotate at 2 MB with
 two backups. The stack supervisor recreates stopped containers and starts the
 dedicated VM when needed; the core supervisor has bounded recovery backoff.
 
+Monitoring can be deployed independently with optional `observability_source` and
+`observability_python` paths in the manifest. They apply only to the observer and
+stack services; the core source, release pointer, worker and supervisor stay pinned.
+Install the locked observer wheel in a separate environment, retain the previous
+manifest and plists, then generate only monitoring definitions with
+`install --output ~/Library/LaunchAgents --services observer stack`. During a VM
+resize, unload the stack recovery service first, stop only its Compose project and
+Colima profile, restart the profile with `--memory 3 --activate=false`, and reload
+the two monitoring services. Retain volumes and verify health, queries, routes and
+footprint. Restore the previous manifest, plists and VM allocation for monitoring
+rollback. This operation does not pause the core or change its database.
+
 ## Upgrade or code rollback
 
 Build clean committed source with `scripts/build_release.py`, including the
@@ -71,7 +83,9 @@ is configured. Prometheus, Loki and Tempo are accessed through its data sources.
 Open `/d/theo-overview?var-environment=production` or select **Production Theo**
 in the Traffic selector. Polling alerts evaluate each environment separately so
 test or laptop traffic cannot mask a stopped production poller.
-The full stack budget is 2,000,000,000 bytes, including the VM and host helpers.
+The full stack budget is 4,000,000,000 bytes, including the VM and host helpers.
+The dedicated VM has 3 GiB of RAM; Grafana has a 768 MiB hard limit and a 480 MiB
+Go memory target. Historical 2 GB load reports do not qualify the new envelope.
 Metrics retain seven days, logs three days, and traces 24 hours; production trace
 sampling is 10%. Qualification traffic is explicitly labelled separately.
 
@@ -87,3 +101,8 @@ allowance. No daily manual attestation is required. Observations do not claim th
 provider purchase settings are disabled. Resolve any reported access failure and
 explicitly retry waiting jobs; requested reminders remain available during model
 pauses. See the [account workflow](operations.md#account-evidence).
+
+Routine laptop test alerts stay in local diagnostics. Production notifications
+group related incidents, preserve state during measurement gaps, and include the
+host, component, measurement, next action and LAN dashboard link. See the
+[alerting policy](observability.md#dashboards-and-alerts).

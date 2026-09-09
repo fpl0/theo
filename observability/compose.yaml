@@ -10,13 +10,15 @@ services:
   grafana:
     <<: *service
     image: grafana/grafana:13.2.1
-    mem_limit: 384m
+    mem_limit: 768m
     environment:
-      GOMEMLIMIT: 240MiB
+      GOMEMLIMIT: 480MiB
       GF_LOG_LEVEL: warn
       THEO_ALERT_BOT_TOKEN: ${THEO_ALERT_BOT_TOKEN:-}
       THEO_ALERT_CHAT_ID: ${THEO_ALERT_CHAT_ID:-}
       THEO_ALERT_LABEL: ${THEO_ALERT_LABEL:-THEO OBSERVABILITY TEST}
+      THEO_ENVIRONMENT: ${THEO_ENVIRONMENT:-local}
+      THEO_ALERT_HOST: ${THEO_ALERT_HOST:-local-test}
       GF_AUTH_ANONYMOUS_ENABLED: ${THEO_GRAFANA_ANONYMOUS:-true}
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
       GF_USERS_VIEWERS_CAN_EDIT: ${THEO_GRAFANA_VIEWERS_CAN_EDIT:-true}

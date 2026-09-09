@@ -310,7 +310,7 @@ seven-day service evidence; passing CI or setting configuration flags cannot
 substitute for it. Unattended self-patch deployment remains unqualified.
 
 The optional local Grafana/Alloy/Prometheus/Loki/Tempo stack is separate from the
-assistant runtime. Its **whole-host budget is 2,000,000,000 bytes**, including VM,
+assistant runtime. Its **whole-host budget is 4,000,000,000 bytes**, including VM,
 Docker, observer, and host helpers. The observer is read-only and must not create
 or migrate a database. Keep telemetry queues/retention bounded and export failure
 off the execution path. Exclude prompts, message text, tool arguments, credentials,

@@ -16,6 +16,8 @@ import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+from theo.observability.budget import VM_MEMORY_GIB
+
 
 def private_environment(path):
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
@@ -29,19 +31,30 @@ def private_environment(path):
     return value
 
 
+def service_paths(manifest, kind):
+    """Let monitoring advance independently of the core release and supervisor."""
+    if kind in {"observer", "stack"}:
+        return (
+            manifest.get("observability_source", manifest["source"]),
+            manifest.get("observability_python", manifest["python"]),
+        )
+    return manifest["source"], manifest["python"]
+
+
 def definition(manifest, path, kind):
     root = Path(manifest["data_root"])
+    source, python = service_paths(manifest, kind)
     return {
         "Label": "local.theo." + kind,
         "ProgramArguments": [
-            manifest["python"],
+            python,
             str(Path(__file__).resolve()),
             "--manifest",
             str(path.resolve()),
             "run",
             kind,
         ],
-        "WorkingDirectory": manifest["source"],
+        "WorkingDirectory": source,
         "RunAtLoad": True,
         "KeepAlive": True,
         "ThrottleInterval": 30,
@@ -55,8 +68,10 @@ def definition(manifest, path, kind):
 
 
 def run(manifest, kind):
+    source, python = service_paths(manifest, kind)
     env = {"PATH": "/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin", **os.environ}
     env.update(private_environment(manifest["environment_file"]))
+    env.setdefault("THEO_ALERT_HOST", os.uname().nodename)
     logger = logging.getLogger("deployment")
     logger.setLevel(logging.INFO)
     handler = RotatingFileHandler(
@@ -78,7 +93,7 @@ def run(manifest, kind):
 
     def command(argv, timeout=180):
         result = subprocess.run(
-            argv, env=env, cwd=manifest["source"], capture_output=True, text=True, timeout=timeout
+            argv, env=env, cwd=source, capture_output=True, text=True, timeout=timeout
         )
         # Command arguments and output may contain credential-bearing URLs.
         logger.info("operation=%s exit=%s", Path(argv[0]).name, result.returncode)
@@ -105,7 +120,7 @@ def run(manifest, kind):
                             "--cpu",
                             "2",
                             "--memory",
-                            "1.5",
+                            str(VM_MEMORY_GIB),
                             "--disk",
                             "20",
                             "--vm-type",
@@ -119,7 +134,7 @@ def run(manifest, kind):
                         "colima-theo-observability",
                         "compose",
                         "-f",
-                        str(Path(manifest["source"]) / "observability/compose.yaml"),
+                        str(Path(source) / "observability/compose.yaml"),
                         "-f",
                         str(Path(manifest["data_root"]) / "observability-images.json"),
                         "up",
@@ -136,9 +151,9 @@ def run(manifest, kind):
         return
     module = "theo.supervisor" if kind == "supervisor" else "theo.observer"
     child = subprocess.Popen(
-        [manifest["python"], "-m", module, "--data-root", manifest["data_root"]],
+        [python, "-m", module, "--data-root", manifest["data_root"]],
         env=env,
-        cwd=manifest["source"],
+        cwd=source,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -170,17 +185,23 @@ def main():
     sub = parser.add_subparsers(dest="operation", required=True)
     install = sub.add_parser("install")
     install.add_argument("--output", type=Path, required=True)
+    install.add_argument(
+        "--services",
+        nargs="+",
+        choices=("supervisor", "observer", "stack"),
+        default=("supervisor", "observer", "stack"),
+    )
     execute = sub.add_parser("run")
     execute.add_argument("kind", choices=("supervisor", "observer", "stack"))
     args = parser.parse_args()
     manifest = json.loads(args.manifest.read_text())
     if args.operation == "install":
         args.output.mkdir(parents=True, exist_ok=True)
-        for kind in ("supervisor", "observer", "stack"):
+        for kind in args.services:
             target = args.output / ("local.theo." + kind + ".plist")
             target.write_bytes(plistlib.dumps(definition(manifest, args.manifest, kind)))
             target.chmod(0o600)
-        print("Generated three launchd definitions; not loaded")
+        print("Generated " + ", ".join(args.services) + " launchd definitions; not loaded")
     else:
         run(manifest, args.kind)
 

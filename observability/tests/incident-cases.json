@@ -1,0 +1,259 @@
+[
+  {
+    "name": "Readable empty inventory is an observed zero",
+    "rule_uid": "theo-codex-auth",
+    "input_series": [
+      {
+        "series": "theo_database_readable{environment=\"production\"}",
+        "values": "1x20"
+      }
+    ],
+    "expected": [
+      {
+        "labels": "{environment=\"production\"}",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "name": "A blocked job requires one model-access incident",
+    "rule_uid": "theo-codex-auth",
+    "input_series": [
+      {
+        "series": "theo_database_readable{environment=\"production\"}",
+        "values": "1x20"
+      },
+      {
+        "series": "theo_jobs_current{environment=\"production\",status=\"waiting_for_auth\"}",
+        "values": "2x20"
+      }
+    ],
+    "expected": [
+      {
+        "labels": "{environment=\"production\"}",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "name": "A missing observer is unknown, not recovered",
+    "rule_uid": "theo-codex-auth",
+    "input_series": [],
+    "expected": []
+  },
+  {
+    "name": "Unreadable inventory with old samples is unknown",
+    "rule_uid": "theo-codex-auth",
+    "input_series": [
+      {
+        "series": "theo_database_readable{environment=\"production\"}",
+        "values": "0x20"
+      },
+      {
+        "series": "theo_jobs_current{environment=\"production\",status=\"waiting_for_auth\"}",
+        "values": "2x20"
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "A blocked job can recover after its status series disappears",
+    "rule_uid": "theo-codex-auth",
+    "input_series": [
+      {
+        "series": "theo_database_readable{environment=\"production\"}",
+        "values": "1x20"
+      },
+      {
+        "series": "theo_jobs_current{environment=\"production\",status=\"waiting_for_auth\"}",
+        "values": "2x4 stale"
+      }
+    ],
+    "expected": [
+      {
+        "labels": "{environment=\"production\"}",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "name": "Fixture inventory cannot page production",
+    "rule_uid": "theo-codex-auth",
+    "input_series": [
+      {
+        "series": "theo_database_readable{environment=\"qualification\"}",
+        "values": "1x20"
+      },
+      {
+        "series": "theo_jobs_current{environment=\"qualification\",status=\"waiting_for_auth\"}",
+        "values": "4x20"
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "Missing database access cannot resolve uncertain effects",
+    "rule_uid": "theo-uncertain-delivery",
+    "input_series": [
+      {
+        "series": "theo_database_readable{environment=\"production\"}",
+        "values": "0x20"
+      },
+      {
+        "series": "theo_actions_uncertain{environment=\"production\"}",
+        "values": "0x20"
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "Measured zero uncertain effects resolves",
+    "rule_uid": "theo-uncertain-delivery",
+    "input_series": [
+      {
+        "series": "theo_database_readable{environment=\"production\"}",
+        "values": "1x20"
+      },
+      {
+        "series": "theo_actions_uncertain{environment=\"production\"}",
+        "values": "0x20"
+      }
+    ],
+    "expected": [
+      {
+        "labels": "{environment=\"production\"}",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "name": "Whole stack 3900000000 against 4 GB",
+    "rule_uid": "theo-whole-memory",
+    "input_series": [
+      {
+        "series": "theo_observability_memory_bytes{environment=\"production\"}",
+        "values": "3900000000x20"
+      },
+      {
+        "series": "theo_observability_memory_measurement_available{environment=\"production\"}",
+        "values": "1x20"
+      }
+    ],
+    "expected": [
+      {
+        "labels": "{environment=\"production\"}",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "name": "Whole stack 4100000000 against 4 GB",
+    "rule_uid": "theo-whole-memory",
+    "input_series": [
+      {
+        "series": "theo_observability_memory_bytes{environment=\"production\"}",
+        "values": "4100000000x20"
+      },
+      {
+        "series": "theo_observability_memory_measurement_available{environment=\"production\"}",
+        "values": "1x20"
+      }
+    ],
+    "expected": [
+      {
+        "labels": "{environment=\"production\"}",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "name": "Unavailable footprint does not resolve budget incident",
+    "rule_uid": "theo-whole-memory",
+    "input_series": [
+      {
+        "series": "theo_observability_memory_bytes{environment=\"production\"}",
+        "values": "1000000000x20"
+      },
+      {
+        "series": "theo_observability_memory_measurement_available{environment=\"production\"}",
+        "values": "0x20"
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "Memory alerts preserve affected component",
+    "rule_uid": "theo-container-memory",
+    "input_series": [
+      {
+        "series": "theo_container_memory_bytes{environment=\"production\",component=\"grafana\"}",
+        "values": "95x20"
+      },
+      {
+        "series": "theo_container_memory_limit_bytes{environment=\"production\",component=\"grafana\"}",
+        "values": "100x20"
+      },
+      {
+        "series": "theo_container_memory_bytes{environment=\"production\",component=\"loki\"}",
+        "values": "80x20"
+      },
+      {
+        "series": "theo_container_memory_limit_bytes{environment=\"production\",component=\"loki\"}",
+        "values": "100x20"
+      }
+    ],
+    "expected": [
+      {
+        "labels": "{component=\"grafana\",environment=\"production\"}",
+        "value": 1
+      },
+      {
+        "labels": "{component=\"loki\",environment=\"production\"}",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "name": "Healthy laptop cannot hide unavailable production core",
+    "rule_uid": "theo-core-unavailable",
+    "input_series": [
+      {
+        "series": "theo_database_readable{environment=\"production\"}",
+        "values": "1x20"
+      },
+      {
+        "series": "theo_database_readable{environment=\"local\"}",
+        "values": "1x20"
+      },
+      {
+        "series": "theo_core_ready{environment=\"production\"}",
+        "values": "0x20"
+      },
+      {
+        "series": "theo_core_ready{environment=\"local\"}",
+        "values": "1x20"
+      }
+    ],
+    "expected": [
+      {
+        "labels": "{environment=\"local\"}",
+        "value": 0
+      },
+      {
+        "labels": "{environment=\"production\"}",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "name": "No observer scrape is an actionable monitoring failure",
+    "rule_uid": "theo-observer-missing",
+    "input_series": [],
+    "expected": [
+      {
+        "labels": "{}",
+        "value": 1
+      }
+    ]
+  }
+]
