@@ -337,7 +337,7 @@ def alert_rules():
                 "condition": "C",
                 "for": period,
                 "keepFiringFor": "0s" if severity == "test" else "2m",
-                "missingSeriesEvalsToResolve": 20,
+                "missing_series_evals_to_resolve": 20,
                 "noDataState": no_data,
                 "execErrState": "Alerting" if uid == "observer-missing" else "KeepLast",
                 "annotations": {

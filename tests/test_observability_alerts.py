@@ -72,6 +72,7 @@ def test_inventory_unknown_does_not_become_recovery_and_monitor_failure_still_al
         rule = by_id["theo-" + uid]
         assert rule["noDataState"] == "KeepLast"
         assert rule["keepFiringFor"] == "2m"
+        assert rule["missing_series_evals_to_resolve"] == 20
     assert by_id["theo-observer-missing"]["execErrState"] == "Alerting"
     assert by_id["theo-observer-stale"]["noDataState"] == "Alerting"
     assert sum("waiting_for_auth" in r["data"][0]["model"]["expr"] for r in by_id.values()) == 1

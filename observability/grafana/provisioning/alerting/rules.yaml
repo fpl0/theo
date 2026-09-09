@@ -19,7 +19,7 @@
           "condition": "C",
           "for": "2m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "KeepLast",
           "execErrState": "KeepLast",
           "annotations": {
@@ -106,7 +106,7 @@
           "condition": "C",
           "for": "2m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "Alerting",
           "execErrState": "Alerting",
           "annotations": {
@@ -193,7 +193,7 @@
           "condition": "C",
           "for": "2m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "Alerting",
           "execErrState": "KeepLast",
           "annotations": {
@@ -280,7 +280,7 @@
           "condition": "C",
           "for": "2m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "Alerting",
           "execErrState": "KeepLast",
           "annotations": {
@@ -367,7 +367,7 @@
           "condition": "C",
           "for": "5m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "KeepLast",
           "execErrState": "KeepLast",
           "annotations": {
@@ -454,7 +454,7 @@
           "condition": "C",
           "for": "5m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "KeepLast",
           "execErrState": "KeepLast",
           "annotations": {
@@ -541,7 +541,7 @@
           "condition": "C",
           "for": "1m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "KeepLast",
           "execErrState": "KeepLast",
           "annotations": {
@@ -628,7 +628,7 @@
           "condition": "C",
           "for": "2m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "KeepLast",
           "execErrState": "KeepLast",
           "annotations": {
@@ -715,7 +715,7 @@
           "condition": "C",
           "for": "1m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "KeepLast",
           "execErrState": "KeepLast",
           "annotations": {
@@ -802,7 +802,7 @@
           "condition": "C",
           "for": "1m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "KeepLast",
           "execErrState": "KeepLast",
           "annotations": {
@@ -889,7 +889,7 @@
           "condition": "C",
           "for": "5m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "KeepLast",
           "execErrState": "KeepLast",
           "annotations": {
@@ -976,7 +976,7 @@
           "condition": "C",
           "for": "5m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "KeepLast",
           "execErrState": "KeepLast",
           "annotations": {
@@ -1063,7 +1063,7 @@
           "condition": "C",
           "for": "2m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "KeepLast",
           "execErrState": "KeepLast",
           "annotations": {
@@ -1150,7 +1150,7 @@
           "condition": "C",
           "for": "0s",
           "keepFiringFor": "0s",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "KeepLast",
           "execErrState": "KeepLast",
           "annotations": {
@@ -1237,7 +1237,7 @@
           "condition": "C",
           "for": "1m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "KeepLast",
           "execErrState": "KeepLast",
           "annotations": {
@@ -1324,7 +1324,7 @@
           "condition": "C",
           "for": "5m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "Alerting",
           "execErrState": "KeepLast",
           "annotations": {
@@ -1411,7 +1411,7 @@
           "condition": "C",
           "for": "0s",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "KeepLast",
           "execErrState": "KeepLast",
           "annotations": {
@@ -1498,7 +1498,7 @@
           "condition": "C",
           "for": "3m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "Alerting",
           "execErrState": "KeepLast",
           "annotations": {
@@ -1585,7 +1585,7 @@
           "condition": "C",
           "for": "1m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "KeepLast",
           "execErrState": "KeepLast",
           "annotations": {
@@ -1672,7 +1672,7 @@
           "condition": "C",
           "for": "1m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "KeepLast",
           "execErrState": "KeepLast",
           "annotations": {
@@ -1759,7 +1759,7 @@
           "condition": "C",
           "for": "5m",
           "keepFiringFor": "2m",
-          "missingSeriesEvalsToResolve": 20,
+          "missing_series_evals_to_resolve": 20,
           "noDataState": "KeepLast",
           "execErrState": "KeepLast",
           "annotations": {
