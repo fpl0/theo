@@ -8,6 +8,7 @@ The [project README](../README.md) introduces Theo and the local setup. These gu
 | --- | --- |
 | [Terminal](terminal.md) | Interactive chat, named sessions, attachments, drafts and cancellation. |
 | [Telegram](telegram.md) | Bot pairing, private token handling, groups/topics, controls, media and delivery recovery. |
+| [Personality](personality.md) | Conversational voice, humour, personal context and how saved personas affect replies. |
 | [Operations](operations.md) | Configuration, native accounts, isolation, assets, backups, releases and qualification. |
 | [Observability](observability.md) | Local Grafana setup, telemetry, alerts, correlation and the 2 GB stack budget. |
 | [Tool catalogue](tools.md) | All model-facing tools and the generated input schemas. |
