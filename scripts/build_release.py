@@ -12,6 +12,17 @@ from theo import __version__
 from theo.execution.files import file_hash
 
 
+def materialize_external_links(destination: Path) -> None:
+    """Keep the staged file manifest inside its root, including the Python binary."""
+    for path in destination.rglob("*"):
+        if path.is_symlink() and not path.resolve().is_relative_to(destination):
+            target = path.resolve(strict=True)
+            if not target.is_file():
+                raise ValueError("Release contains an external directory symlink")
+            path.unlink()
+            shutil.copy2(target, path)
+
+
 def build(source: Path, destination: Path, release_id: str, extras: tuple[str, ...] = ()) -> None:
     if destination.exists():
         raise ValueError("Release destination must be new")
@@ -42,6 +53,7 @@ def build(source: Path, destination: Path, release_id: str, extras: tuple[str, .
             env=env,
             check=True,
         )
+        materialize_external_links(destination)
         python = destination / "bin/python"
         with tempfile.TemporaryDirectory(prefix="theo-release-canary-") as tmp:
             for arguments in (("init",), ("doctor", "--json")):
