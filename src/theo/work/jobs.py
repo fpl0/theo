@@ -15,6 +15,59 @@ class Jobs:
     def __init__(self, db: Database, owner: str):
         self.db, self.owner = db, owner
 
+    async def inspect(
+        self,
+        *,
+        scope: str | None = None,
+        exclude_job_id: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> Json:
+        """Snapshot queue counts and bounded work details, excluding the reporting request."""
+        if not 1 <= limit <= 50 or not 0 <= offset <= 10000:
+            raise ValueError("Invalid work inspection page")
+
+        def snapshot(db: sqlite3.Connection) -> Json:
+            where = "owner_id=? AND (? IS NULL OR conversation_id=?) AND (? IS NULL OR id<>?)"
+            args = (self.owner, scope, scope, exclude_job_id, exclude_job_id)
+            counts = [
+                dict(row)
+                for row in db.execute(
+                    f"SELECT status,count(*) count FROM jobs WHERE {where} GROUP BY status",
+                    args,
+                )
+            ]
+            unfinished = sum(
+                row["count"]
+                for row in counts
+                if row["status"] not in ("completed", "failed", "cancelled")
+            )
+            items = [
+                dict(row)
+                for row in db.execute(
+                    f"SELECT id,conversation_id,parent_id,kind,lane,status,substr(coalesce(json_extract(payload,'$.text'),kind),1,600) summary,created_at,updated_at,available_at,deadline FROM jobs WHERE {where} AND status NOT IN ('completed','failed','cancelled') ORDER BY created_at,id LIMIT ? OFFSET ?",
+                    (*args, limit, offset),
+                )
+            ]
+            controls = [
+                dict(row)
+                for row in db.execute(
+                    "SELECT key,value FROM control WHERE owner_id=? AND key IN ('background_paused','models_paused','notifications_paused','quarantined','maintenance_draining')",
+                    (self.owner,),
+                )
+            ]
+            return {
+                "observed_at": self.db.clock(),
+                "controls": controls,
+                "jobs": counts,
+                "unfinished_jobs": items,
+                "unfinished_total": unfinished,
+                "offset": offset,
+                "has_more": offset + len(items) < unfinished,
+            }
+
+        return await self.db.write(snapshot)
+
     def insert(
         self,
         db: sqlite3.Connection,

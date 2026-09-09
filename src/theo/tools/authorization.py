@@ -97,6 +97,7 @@ async def authorize(db: Database, ctx: ToolContext, name: str, args: Json) -> st
             "memory_history",
             "review_corrections",
             "list_tasks",
+            "get_status",
             "action_status",
             "file_read",
             "get_reactions",

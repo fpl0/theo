@@ -15,6 +15,11 @@ class Empty(StrictModel):
     pass
 
 
+class StatusArgs(StrictModel):
+    limit: int = Field(default=20, ge=1, le=50)
+    offset: int = Field(default=0, ge=0, le=10000)
+
+
 class MessageArgs(StrictModel):
     text: str = Field(min_length=1, max_length=100000)
     reply_to: int | None = None

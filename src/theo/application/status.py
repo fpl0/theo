@@ -9,19 +9,21 @@ from theo.domain import (
     Json,
 )
 from theo.storage import Database
+from theo.work.jobs import Jobs
 
 
-async def status(db: Database, settings: Settings) -> Json:
+async def status(
+    db: Database,
+    settings: Settings,
+    *,
+    scope: str | None = None,
+    exclude_job_id: str | None = None,
+) -> Json:
     owner = settings.owner_id
-    controls = await db.read(
-        "SELECT key,value FROM control WHERE owner_id=? AND key IN ('background_paused','models_paused','notifications_paused','quarantined')",
-        (owner,),
-    )
-    jobs = await db.read(
-        "SELECT status,count(*) count FROM jobs WHERE owner_id=? GROUP BY status", (owner,)
-    )
+    work = await Jobs(db, owner).inspect(scope=scope, exclude_job_id=exclude_job_id)
     unresolved = await db.one(
-        "SELECT count(*) count FROM actions WHERE owner_id=? AND status='uncertain'", (owner,)
+        "SELECT count(*) count FROM actions WHERE owner_id=? AND status='uncertain' AND (? IS NULL OR conversation_id=?)",
+        (owner, scope, scope),
     )
     heartbeat = await db.one(
         "SELECT max(heartbeat_at) heartbeat FROM lifecycle_intervals WHERE owner_id=?", (owner,)
@@ -31,8 +33,7 @@ async def status(db: Database, settings: Settings) -> Json:
         "core_healthy": bool(
             heartbeat and heartbeat["heartbeat"] and db.clock() - heartbeat["heartbeat"] < 60
         ),
-        "controls": controls,
-        "jobs": jobs,
+        **work,
         "uncertain_actions": unresolved["count"] if unresolved else 0,
         "native_execution": "requires verified included account and OS isolation",
         "memory_retrieval": "semantic_assets_present"

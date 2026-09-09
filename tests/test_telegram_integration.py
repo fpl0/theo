@@ -5,12 +5,13 @@ import json
 import pytest
 from aiogram.types import Update
 
+from theo.application.commands import ConversationCommands
 from theo.channels.telegram.adapter import Telegram
 from theo.channels.telegram.controls import TelegramUI
 from theo.channels.telegram.rendering import rich_html
 from theo.config import Settings
 from theo.delivery.ledger import Delivery
-from theo.domain import Denied, TelegramDestination, ToolContext, encode, uid
+from theo.domain import Conflict, Denied, TelegramDestination, ToolContext, encode, uid
 from theo.memory.context import ContextAssembler
 from theo.memory.store import Memory
 from theo.tools.broker import ToolBroker
@@ -49,6 +50,38 @@ def message(update=1, text="hello", *, chat=123, topic=None, actor=123, mid=None
             },
         }
     )
+
+
+@pytest.mark.parametrize("chat,topic", [(123, None), (-456, 7)])
+@pytest.mark.parametrize("real_work", [False, True])
+async def test_telegram_status_does_not_count_its_own_command(db, telegram, chat, topic, real_work):
+    async def cancel(job_id):
+        raise AssertionError("Status must not cancel work")
+
+    conversation = await telegram.state.destination(chat, topic or 0)
+    if chat < 0:
+        private = await telegram.state.destination(123)
+        await Jobs(db, "owner").enqueue(private, "deep_work", {"text": "Private work"}, "private")
+    if real_work:
+        await Jobs(db, "owner").enqueue(
+            conversation, "deep_work", {"text": "Actual pending work"}, "pending"
+        )
+    commands = ConversationCommands(db, telegram.settings, cancel)
+    for update in (1, 2):
+        await telegram.ingest(message(update, "/status", chat=chat, topic=topic))
+        report = await db.one(
+            "SELECT id FROM jobs WHERE semantic_key=?", (f"inbox:telegram:{update}",)
+        )
+        await commands.process_pending()
+        action = await db.one(
+            "SELECT request FROM actions WHERE semantic_key=?", (f"final:{report['id']}",)
+        )
+        text = json.loads(action["request"])["text"]
+        assert f"queued: {int(real_work)}" in text.splitlines()
+        assert "Background: paused" in text
+        assert (await db.one("SELECT status FROM jobs WHERE id=?", (report["id"],)))[
+            "status"
+        ] == "completed"
 
 
 async def uncertain_delivery(db, telegram, *, operation="send_message", request=None):
@@ -363,6 +396,153 @@ async def test_delivery_keeps_topic_and_reply_across_chunks(db, telegram):
     assert (await db.one("SELECT status FROM actions WHERE id=?", (action,)))[
         "status"
     ] == "succeeded"
+
+
+@pytest.mark.parametrize(
+    "operation,outbound_request,newer,expected",
+    [
+        ("send_message", {}, False, None),
+        ("send_message", {}, True, 20),
+        ("reply", {}, False, 20),
+        ("reply", {"reply_to": 10}, False, 10),
+        ("send_message", {"reply_to": 10}, True, 10),
+        ("send_message", {"reply_to": None}, True, None),
+    ],
+)
+async def test_private_answer_quotes_only_when_reference_helps(
+    db, telegram, operation, outbound_request, newer, expected
+):
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    await telegram.ingest(message(10, "Earlier question"))
+    await telegram.ingest(message(20, "How are you?"))
+    job = await db.one("SELECT * FROM jobs WHERE semantic_key='inbox:telegram:20'")
+    # Tool evidence and other conversations must not make a direct answer look delayed.
+    await db.write(
+        lambda conn: db.append_message(
+            conn, "owner", job["conversation_id"], "tool", "Synthetic result", db.clock()
+        )
+    )
+    await telegram.ingest(message(21, "@theobot Other topic", chat=-456, topic=7))
+    if newer:
+        await telegram.ingest(message(30, "A different question"))
+    delivery = Delivery(db, telegram.settings)
+    action = await delivery.prepare(
+        job["conversation_id"],
+        operation,
+        {"text": "I'm here and glad to be talking with you.", **outbound_request},
+        "private-answer",
+        job_id=job["id"],
+    )
+    calls = []
+
+    class FakeBot:
+        async def send_message(self, **kwargs):
+            raise AssertionError("Unexpected fallback")
+
+        async def send_rich_message(self, **kwargs):
+            calls.append(kwargs)
+            return SimpleNamespace(
+                message_id=40, chat=SimpleNamespace(id=123), date=datetime.now(UTC)
+            )
+
+    original = telegram.bot
+    telegram.bot = FakeBot()
+    try:
+        assert await delivery.dispatch_one(telegram.send)
+    finally:
+        telegram.bot = original
+    assert len(calls) == 1 and calls[0]["chat_id"] == 123
+    reference = calls[0].get("reply_parameters")
+    assert (reference.message_id if reference else None) == expected
+    if expected is None:
+        assert "reply_parameters" not in calls[0]
+    assert (await db.one("SELECT status FROM actions WHERE id=?", (action,)))[
+        "status"
+    ] == "succeeded"
+
+
+@pytest.mark.parametrize(
+    "operation,outbound_request",
+    [
+        ("send_message", {"text": "x" * 5000}),
+        ("send_photo", {"artifact_id": "synthetic", "caption": "x" * 5000}),
+        ("send_document", {"artifact_id": "synthetic"}),
+        ("send_voice", {"artifact_id": "synthetic"}),
+        ("send_video", {"artifact_id": "synthetic"}),
+        ("send_audio", {"artifact_id": "synthetic"}),
+        ("send_animation", {"artifact_id": "synthetic"}),
+        ("send_media_group", {"items": []}),
+    ],
+)
+async def test_private_delivery_chunks_do_not_automatically_quote_input(
+    db, telegram, operation, outbound_request
+):
+    quoted = message(1, "Earlier context").message.model_dump(mode="json", exclude_none=True)
+    await telegram.ingest(message(2, "What about this?", reply_to_message=quoted))
+    job = await db.one("SELECT * FROM jobs")
+    assert "Earlier context" in json.loads(job["payload"])["text"]
+    action = await Delivery(db, telegram.settings).prepare(
+        job["conversation_id"], operation, outbound_request, "private-output", job_id=job["id"]
+    )
+    chunks = await db.read("SELECT payload FROM outbox WHERE action_id=?", (action,))
+    assert chunks
+    assert all("reply_to" not in json.loads(chunk["payload"]) for chunk in chunks)
+
+
+@pytest.mark.parametrize("initial_reply", [False, True])
+async def test_reply_choice_is_stable_on_replay_after_new_input(db, telegram, initial_reply):
+    await telegram.ingest(message(1, "First question"))
+    job = await db.one("SELECT * FROM jobs")
+    if initial_reply:
+        await telegram.ingest(message(2, "Second question"))
+    delivery = Delivery(db, telegram.settings)
+    action = await delivery.prepare(
+        job["conversation_id"], "send_message", {"text": "Answer"}, "answer", job_id=job["id"]
+    )
+    before = await db.one("SELECT request,request_hash FROM actions WHERE id=?", (action,))
+    assert json.loads(before["request"]).get("reply_to") == (1 if initial_reply else None)
+    await telegram.ingest(message(3, "Another question"))
+    assert action == await delivery.prepare(
+        job["conversation_id"], "send_message", {"text": "Answer"}, "answer", job_id=job["id"]
+    )
+    assert await db.one("SELECT request,request_hash FROM actions WHERE id=?", (action,)) == before
+    assert len(await db.read("SELECT id FROM outbox WHERE action_id=?", (action,))) == 1
+    for changed in ({"text": "Changed answer"}, {"text": "Answer", "reply_to": 3}):
+        with pytest.raises(Conflict):
+            await delivery.prepare(
+                job["conversation_id"], "send_message", changed, "answer", job_id=job["id"]
+            )
+
+
+async def test_message_tools_offer_plain_answers_and_explicit_references(db, telegram, tmp_path):
+    await telegram.ingest(message(1, "Earlier question"))
+    job = await Jobs(db, "owner").claim("interactive", "fixture")
+    broker = ToolBroker(db, telegram.settings)
+    token = broker.grant(
+        ToolContext(
+            owner_id="owner",
+            conversation_id=job["conversation_id"],
+            job_id=job["id"],
+            run_id=uid(),
+            generation=job["generation"],
+            workspace=tmp_path,
+            tools=frozenset(REGISTRY),
+        )
+    )
+    plain = await broker.call(token, "send_message", {"text": "Direct answer"})
+    await telegram.ingest(message(2, "New question"))
+    replay = await broker.call(token, "send_message", {"text": "Direct answer"})
+    assert replay == plain
+    quoted = await broker.call(
+        token, "reply", {"text": "About the earlier question", "reply_to": 1}
+    )
+    assert plain.status == quoted.status == "ready"
+    plain_request = await db.one("SELECT request FROM actions WHERE id=?", (plain.action_id,))
+    quoted_request = await db.one("SELECT request FROM actions WHERE id=?", (quoted.action_id,))
+    assert "reply_to" not in json.loads(plain_request["request"])
+    assert json.loads(quoted_request["request"])["reply_to"] == 1
 
 
 async def test_callback_is_bound_to_message_and_is_single_use(db, telegram):

@@ -17,6 +17,7 @@ from theo.domain import (
     Json,
     encode,
 )
+from theo.privacy import group_scope
 from theo.storage import Database
 
 
@@ -46,6 +47,7 @@ class ConversationCommands:
                         text,
                         f"final:{job['id']}",
                         reply=json.loads(incoming["body"]).get("reply") if incoming else None,
+                        job_id=job["id"],
                     )
                 except (Denied, ValueError) as exc:
                     await TelegramUI(self.db, self.settings).card(
@@ -58,7 +60,7 @@ class ConversationCommands:
                         (encode({"command": True}), self.db.clock(), job["id"]),
                     )
                     continue
-            response = await self.command(job["conversation_id"], text)
+            response = await self.command(job["conversation_id"], text, job_id=job["id"])
 
             def complete(db: sqlite3.Connection, job: Json = job, response: str = response) -> None:
                 Delivery(self.db, self.settings).prepare_in(
@@ -77,7 +79,7 @@ class ConversationCommands:
 
             await self.db.write(complete)
 
-    async def command(self, conversation: str, text: str) -> str:
+    async def command(self, conversation: str, text: str, *, job_id: str | None = None) -> str:
         pieces = text.strip().split()
         command = pieces[0].split("@")[0]
         if command in ("/help", "/start"):
@@ -142,5 +144,12 @@ class ConversationCommands:
                 )
             )
         if command == "/status":
-            return encode(await status(self.db, self.settings))
+            return encode(
+                await status(
+                    self.db,
+                    self.settings,
+                    scope=await group_scope(self.db, conversation),
+                    exclude_job_id=job_id,
+                )
+            )
         return "Unknown command. Use /help."

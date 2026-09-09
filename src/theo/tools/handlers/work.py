@@ -55,6 +55,16 @@ async def list_tasks(call: ToolCall, args: Json) -> ToolResult:
     return ToolResult(status="ok", data=data)
 
 
+async def get_status(call: ToolCall, args: Json) -> ToolResult:
+    data = await Jobs(call.db, call.context.owner_id).inspect(
+        scope=call.scope,
+        exclude_job_id=call.context.job_id,
+        limit=args["limit"],
+        offset=args["offset"],
+    )
+    return ToolResult(status="ok", data=data)
+
+
 async def delete_task(call: ToolCall, args: Json) -> ToolResult:
     db = call.db
     owner = call.context.owner_id
