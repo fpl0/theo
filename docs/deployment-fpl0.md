@@ -1,5 +1,8 @@
 # Theo on fpl0.local
 
+The [9 September deployment record](deployment-fpl0-2026-09-09.md) documents the
+installed release, observed recovery drills and remaining activation steps.
+
 This deployment runs native Theo on the Apple Silicon Mac `fpl0.local`, with a
 dedicated Colima Grafana/Alloy/Prometheus/Loki/Tempo stack. Existing assistants and
 Docker contexts are preserved. Grafana is the authenticated LAN entry point;
