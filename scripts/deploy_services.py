@@ -48,7 +48,7 @@ def definition(manifest, path, kind):
         "Label": "local.theo." + kind,
         "ProgramArguments": [
             python,
-            str(Path(__file__).resolve()),
+            str(Path(source) / "scripts/deploy_services.py"),
             "--manifest",
             str(path.resolve()),
             "run",

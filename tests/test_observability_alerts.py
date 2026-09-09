@@ -161,6 +161,8 @@ def test_monitoring_deployment_does_not_change_supervisor_paths(tmp_path):
     supervisor = module["definition"](manifest, tmp_path / "manifest.json", "supervisor")
     observer = module["definition"](manifest, tmp_path / "manifest.json", "observer")
     assert supervisor["ProgramArguments"][0] == "/core/python"
+    assert supervisor["ProgramArguments"][1] == "/core/source/scripts/deploy_services.py"
     assert supervisor["WorkingDirectory"] == "/core/source"
     assert observer["ProgramArguments"][0] == "/monitoring/python"
+    assert observer["ProgramArguments"][1] == "/monitoring/source/scripts/deploy_services.py"
     assert observer["WorkingDirectory"] == "/monitoring/source"
