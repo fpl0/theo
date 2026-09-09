@@ -210,13 +210,13 @@
       },
       "options": {
         "mode": "html",
-        "content": "<h2 style=\"font-size:22px;margin:0 0 6px;font-weight:600\">Theo / Codex</h2><p style=\"font-size:13px;color:#b8bdc9;margin:0\">Verify the account first. Token and allowance charts appear when Codex reports usage.</p>"
+        "content": "<h2 style=\"font-size:22px;margin:0 0 6px;font-weight:600\">Theo / Codex</h2><p style=\"font-size:13px;color:#b8bdc9;margin:0\">Codex checks its account and included allowance automatically before each run. Token and allowance charts appear when Codex reports usage.</p>"
       }
     },
     {
       "id": 2,
       "type": "stat",
-      "title": "Account verified",
+      "title": "Last account check",
       "description": "Latest observation for the selected traffic. Missing data is not zero. ",
       "gridPos": {
         "x": 0,
@@ -234,8 +234,8 @@
               "type": "value",
               "options": {
                 "0": {
-                  "text": "Needs verification",
-                  "color": "orange"
+                  "text": "Not yet",
+                  "color": "text"
                 }
               }
             },
@@ -271,14 +271,7 @@
             "spanNulls": false,
             "axisBorderShow": false,
             "axisColorMode": "text"
-          },
-          "links": [
-            {
-              "title": "Open diagnostics",
-              "url": "/d/theo-codex?var-environment=${environment}&${__url_time_range}",
-              "targetBlank": false
-            }
-          ]
+          }
         },
         "overrides": [
           {
@@ -368,7 +361,7 @@
         {
           "refId": "A",
           "expr": "max(theo_account_verified_timestamp_seconds{backend=\"codex\",environment=~\"$environment\"})*1000",
-          "legendFormat": "Account attestation",
+          "legendFormat": "Last account check",
           "exemplar": true,
           "range": false,
           "instant": true

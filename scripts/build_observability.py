@@ -900,12 +900,12 @@ def build():
     d = Dashboard(
         "theo-codex",
         "Theo / Codex",
-        "Verify the account first. Token and allowance charts appear when Codex reports usage.",
+        "Codex checks its account and included allowance automatically before each run. Token and allowance charts appear when Codex reports usage.",
     )
     d.stats(
         [
             (
-                "Account attestation",
+                "Last account check",
                 'max(theo_account_verified_timestamp_seconds{backend="codex"})*1000',
                 "dateTimeAsIso",
             ),
@@ -1096,11 +1096,11 @@ def build():
     definitions = [
         (
             "codex-evidence-expiring",
-            "Theo Codex account evidence needs renewal",
-            '(time()-max(theo_account_verified_timestamp_seconds{backend="codex"})) > bool 79200',
+            "Theo model access requires attention",
+            'sum(theo_jobs_current{status="waiting_for_auth"}) > bool 0',
             "1m",
             "warning",
-            "Renew the 24-hour account evidence after verifying subscription spending controls. Model work stops at expiry.",
+            "Inspect the waiting job's model-access error. Codex checks subscription login and included allowance automatically; resolve the reported condition, then explicitly retry the preserved job.",
         ),
         (
             "core-unavailable",

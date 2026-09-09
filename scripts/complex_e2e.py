@@ -24,10 +24,11 @@ from native_e2e import local_launch, native_environment, require_local_live, sub
 from theo.application.coordinator import Coordinator
 from theo.backends.claude import ClaudeBackend
 from theo.backends.codex import CodexBackend
+from theo.backends.policy import configuration_files, inspect_configuration
 from theo.config import Settings
 from theo.content.artifacts import Artifacts
 from theo.delivery.ledger import Delivery
-from theo.domain import Denied, uid
+from theo.domain import Denied, digest, uid
 from theo.memory.context import ContextAssembler
 from theo.memory.store import Memory
 from theo.storage import Database
@@ -126,7 +127,17 @@ class Harness:
 
         class LocalSubscriptionBackend(base):
             async def preparation(self, request):
-                return environment, {"pool_id": "local-complex-e2e-only"}
+                version = await self.version()
+                return environment, {
+                    "pool_id": "local-complex-e2e-only",
+                    "runtime_version": version,
+                    "fingerprint": digest(
+                        {"backend": self.name, "version": version, "transport": "theo-v1"}
+                    ),
+                    "config_hash": inspect_configuration(
+                        configuration_files(Path(environment["HOME"]), self.name)
+                    ),
+                }
 
         return LocalSubscriptionBackend(self.db, self.settings)
 

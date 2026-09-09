@@ -22,12 +22,12 @@ from unittest.mock import patch
 from theo.application.coordinator import Coordinator
 from theo.backends.claude import ClaudeBackend
 from theo.backends.codex import CodexBackend
-from theo.backends.policy import inspect_environment
+from theo.backends.policy import configuration_files, inspect_configuration, inspect_environment
 from theo.backends.process import stop_process
 from theo.channels.terminal.attachments import attachment_parts
 from theo.config import Settings
 from theo.delivery.ledger import Delivery
-from theo.domain import Denied, uid
+from theo.domain import Denied, digest, uid
 from theo.storage import Database
 from theo.tools.broker import ToolBroker
 from theo.work.jobs import Jobs
@@ -143,7 +143,17 @@ async def run(args) -> int:
 
         class LocalSubscriptionBackend(base):
             async def preparation(self, request):
-                return environment, {"pool_id": "local-e2e-only"}
+                version = await self.version()
+                return environment, {
+                    "pool_id": "local-e2e-only",
+                    "runtime_version": version,
+                    "fingerprint": digest(
+                        {"backend": self.name, "version": version, "transport": "theo-v1"}
+                    ),
+                    "config_hash": inspect_configuration(
+                        configuration_files(Path(environment["HOME"]), self.name)
+                    ),
+                }
 
         coordinator = Coordinator(
             db,

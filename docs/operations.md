@@ -22,7 +22,27 @@ Generated commands require the Mac sandbox. They cannot change the protected dat
 
 ## Account evidence
 
-Log in through official native subscription workflows under the runner identity. Do not pass API keys or copy credential files into Theo's database. Inspect effective account billing controls, turn off extra usage/on-demand/top-ups, and establish that an included allowance ends at a hard stop. A display label or a balance alone does not prove eligibility.
+Log in through official native subscription workflows under the runner identity. Do not pass API keys or copy credential files into Theo's database.
+
+**Codex with ChatGPT Plus or Pro verifies access automatically.** Before every
+turn, the isolated App Server checks the signed-in identity, the selected model's
+catalogue entry, fresh included allowance and the absence of available paid
+credits. It repeats account/allowance checks every 30 seconds during a turn and
+stops on quota or credit-state changes. Missing, stale or unknown measurements
+stop inference and preserve the job. There is no daily manual renewal for this
+route; saved observations cannot authorize a later turn. Spark's separate quota
+pool is not supported by this automatic route.
+
+These observations do not prove that provider purchase or automatic top-up
+settings are disabled. They enforce admission using the current native allowance
+and credit state, with no API-key, paid-credit or alternate-provider fallback.
+Provider-side changes between observations remain outside Theo's control.
+The protocol is documented in [Codex App Server](https://learn.chatgpt.com/docs/app-server#6-rate-limits-chatgpt).
+
+Other native backends use the operator evidence workflow below. Inspect effective
+account billing controls, turn off extra usage/on-demand/top-ups, and establish
+that an included allowance ends at a hard stop. A display label or a balance alone
+does not prove eligibility for that workflow.
 
 The exact evidence fields are:
 
@@ -43,7 +63,7 @@ The exact evidence fields are:
 }
 ```
 
-This is a format example, **not qualifying evidence**. `theo accounts verify claude --evidence /path/evidence.json` reports current version/fingerprints if they differ. Populate the evidence only from actual observations, then run verification again. Eligible evidence expires after 24 hours or any runtime/configuration change. Codex additionally checks App Server `account/read` for ChatGPT subscription authentication. Runtime upgrades must pass fresh contract canaries.
+This is a format example, **not qualifying evidence**. `theo accounts verify claude --evidence /path/evidence.json` reports current version/fingerprints if they differ. Populate the evidence only from actual observations, then run verification again. This manually verified evidence expires after 24 hours or any runtime/configuration change. Codex uses the live checks described above. Runtime upgrades must pass fresh contract canaries.
 
 `theo accounts list`, `theo models list` and `/usage` distinguish unknown telemetry from exhausted allowance. After observing renewed included allowance, `theo accounts quota BACKEND --available` records that explicit operator confirmation across its shared pools. Reverify stale login/billing evidence, then inspect and resume with `theo jobs retry JOB_ID`. An uncertain effect must be reconciled first. There is no automatic paid or cross-provider fallback. Choose another verified route using `/backend BACKEND MODEL` or local `chat` flags.
 

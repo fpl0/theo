@@ -6,11 +6,13 @@ result translation; account eligibility and lifecycle live in base.
 
 import asyncio
 import base64
+import contextlib
 import json
 import sys
 from typing import cast
 
 from theo.backends.base import TOOL_CONTRACT, Emitter, NativeBackend, classify_error
+from theo.backends.codex_account import CodexAccount
 from theo.backends.policy import (
     Accounts,
 )
@@ -23,6 +25,7 @@ from theo.domain import (
     Json,
     Outcome,
     ProtocolError,
+    QuotaWait,
 )
 from theo.execution import isolation
 from theo.observability import telemetry
@@ -31,10 +34,16 @@ from theo.observability import telemetry
 class CodexBackend(NativeBackend):
     name, binary = "codex", "codex"
 
+    async def preparation(self, request: ExecutionRequest) -> tuple[dict[str, str], Json]:
+        # Codex verifies the signed-in account through the process it will use,
+        # rather than accepting a cached manual attestation before connecting.
+        return await self.runtime_configuration()
+
     async def execute(self, request: ExecutionRequest, emit: Emitter) -> ExecutionOutcome:
         from theo.tools.registry import REGISTRY
 
-        env, account = await self.preparation(request)
+        env, runtime = await self.preparation(request)
+        gate = CodexAccount(self.db, request.owner_id, request.model, runtime)
         final = asyncio.get_running_loop().create_future()
         texts: list[str] = []
         final_texts: dict[str, str] = {}
@@ -57,6 +66,11 @@ class CodexBackend(NativeBackend):
                     )
             elif method == "account/rateLimits/updated":
                 limits = params.get("rateLimits", {})
+                try:
+                    gate.update(limits)
+                except (AuthWait, QuotaWait) as exc:
+                    if not final.done():
+                        final.set_exception(exc)
                 for window in ("primary", "secondary"):
                     value = limits.get(window)
                     if not isinstance(value, dict):
@@ -115,11 +129,7 @@ class CodexBackend(NativeBackend):
             with telemetry.operation("codex.connect", backend="codex"):
                 await rpc.call("initialize", {"clientInfo": {"name": "theo", "version": "0.1.0"}})
                 await rpc.send({"method": "initialized", "params": {}})
-                native_account = await rpc.call("account/read", {"refreshToken": False})
-            native_identity: Json = native_account.get("account") or {}
-            if native_identity.get("type") != "chatgpt":
-                telemetry.event("codex.auth.failed", backend="codex", outcome="failed")
-                raise AuthWait("Codex must be signed in with ChatGPT subscription authentication")
+                account = await gate.verify(rpc, catalogue=True)
             telemetry.event(
                 "codex.auth.confirmed", backend="codex", kind="chatgpt", model=request.model
             )
@@ -180,15 +190,59 @@ class CodexBackend(NativeBackend):
                 path = request.workspace / ("input-" + picture["artifact_id"] + ".jpg")
                 path.write_bytes(base64.b64decode(picture["data"]))
                 inputs.append({"type": "localImage", "path": str(path)})
-            await rpc.call(
-                "turn/start",
-                {
-                    "threadId": thread_id,
-                    "input": inputs,
-                    "model": request.model,
-                },
-            )
-            terminal: Json = await final
+
+            async def monitor() -> None:
+                while not final.done():
+                    await asyncio.sleep(30)
+                    try:
+                        await gate.verify(rpc)
+                    except (AuthWait, QuotaWait) as exc:
+                        if not final.done():
+                            final.set_exception(exc)
+                        return
+                    except Exception:
+                        # Any failed inspection stops the run; a malformed native
+                        # response must not silently disable ongoing checks.
+                        if not final.done():
+                            final.set_exception(
+                                AuthWait(
+                                    "Codex account checks became unavailable; your job is preserved"
+                                )
+                            )
+                        return
+
+            monitoring = asyncio.create_task(monitor())
+            starting: asyncio.Task[Json] | None = None
+            try:
+                if final.done():
+                    await final
+                starting = asyncio.create_task(
+                    rpc.call(
+                        "turn/start",
+                        {"threadId": thread_id, "input": inputs, "model": request.model},
+                    )
+                )
+                await asyncio.wait((starting, final), return_when=asyncio.FIRST_COMPLETED)
+                if final.done():
+                    await final
+                await starting
+                terminal: Json = await final
+            except QuotaWait:
+                await Accounts(self.db, request.owner_id).exhaust(account)
+                raise
+            except AuthWait:
+                await self.db.execute(
+                    "UPDATE backend_accounts SET status='unverified' WHERE id=?", (account["id"],)
+                )
+                raise
+            finally:
+                if starting is not None:
+                    starting.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await starting
+                monitoring.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await monitoring
             status = terminal.get("status")
             if status == "completed":
                 return ExecutionOutcome(

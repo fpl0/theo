@@ -1,8 +1,9 @@
 # fpl0.local deployment — 9 September 2026
 
-Theo's production infrastructure is running on `fpl0.local`. Model activation and
-the final greeting are pending current Codex spending-control attestation and
-Healthchecks.io sign-in. This is an operational deployment with explicit remaining
+Theo's production infrastructure is running on `fpl0.local`. A native Codex reply
+has now passed on that host, but Theo conversation activation still requires
+current Codex spending-control attestation. Healthchecks.io sign-in remains a
+separate monitoring gap. This is an operational deployment with explicit remaining
 qualification gates, not a claim of full production qualification.
 
 ## Installed state
@@ -78,9 +79,23 @@ the actual Telegram application. These commands do not establish model inference
 
 ## Remaining activation and qualification
 
-1. Obtain the owner's actual spending-control attestation, bind fresh account
-   evidence to the pinned native runtime/configuration and verify a real Codex
-   conversation through Theo. Daily re-attestation remains required.
+During the conversation incident, the model pause was cleared. The existing
+conversation then entered `waiting_for_auth` and Theo delivered its account
+eligibility error. Its account registry remains empty. Background autonomy stays
+paused.
+
+A separate synthetic diagnostic used the pinned Codex executable, selected
+`gpt-6-astra` model, ChatGPT subscription login and Theo's actual macOS runner
+sandbox. After checking fresh included allowance, one ephemeral turn with native
+tools disabled completed in **5.276 seconds**, returning the exact requested
+synthetic text. This establishes native inference on `fpl0.local`; it does not
+establish a conversation through Theo or verify paid usage controls. The private
+host report is `native-inference-diagnostic.json` in the production data root.
+
+1. Deploy the automatic Codex account-check update and verify a real conversation
+   through Theo. The update replaces daily manual attestation with live native
+   subscription, model and allowance checks; the earlier deployment used the
+   manual evidence gate.
 2. Finish Healthchecks.io sign-in, configure the one-minute heartbeat with a
    two-minute grace period, connect Telegram and verify outage/recovery delivery.
 3. Send the requested final greeting after these activation checks succeed.

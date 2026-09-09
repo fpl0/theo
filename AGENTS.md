@@ -159,7 +159,11 @@ reminders can become delivery obligations directly, without claiming a model slo
   and stops owned process trees. Recovery validates process birth time as well as
   PID; never kill an unrelated process based on a stale PID alone.
 - Native eligibility is bound to account, included model, runtime/configuration
-  fingerprint, and expiring evidence. Keep hard stops and explicit operator retry
+  fingerprint, and fresh evidence. Codex obtains live subscription, catalogue,
+  allowance and credit-state evidence before each turn and monitors it during
+  inference; it does not require a daily manual attestation. Other adapters retain
+  expiring operator evidence. Never turn native observations into claims about
+  provider billing settings that were not observed. Keep hard stops and explicit operator retry
   after auth/quota recovery. Missing allowance data stays unknown, not zero.
   Do not weaken these gates to make a test or demo pass.
 

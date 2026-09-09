@@ -144,7 +144,7 @@ async def test_a13_a14_a39_shared_pool_eligibility_and_version_invalidation(db, 
 
 
 PROTOCOL_SERVER = r"""
-import sys,json
+import sys,json,time
 def send(x): print(json.dumps(x),flush=True)
 args=sys.argv[1:]
 if "--version" in args:
@@ -163,7 +163,9 @@ for line in sys.stdin:
  p=json.loads(line);m=p.get("method");params=p.get("params",{});result={}
  if m=="initialize":
   result={"protocolVersion":1,"agentCapabilities":{},"authMethods":[]}
- elif m=="account/read": result={"account":{"type":"chatgpt"},"requiresOpenaiAuth":True}
+ elif m=="account/read": result={"account":{"type":"chatgpt","planType":"pro","email":"fixture@example.invalid"},"requiresOpenaiAuth":True}
+ elif m=="model/list": result={"data":[{"id":"fixture-model"}],"nextCursor":None}
+ elif m=="account/rateLimits/read": result={"accountId":"fixture-account","rateLimits":{"limitId":"codex","primary":{"usedPercent":20,"resetsAt":time.time()+86400},"secondary":None,"credits":{"hasCredits":False,"unlimited":False,"balance":"0"}}}
  elif m=="thread/start":
   assert params["sandbox"]=="read-only"
   assert params["approvalPolicy"]=="never"
@@ -205,7 +207,12 @@ async def test_four_real_transports_against_subprocess_protocol_fixture(
         backend = ACPBackend(name, db, settings, str(path))
 
     async def prep(request):
-        return {"PATH": os.environ["PATH"]}, {"pool_id": "fixture-only"}
+        return {"PATH": os.environ["PATH"], "THEO_TEST_OFFLINE": "1"}, {
+            "pool_id": "fixture-only",
+            "fingerprint": "fixture",
+            "runtime_version": "fixture-1",
+            "config_hash": "fixture",
+        }
 
     monkeypatch.setattr(backend, "preparation", prep)
     monkeypatch.setattr(
@@ -239,3 +246,73 @@ async def test_four_real_transports_against_subprocess_protocol_fixture(
             {"model": "fixture-model"}
         ]
     assert [event.sequence for event in events] == list(range(1, len(events) + 1))
+
+
+@pytest.mark.parametrize("failure", ["login", "quota", "mid_turn_quota"])
+async def test_codex_native_checks_stop_before_inference_or_terminate_active_process(
+    db, settings, tmp_path, monkeypatch, failure
+):
+    probe = tmp_path / "turn-started"
+    interception = """
+ if m == 'turn/start':
+  from pathlib import Path
+  Path(MARKER).write_text('started')
+  if FAILURE == 'mid_turn_quota':
+   send({'id':p['id'],'result':{'turn':{'id':'synthetic-turn'}}})
+   send({'method':'account/rateLimits/updated','params':{'rateLimits':{'limitId':'codex','primary':{'usedPercent':100,'resetsAt':time.time()+86400}}}})
+   continue
+ if m == 'account/read' and FAILURE == 'login':
+  send({'id':p['id'],'result':{'account':{'type':'apiKey'}}})
+  continue
+ if m == 'account/rateLimits/read' and FAILURE == 'quota':
+  send({'id':p['id'],'result':{'rateLimits':{'limitId':'codex','primary':{'usedPercent':100,'resetsAt':time.time()+86400}}}})
+  continue
+""".replace("MARKER", repr(str(probe))).replace("FAILURE", repr(failure))
+    source = PROTOCOL_SERVER.replace(
+        'p=json.loads(line);m=p.get("method");params=p.get("params",{});result={}',
+        'p=json.loads(line);m=p.get("method");params=p.get("params",{});result={}' + interception,
+    )
+    path = tmp_path / "native-fixture"
+    path.write_text("#!" + sys.executable + "\n" + source)
+    path.chmod(0o700)
+    backend = CodexBackend(db, settings, str(path))
+
+    async def runtime():
+        return {"PATH": os.environ["PATH"], "THEO_TEST_OFFLINE": "1"}, {
+            "fingerprint": "fixture",
+            "runtime_version": "fixture-1",
+            "config_hash": "fixture",
+        }
+
+    monkeypatch.setattr(backend, "runtime_configuration", runtime)
+    monkeypatch.setattr(
+        "theo.execution.isolation.launch_options",
+        lambda settings, root, workspace, command: (command, {}),
+    )
+    request = ExecutionRequest(
+        run_id="run",
+        job_id="job",
+        conversation_id="conversation",
+        owner_id="owner",
+        backend="codex",
+        model="fixture-model",
+        lane="interactive",
+        context="synthetic",
+        instructions="Host persona fixture",
+        workspace=tmp_path,
+        deadline=db.clock() + 60,
+        generation=1,
+        tool_socket="/fixture",
+        tool_token="synthetic-grant",
+    )
+    terminal = [event async for event in backend.events(request) if event.kind == "terminal"]
+    assert len(terminal) == 1
+    assert terminal[0].payload["status"] == (
+        "waiting_for_auth" if failure == "login" else "waiting_for_quota"
+    )
+    assert probe.exists() is (failure == "mid_turn_quota")
+    assert backend.process.returncode is not None
+    if failure == "mid_turn_quota":
+        assert (await db.one("SELECT quota_status FROM backend_accounts"))[
+            "quota_status"
+        ] == "exhausted"

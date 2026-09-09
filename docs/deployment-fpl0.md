@@ -74,8 +74,10 @@ Healthchecks.io heartbeat provides host/network outage alerts through Telegram;
 until its private ping URL and integration are verified, external monitoring is
 an explicit gap. Use one-minute heartbeats and a two-minute grace period.
 
-Codex account evidence expires after 24 hours. Renew only after checking supported
-subscription login, included catalogue, and actual spending controls; never
-manufacture attestations or infer billing safeguards from a zero credit balance.
-Runtime/configuration drift also invalidates eligibility. Reverify and explicitly
-retry waiting jobs; requested reminders remain available during model pauses.
+Codex checks its native subscription identity, model catalogue and current included
+allowance before each turn, and monitors account/allowance changes during inference.
+It refuses API-key authentication, available paid credits, and unknown or exhausted
+allowance. No daily manual attestation is required. Observations do not claim that
+provider purchase settings are disabled. Resolve any reported access failure and
+explicitly retry waiting jobs; requested reminders remain available during model
+pauses. See the [account workflow](operations.md#account-evidence).
