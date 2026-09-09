@@ -8,8 +8,6 @@ It remembers what you tell it, records corrections without losing history, and k
 
 Theo keeps canonical memory and work state in SQLite on your machine, with large media stored as content-addressed files. Reasoning comes from Claude Code, Codex App Server, Cursor ACP or Grok ACP through their native subscription runtimes. Theo requires verified included usage and has no metered model API fallback. Selected context and attachments are sent to the chosen provider; local storage does not mean local-only inference.
 
-**Status — 9 September 2026:** implemented, with offline integration coverage, successful local Codex/Claude evaluations, real Telegram client checks and a locally tested observability stack. **Production qualification remains incomplete.** A fresh installation has no verified accounts and starts with background autonomy paused. See [current acceptance status](docs/acceptance.md) for the evidence and remaining gates.
-
 ## What Theo can do
 
 - **Remember with history.** Revisioned memories, reviewed corrections, time-bounded facts, archive/restore and lexical search with optional local embeddings. Each model run records its selected context and sources.
