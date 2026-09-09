@@ -28,7 +28,10 @@ bot or successful greeting does not establish those gates.
 - Runner home: `~/.theo-runner`; each job has a scoped workspace.
 - Worker and supervisor: `/opt/theo/worker` and `/opt/theo/supervisor`, installed
   from the same lock, outside protected state and the runner's writable paths.
-- Native executable: `/opt/theo/native/codex`, pinned to the qualified version.
+- Native runtime: `/opt/theo/native/codex` and its sibling
+  `codex-code-mode-host`, copied together from the same pinned distribution.
+  Record both checksums in `runtime-manifest.json`. Copying only `codex` lets
+  conversation text work while native tool execution fails.
 - Deployment source and manifest are recorded by the installation. The private
   environment JSON contains bot credentials and Grafana's generated password.
 
@@ -53,8 +56,11 @@ snapshot. They atomically change application code and leave autonomy paused;
 neither restores SQLite. Synchronize the worker when its dependencies change.
 
 Clear `maintenance_draining`, resume supervision, and check doctor, heartbeat,
-Telegram polling, the model canary, and dashboards. If the startup canary fails,
-pause supervision, switch to the previous compatible release, and repeat checks.
+Telegram polling, the model canary, and dashboards. The native canary must call
+a Theo tool and verify its committed result and final delivery receipt; a greeting
+or successful MCP tool listing alone does not exercise Codex's tool execution
+helper. Check `/status` separately to verify the command path. If the startup canary
+fails, pause supervision, switch to the previous compatible release, and repeat checks.
 Never automatically retry uncertain effects. Restore into a new quarantined root
 only after a separate recovery decision and explicit reconciliation.
 

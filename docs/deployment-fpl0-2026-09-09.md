@@ -8,9 +8,10 @@ separate monitoring gap, and full background-autonomy qualification remains open
 
 ## Installed state
 
-- Active release: `20260909-df9885c`, source
-  `df9885ca4e66f695742fa06e1693e7fe09b030dd`.
-- Previous compatible releases retained: `20260909-7cc0327` and `20260909-2e44471`.
+- Active release: `20260909-ffdb217`, source
+  `ffdb2176d87148f325b1b7bce0a3ae4677dac857`.
+- Previous compatible releases retained: `20260909-df9885c`,
+  `20260909-7cc0327` and `20260909-2e44471`.
 - Apple Silicon, macOS 15.7.9, 16 GiB RAM; sleep disabled and power-loss restart enabled.
 - Native Codex 0.153.4 pinned separately; selected model `gpt-6-astra`.
   Native account inspection reported ChatGPT Pro. Each conversation verifies the
@@ -112,6 +113,42 @@ passed. Regression coverage includes fresh renewal after three days, unknown or
 paid allowance rejection, identity changes, and a native process stopped when a
 mid-turn quota update arrives. See the
 [activation evidence](evidence/activation-fpl0-2026-09-09.json).
+
+## Queue-status and reply update
+
+Release `20260909-ffdb217` adds the scoped `get_status` tool, excludes the reporting
+job from queue counts, and keeps ordinary private replies free of automatic quote
+references. The committed source passed **352 offline tests**, with one Linux-only
+check skipped on macOS, plus Ruff lint/format, strict Pyright and the distribution
+build. Installed core, worker and supervisor environments each passed the
+outside-checkout smoke check: 86 modules and five migrations.
+
+The deployment drained work, paused the core, verified release hashes and schema,
+took the mandatory pre-switch snapshot, and retained `20260909-df9885c` for code
+rollback. All three launchd services were reloaded. The resumed core produced a
+fresh heartbeat in **15.05 seconds**; SQLite integrity and foreign keys passed.
+
+The first live canary delivered a reply but could not run the status tool. A
+synthetic diagnostic isolated the cause: the pinned Codex executable lacked its
+`codex-code-mode-host` companion. MCP listing worked, but tool execution could not
+start. The matching helper was copied from the same 0.153.4 distribution after
+verifying both executable checksums. The deployment evidence records this failed
+tool canary.
+
+After that repair, a real owner conversation called `get_status` through the native
+Codex worker and Theo broker. Its committed result reported zero unfinished jobs
+other than the excluded reporting job, and its completed reply had an actual
+Telegram receipt. The native Telegram client showed the correct queue answer and
+an ordinary private reply without a quote. `/status` separately reported
+`queued: 0` while another real conversation was running. Further owner activity
+continued during validation; these are timestamped observations, not a promise
+that the queue remains empty.
+
+Grafana remained reachable over the LAN. At the final monitoring check, all alerts
+were normal, core and Telegram polling signals were fresh, uncertain actions were
+zero, and the measured whole-stack footprint was **1,861,879,104 bytes** with no
+host swap. This is a current sample, not a new load or soak qualification. See the
+[redeployment evidence](evidence/redeployment-fpl0-ffdb217.json).
 
 ## Remaining qualification
 

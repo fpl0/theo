@@ -1,0 +1,133 @@
+{
+  "host": "fpl0.local",
+  "active_release": "20260909-ffdb217",
+  "source_commit": "ffdb2176d87148f325b1b7bce0a3ae4677dac857",
+  "previous_release": "20260909-df9885c",
+  "scope": "Queue-status and private-reply deployment with repaired native tool execution; not full production qualification",
+  "validation": {
+    "offline_passed": 352,
+    "offline_skipped": 1,
+    "skip_reason": "Linux-only dedicated-UID check on macOS",
+    "ruff_lint_and_format_passed": true,
+    "pyright_errors": 0,
+    "distribution_build_passed": true,
+    "installed_smoke": {
+      "core": "Installed wheel verified: 86 modules, CLI entry point, 5 migrations",
+      "worker": "Installed wheel verified: 86 modules, CLI entry point, 5 migrations",
+      "supervisor": "Installed wheel verified: 86 modules, CLI entry point, 5 migrations"
+    }
+  },
+  "deployment": {
+    "drained_before_switch": true,
+    "pre_switch_snapshot": true,
+    "schema": 5,
+    "previous_release_retained": true,
+    "worker_and_supervisor_synchronized": true,
+    "launchd_services_reloaded": 3,
+    "resumed_at": 1788966995.857785,
+    "startup_seconds": 15.05,
+    "database_integrity": "ok",
+    "foreign_key_violations": 0
+  },
+  "initial_tool_canary": {
+    "run_id": "6b315873-6ff0-4426-8657-dc9b0c5d55dc",
+    "reply_delivered": true,
+    "tool_call_succeeded": false,
+    "diagnostic_error": "failed to spawn code-mode host /opt/theo/native/codex-code-mode-host: No such file or directory (os error 2)",
+    "mcp_listing_alone_succeeded": true
+  },
+  "native_bundle_repair": {
+    "version": "0.153.4",
+    "codex_sha256": "b973d440acac501fd2594a43e7ca9ce41e0a65b9dfb28d0d7a7837c99e1261e3",
+    "code_mode_host_sha256": "d8a2222e017342718d16a5dbe092921c628961f812f62f42036b8d960e1ffe56",
+    "installed_at": 1788967474.848196,
+    "reason": "Missing bundled tool execution helper"
+  },
+  "successful_native_tool_run": {
+    "id": "bb87cffd-4095-4231-9f04-69487c79cc8e",
+    "backend": "codex",
+    "model": "gpt-6-astra",
+    "status": "completed",
+    "started_at": 1788967480.123704,
+    "ended_at": 1788967503.273786,
+    "tool": "get_status",
+    "tool_status": "ok",
+    "observed_at": 1788967498.783404,
+    "non_reporting_unfinished_jobs": 0,
+    "committed_tool_result_verified": true,
+    "telegram_reply_receipt_verified": true,
+    "native_client_reply_verified": true,
+    "private_reply_has_quote_reference": false
+  },
+  "status_command": {
+    "native_client_verified": true,
+    "queued": 0,
+    "running_other_conversation": 1
+  },
+  "monitoring": {
+    "checked_at": 1788967572.937851,
+    "grafana_lan_health_status": 200,
+    "grafana_non_normal_alerts": [],
+    "metrics": {
+      "theo_core_ready": [
+        [
+          1788967572.941,
+          "1"
+        ]
+      ],
+      "theo_actions_uncertain": [
+        [
+          1788967572.942,
+          "0"
+        ]
+      ],
+      "theo_telegram_poll_success_timestamp": [
+        [
+          1788967572.943,
+          "1788967550.557159"
+        ]
+      ],
+      "theo_observability_memory_bytes": [
+        [
+          1788967572.944,
+          "1861879104"
+        ]
+      ],
+      "theo_observability_memory_measurement_available": [
+        [
+          1788967572.945,
+          "1"
+        ]
+      ],
+      "theo_host_swap_bytes": [
+        [
+          1788967572.946,
+          "0"
+        ]
+      ]
+    },
+    "uncertain_actions": 0
+  },
+  "controls": {
+    "background_paused": true,
+    "notifications_paused": false,
+    "models_paused": false,
+    "maintenance_draining": false
+  },
+  "activity_at_monitoring_check": [
+    {
+      "status": "completed",
+      "n": 15
+    },
+    {
+      "status": "running",
+      "n": 1
+    }
+  ],
+  "remaining": [
+    "External heartbeat setup",
+    "Full native and behaviour qualification",
+    "Capacity and restore qualification",
+    "Genuine seven-day service observation"
+  ]
+}
