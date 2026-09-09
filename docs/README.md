@@ -16,6 +16,7 @@ The [project README](../README.md) introduces Theo and the local setup. These gu
 
 | Reference | Read it for |
 | --- | --- |
+| [Coding agent guide](../AGENTS.md) | Where to change code, invariants to preserve, test selection, and release boundaries. |
 | [Architecture](architecture.md) | Package responsibilities, dependency rules, SQLite authority and execution boundaries. |
 | [Code quality](code-quality.md) | Current CI checks and dated code-review results. |
 | [Live testing](live-testing.md) | Opt-in native, Telegram, behavior and local-model reproduction commands. |
