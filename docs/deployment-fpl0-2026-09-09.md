@@ -1,20 +1,20 @@
 # fpl0.local deployment — 9 September 2026
 
-Theo's production infrastructure is running on `fpl0.local`. A native Codex reply
-has now passed on that host, but Theo conversation activation still requires
-current Codex spending-control attestation. Healthchecks.io sign-in remains a
-separate monitoring gap. This is an operational deployment with explicit remaining
-qualification gates, not a claim of full production qualification.
+Theo is answering Telegram conversations on `fpl0.local`. The original blocked
+conversation and a fresh greeting both completed through native Codex, with actual
+Telegram receipts and visible replies. Codex now checks its account automatically;
+daily manual attestation is no longer required. Healthchecks.io sign-in remains a
+separate monitoring gap, and full background-autonomy qualification remains open.
 
 ## Installed state
 
-- Active release: `20260909-7cc0327`, source
-  `7cc032700171087019a4e20471abb7579760d052`.
-- Previous compatible release retained: `20260909-2e44471`.
+- Active release: `20260909-df9885c`, source
+  `df9885ca4e66f695742fa06e1693e7fe09b030dd`.
+- Previous compatible releases retained: `20260909-7cc0327` and `20260909-2e44471`.
 - Apple Silicon, macOS 15.7.9, 16 GiB RAM; sleep disabled and power-loss restart enabled.
 - Native Codex 0.153.4 pinned separately; selected model `gpt-6-astra`.
-  Native account inspection reported ChatGPT Pro. No model account was enrolled
-  without the required spending-control evidence.
+  Native account inspection reported ChatGPT Pro. Each conversation verifies the
+  live account, model catalogue and included allowance before inference.
 - Production Telegram: [Theo](https://t.me/theo_fpl0_bot).
   Independent alerts: [Theo Health](https://t.me/theo_fpl0_health_bot).
 - Three launchd agents supervise the core, observer and dedicated Colima stack.
@@ -58,7 +58,7 @@ firing and resolved notifications were both visibly received in Telegram.
 The production bot's `/start` and `/status` responses were also verified through
 the actual Telegram application. These commands do not establish model inference.
 
-## Validation scope
+## Original deployment validation scope
 
 - Initial deployment implementation: 299 offline tests passed, one Linux-only
   dedicated-UID test skipped on macOS. This preceded the later builder and
@@ -77,12 +77,13 @@ the actual Telegram application. These commands do not establish model inference
   The controlled Grafana stop/recovery occurred during this run. The exact
   measurements are in the [deployment evidence](evidence/deployment-fpl0-2026-09-09.json).
 
-## Remaining activation and qualification
+## Conversation recovery
 
-During the conversation incident, the model pause was cleared. The existing
-conversation then entered `waiting_for_auth` and Theo delivered its account
-eligibility error. Its account registry remains empty. Background autonomy stays
-paused.
+Initially, clearing the model pause exposed the missing manual account record:
+the conversation entered `waiting_for_auth`. The error message reached Telegram,
+but a network failure left its receipt uncertain. An owner reply referencing that
+exact bot message supplied the actual Telegram message identity, destination and
+content; the operator reconciled that delivery before retrying the preserved job.
 
 A separate synthetic diagnostic used the pinned Codex executable, selected
 `gpt-6-astra` model, ChatGPT subscription login and Theo's actual macOS runner
@@ -92,14 +93,31 @@ synthetic text. This establishes native inference on `fpl0.local`; it does not
 establish a conversation through Theo or verify paid usage controls. The private
 host report is `native-inference-diagnostic.json` in the production data root.
 
-1. Deploy the automatic Codex account-check update and verify a real conversation
-   through Theo. The update replaces daily manual attestation with live native
-   subscription, model and allowance checks; the earlier deployment used the
-   manual evidence gate.
-2. Finish Healthchecks.io sign-in, configure the one-minute heartbeat with a
+Release `20260909-df9885c` replaced Codex's manual account gate with live checks.
+The core and worker passed the installed-package smoke check outside the source
+checkout: 86 modules and five migrations each. The application switched after
+draining, pausing supervision and taking its mandatory pre-switch snapshot. The
+worker and supervisor environments were synchronized, and all three launchd
+services were reloaded.
+
+The original conversation completed, and a fresh Telegram greeting request also
+completed through `gpt-6-astra`. Both replies were visibly received in Telegram.
+There were no queued, running, auth-wait or quota-wait jobs and no uncertain
+actions at the recovery check. Grafana was reachable from the laptop over the LAN;
+production heartbeat and polling were current, and all Grafana alerts were normal.
+
+The update passed **327 offline tests**, with the Linux-only dedicated-UID check
+skipped on macOS. Ruff lint/format, strict Pyright and the distribution build
+passed. Regression coverage includes fresh renewal after three days, unknown or
+paid allowance rejection, identity changes, and a native process stopped when a
+mid-turn quota update arrives. See the
+[activation evidence](evidence/activation-fpl0-2026-09-09.json).
+
+## Remaining qualification
+
+1. Finish Healthchecks.io sign-in, configure the one-minute heartbeat with a
    two-minute grace period, connect Telegram and verify outage/recovery delivery.
-3. Send the requested final greeting after these activation checks succeed.
-4. Keep background autonomy paused until the native, behavioural, deterministic,
+2. Keep background autonomy paused until the native, behavioural, deterministic,
    capacity/restore and genuine seven-day service gates pass. The brief telemetry
    load test does not satisfy the seven-day gate.
 

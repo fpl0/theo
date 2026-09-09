@@ -1,0 +1,44 @@
+{
+  "host": "fpl0.local",
+  "active_release": "20260909-df9885c",
+  "source_commit": "df9885ca4e66f695742fa06e1693e7fe09b030dd",
+  "previous_release": "20260909-7cc0327",
+  "scope": "Conversation recovery and automatic native account checks; not full production qualification",
+  "validation": {
+    "offline_passed": 327,
+    "offline_skipped": 1,
+    "skip_reason": "Linux-only dedicated-UID check on macOS",
+    "ruff_passed": true,
+    "pyright_errors": 0,
+    "distribution_build_passed": true,
+    "installed_core_and_worker_smoke": {"modules": 86, "migrations": 5}
+  },
+  "deployment": {
+    "drained_before_switch": true,
+    "pre_switch_snapshot": true,
+    "previous_release_retained": true,
+    "worker_and_supervisor_synchronized": true,
+    "launchd_services_reloaded": 3
+  },
+  "model": "gpt-6-astra",
+  "completed_runs": [
+    {"id": "5d6d07fb-2f28-4d36-aed1-cab02692243e", "started_at": 1788964851.662894, "ended_at": 1788964870.98612},
+    {"id": "d6797520-03bc-49a3-9abd-66c6f9882637", "started_at": 1788964900.137007, "ended_at": 1788964911.89042}
+  ],
+  "telegram": {
+    "original_conversation_reply_received": true,
+    "fresh_greeting_received": true,
+    "native_client_verified": true,
+    "earlier_uncertain_error_reconciled_from_actual_reply_reference": true,
+    "uncertain_actions_remaining": 0,
+    "queued_running_or_waiting_jobs_remaining": 0
+  },
+  "monitoring": {
+    "grafana_lan_health_status": 200,
+    "core_ready": true,
+    "telegram_polling_current": true,
+    "grafana_alerts_normal": true
+  },
+  "controls": {"models_paused": false, "notifications_paused": false, "maintenance_draining": false, "background_paused": true},
+  "remaining": ["External heartbeat setup", "Full native and behaviour qualification", "Capacity and restore qualification", "Genuine seven-day service observation"]
+}
