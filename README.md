@@ -87,7 +87,7 @@ These are scoped, dated results; they do not qualify every current feature or de
 | Native adapters | Codex and Claude each passed four local response/memory/document cases through the production adapters, coordinator, MCP broker and local delivery. [8 September review](docs/review-2026-09-08.md). |
 | Complex behavior | Codex gpt-5.6-sol and Claude Opus 5 passed 40 native turns, four host-state checks and separate transcript review on a frozen source snapshot. Telegram edits were excluded. [9 September evaluation](docs/complex-evaluation-2026-09-09.md). |
 | Telegram | Real client checks cover controls, reminders, edits, media intake/delivery, approvals, memory review, synthetic drafts/Stop and lost-acknowledgement recovery. Model-backed Telegram, live groups/topics and remaining media/feedback checks are still pending. [Implementation status](docs/telegram-implementation.md). |
-| Observability | A ten-minute local load test with 8,680 synthetic operations peaked at about 1.82 GB for the whole stack, within its 2 GB budget. [Runbook and evidence](docs/observability.md). |
+| Observability | A ten-minute load on fpl0.local processed 8,660 synthetic operations and peaked at 3.06 GB within the 4 GB whole-stack budget, with no OOMs, restarts or swap. Alert routing and recovery were checked separately. [10 September evidence](docs/evidence/observability-fpl0-2026-09-10.json). |
 
 The [acceptance report](docs/acceptance.md) tracks current offline verification, native spending-control and deployment requirements, asset coverage, and the outstanding seven-day service soak. The [evidence index](docs/evidence/README.md) links raw reports, including failed and partial runs.
 

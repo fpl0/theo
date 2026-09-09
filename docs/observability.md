@@ -4,6 +4,8 @@ This runbook covers the local macOS setup: Theo and its native Codex runtime sta
 
 The local 2026-09-09 qualification passed with **1,818,072,848 bytes peak physical footprint** over ten minutes and 8,680 synthetic operations, including a 10× burst. There were no OOM events, container restarts, swap use or concurrent query failures. [Recorded evidence](evidence/observability-local-2026-09-09.json) distinguishes live test-bot traffic from protocol fixtures and load traffic. This is a bounded local qualification, not a claim about arbitrary ingestion volumes or long-term retention compaction.
 
+The [10 September production-host check](evidence/observability-fpl0-2026-09-10.json) tested the current **4 GB budget** on fpl0.local: ten minutes, 8,660 synthetic operations and **3.06 GB peak**, with no OOMs, container restarts, swap or query failures. The update also verified quiet local/test routing, grouped production notifications, missing-data and query-error retention, Telegram firing/recovery delivery and all dashboard queries. Theo's core process remained running throughout the monitoring changes.
+
 ```mermaid
 flowchart LR
   Theo[Native Theo: Telegram, CLI, Codex, tools] -->|OTLP on loopback| Alloy

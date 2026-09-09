@@ -2,6 +2,9 @@
 
 The [9 September deployment record](deployment-fpl0-2026-09-09.md) documents the
 installed release, observed recovery drills and remaining activation steps.
+The [10 September monitoring record](evidence/observability-fpl0-2026-09-10.json)
+covers the 4 GB resource envelope and alert corrections deployed independently
+of that core release, including a recovered launchd replacement failure.
 
 This deployment runs native Theo on the Apple Silicon Mac `fpl0.local`, with a
 dedicated Colima Grafana/Alloy/Prometheus/Loki/Tempo stack. Existing assistants and
@@ -48,9 +51,11 @@ stack services; the core source, release pointer, worker and supervisor stay pin
 Install the locked observer wheel in a separate environment, retain the previous
 manifest and plists, then generate only monitoring definitions with
 `install --output ~/Library/LaunchAgents --services observer stack`. During a VM
-resize, unload the stack recovery service first, stop only its Compose project and
-Colima profile, restart the profile with `--memory 3 --activate=false`, and reload
-the two monitoring services. Retain volumes and verify health, queries, routes and
+resize, unload the stack recovery service first. Wait for the old monitoring
+wrappers and their children to exit before bootstrapping their replacements;
+`launchctl bootout` can return while shutdown is still in progress. Stop only its
+Compose project and Colima profile, restart the profile with
+`--memory 3 --activate=false`, and reload the two monitoring services. Retain volumes and verify health, queries, routes and
 footprint. Restore the previous manifest, plists and VM allocation for monitoring
 rollback. This operation does not pause the core or change its database.
 
