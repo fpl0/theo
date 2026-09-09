@@ -16,9 +16,12 @@ services:
       GF_LOG_LEVEL: warn
       THEO_ALERT_BOT_TOKEN: ${THEO_ALERT_BOT_TOKEN:-}
       THEO_ALERT_CHAT_ID: ${THEO_ALERT_CHAT_ID:-}
-      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      THEO_ALERT_LABEL: ${THEO_ALERT_LABEL:-THEO OBSERVABILITY TEST}
+      GF_AUTH_ANONYMOUS_ENABLED: ${THEO_GRAFANA_ANONYMOUS:-true}
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
-      GF_USERS_VIEWERS_CAN_EDIT: 'true'
+      GF_USERS_VIEWERS_CAN_EDIT: ${THEO_GRAFANA_VIEWERS_CAN_EDIT:-true}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_SERVER_ROOT_URL: ${THEO_GRAFANA_URL:-http://localhost:13000}
       GF_USERS_DEFAULT_THEME: dark
       GF_AUTH_DISABLE_LOGIN_FORM: 'false'
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Run scripts/observability.py up to create local credentials}
@@ -26,7 +29,7 @@ services:
       GF_ANALYTICS_REPORTING_ENABLED: 'false'
       GF_ANALYTICS_CHECK_FOR_UPDATES: 'false'
       GF_UNIFIED_ALERTING_ENABLED: 'true'
-    ports: ['127.0.0.1:13000:3000']
+    ports: ['${THEO_GRAFANA_BIND:-127.0.0.1}:13000:3000']
     volumes:
       - grafana:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro

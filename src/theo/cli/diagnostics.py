@@ -42,6 +42,7 @@ async def doctor(db: Database, settings: Settings) -> Json:
 
     checks["qualification"] = await qualification_status(db, settings)
     checks["production_qualified"] = checks["qualification"]["production_qualified"]
+    checks["deployment_ready"] = checks["qualification"]["deployment_ready"]
     checks["assets"] = {
         "embeddings": (db.root / "models/embeddings/manifest.json").exists(),
         "ffmpeg": bool(shutil.which("ffmpeg")),

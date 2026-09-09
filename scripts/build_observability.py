@@ -1094,6 +1094,14 @@ def build():
     rules = []
     definitions = [
         (
+            "codex-evidence-expiring",
+            "Theo Codex account evidence needs renewal",
+            '(time()-max(theo_account_verified_timestamp_seconds{backend="codex"})) > bool 79200',
+            "1m",
+            "warning",
+            "Renew the 24-hour account evidence after verifying subscription spending controls. Model work stops at expiry.",
+        ),
+        (
             "core-unavailable",
             "Theo core unavailable",
             "max(theo_core_ready) < 1",
@@ -1336,7 +1344,7 @@ def build():
                     "chatid": "$THEO_ALERT_CHAT_ID",
                     "parse_mode": "",
                     "disable_web_page_preview": True,
-                    "message": "[THEO OBSERVABILITY TEST] {{ .Status | toUpper }}\n{{ range .Alerts }}{{ .Annotations.summary }}\n{{ end }}",
+                    "message": "[$THEO_ALERT_LABEL] {{ .Status | toUpper }}\n{{ range .Alerts }}{{ .Annotations.summary }}\n{{ end }}",
                 },
                 "disableResolveMessage": False,
             }

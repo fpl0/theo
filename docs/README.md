@@ -11,6 +11,7 @@ The [project README](../README.md) introduces Theo and the local setup. These gu
 | [Personality](personality.md) | Conversational voice, humour, personal context and how saved personas affect replies. |
 | [Operations](operations.md) | Configuration, native accounts, isolation, assets, backups, releases and qualification. |
 | [Observability](observability.md) | Local Grafana setup, telemetry, alerts, correlation and the 2 GB stack budget. |
+| [fpl0.local deployment](deployment-fpl0.md) | Native services, LAN monitoring, owner-selected exceptions and safe code rollback. |
 | [Tool catalogue](tools.md) | All model-facing tools and the generated input schemas. |
 
 ## Develop and verify

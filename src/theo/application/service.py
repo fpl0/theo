@@ -172,7 +172,16 @@ async def _run_service(
             await Scheduler(db, settings.owner_id).tick()
             await Scheduler(db, settings.owner_id).deliver_reminders(settings)
             background_paused = await db.control(settings.owner_id, "background_paused") == "true"
+            if not background_paused and db.clock() - last_maintenance >= 30:
+                from theo.operations.qualification import qualification_status
+
+                if not (await qualification_status(db, settings))["deployment_ready"]:
+                    await db.set_control(settings.owner_id, "background_paused", "true")
+                    background_paused = True
+            draining = await db.control(settings.owner_id, "maintenance_draining") == "true"
             for lane in ("interactive", "background"):
+                if draining:
+                    break
                 job = await Jobs(db, settings.owner_id).claim(
                     lane,
                     str(os.getpid()),
@@ -228,7 +237,7 @@ async def _run_service(
                 await Autonomy(db, settings.owner_id).tick(conversation)
                 await Critic(db, settings.owner_id).queue()
                 last_maintenance = db.clock()
-            if db.clock() - last_backup >= 3600:
+            if settings.scheduled_backups_enabled and db.clock() - last_backup >= 3600:
                 try:
                     await backup_create(db, settings)
                     retain_backups(db.root / "backups")

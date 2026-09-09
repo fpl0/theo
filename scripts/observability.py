@@ -154,9 +154,11 @@ def check():
     queries = 0
     log_queries = 0
     errors = []
-    configured = httpx.get("http://127.0.0.1:13000/api/datasources/uid/tempo", timeout=5).json()[
-        "jsonData"
-    ]["tracesToLogsV2"]
+    configured = httpx.get(
+        "http://127.0.0.1:13000/api/datasources/uid/tempo",
+        timeout=5,
+        auth=("admin", credentials()["GRAFANA_ADMIN_PASSWORD"]),
+    ).json()["jsonData"]["tracesToLogsV2"]
     trace_query = (
         configured.get("query", "")
         .replace("${__tags}", 'deployment_environment_name="local"')

@@ -92,7 +92,7 @@ class ConversationCommands:
             if command == "/resume" and scope == "background":
                 from theo.operations.qualification import qualification_status
 
-                if not (await qualification_status(self.db, self.settings))["production_qualified"]:
+                if not (await qualification_status(self.db, self.settings))["deployment_ready"]:
                     return "Background activation requires recorded native, Mac, behaviour and seven-day deployment qualification."
             await self.db.set_control(
                 self.owner, scope + "_paused", "true" if command == "/pause" else "false"

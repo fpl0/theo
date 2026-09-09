@@ -15,6 +15,8 @@ import sys
 import time
 from pathlib import Path
 
+import psutil
+
 from theo.execution.processes import terminate_tree
 
 
@@ -95,6 +97,7 @@ async def supervise(root: Path) -> None:
     failures: list[float] = []
     restart_after = 0.0
     started = 0.0
+    child_birth: float | None = None
     try:
         while not stopped.is_set():
             timestamp = time.time()
@@ -110,7 +113,7 @@ async def supervise(root: Path) -> None:
             maintenance = (root / "maintenance.pause").exists()
             failures = [failure for failure in failures if timestamp - failure < 3600]
             if maintenance and child:
-                await asyncio.to_thread(terminate_tree, child.pid)
+                await asyncio.to_thread(terminate_tree, child.pid, created_at=child_birth)
                 await child.wait()
                 child = None
             if (
@@ -131,6 +134,8 @@ async def supervise(root: Path) -> None:
                     start_new_session=True,
                 )
                 started = timestamp
+                with contextlib.suppress(psutil.NoSuchProcess):
+                    child_birth = psutil.Process(child.pid).create_time()
             if child:
                 stale = False
                 try:
@@ -141,7 +146,8 @@ async def supervise(root: Path) -> None:
                 except OSError, ValueError, KeyError:
                     stale = timestamp - started > 90
                 if child.returncode is not None or stale:
-                    await asyncio.to_thread(terminate_tree, child.pid)
+                    if child.returncode is None:
+                        await asyncio.to_thread(terminate_tree, child.pid, created_at=child_birth)
                     await child.wait()
                     failures.append(timestamp)
                     if len(failures) in (1, 5):
@@ -165,7 +171,8 @@ async def supervise(root: Path) -> None:
                 pass
     finally:
         if child:
-            await asyncio.to_thread(terminate_tree, child.pid)
+            if child.returncode is None:
+                await asyncio.to_thread(terminate_tree, child.pid, created_at=child_birth)
             await child.wait()
 
 

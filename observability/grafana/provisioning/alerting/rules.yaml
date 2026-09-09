@@ -8,6 +8,72 @@
       "interval": "30s",
       "rules": [
         {
+          "uid": "theo-codex-evidence-expiring",
+          "title": "Theo Codex account evidence needs renewal",
+          "condition": "C",
+          "for": "1m",
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "annotations": {
+            "summary": "Theo Codex account evidence needs renewal",
+            "description": "Renew the 24-hour account evidence after verifying subscription spending controls. Model work stops at expiry.",
+            "runbook_url": "http://localhost:13000/d/theo-overview"
+          },
+          "labels": {
+            "service": "theo",
+            "severity": "warning"
+          },
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "(time()-max(theo_account_verified_timestamp_seconds{backend=\"codex\"})) > bool 79200",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
           "uid": "theo-core-unavailable",
           "title": "Theo core unavailable",
           "condition": "C",

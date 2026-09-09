@@ -12,7 +12,7 @@ from theo import __version__
 from theo.execution.files import file_hash
 
 
-def build(source: Path, destination: Path, release_id: str) -> None:
+def build(source: Path, destination: Path, release_id: str, extras: tuple[str, ...] = ()) -> None:
     if destination.exists():
         raise ValueError("Release destination must be new")
     if subprocess.check_output(
@@ -29,7 +29,16 @@ def build(source: Path, destination: Path, release_id: str) -> None:
         )
         env = {**os.environ, "UV_PROJECT_ENVIRONMENT": str(destination)}
         subprocess.run(
-            ["uv", "sync", "--project", str(source), "--frozen", "--no-dev", "--no-editable"],
+            [
+                "uv",
+                "sync",
+                "--project",
+                str(source),
+                "--frozen",
+                "--no-dev",
+                "--no-editable",
+                *(argument for extra in extras for argument in ("--extra", extra)),
+            ],
             env=env,
             check=True,
         )
@@ -81,5 +90,8 @@ if __name__ == "__main__":
     parser.add_argument("--source", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--destination", type=Path, required=True)
     parser.add_argument("--id", required=True)
+    parser.add_argument(
+        "--extra", action="append", default=[], choices=("browser", "embeddings", "speech")
+    )
     args = parser.parse_args()
-    build(args.source.resolve(), args.destination.resolve(), args.id)
+    build(args.source.resolve(), args.destination.resolve(), args.id, tuple(args.extra))

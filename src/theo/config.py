@@ -50,8 +50,22 @@ class Settings(StrictModel):
     runner_gid: int | None = None
     isolation_verified: bool = False
     encrypted_storage_verified: bool = False
+    required_backends: tuple[Literal["claude", "codex", "cursor", "grok"], ...] = (
+        "claude",
+        "codex",
+    )
+    require_encrypted_storage: bool = True
+    scheduled_backups_enabled: bool = True
+    allow_unencrypted_release_backup: bool = False
     qualified_backends: tuple[str, ...] = ()
     soak_completed: bool = False
+
+    @field_validator("required_backends")
+    @classmethod
+    def nonempty_backends(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if not value or len(set(value)) != len(value):
+            raise ValueError("Required backends must be nonempty and unique")
+        return value
 
     @field_validator("timezone")
     @classmethod
