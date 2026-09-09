@@ -600,10 +600,11 @@ class Dashboard:
                         "name": "environment",
                         "label": "Traffic",
                         "type": "custom",
-                        "query": "Live Theo : local,Test fixtures : qualification",
-                        "current": {"text": "Live Theo", "value": "local"},
+                        "query": "Local Theo : local,Production Theo : production,Test fixtures : qualification",
+                        "current": {"text": "Local Theo", "value": "local"},
                         "options": [
-                            {"text": "Live Theo", "value": "local", "selected": True},
+                            {"text": "Local Theo", "value": "local", "selected": True},
+                            {"text": "Production Theo", "value": "production", "selected": False},
                             {"text": "Test fixtures", "value": "qualification", "selected": False},
                         ],
                     }
@@ -1144,7 +1145,7 @@ def build():
         (
             "telegram-poller",
             "Theo Telegram poller stale",
-            '((time()-max(last_over_time(theo_telegram_poll_success_timestamp{environment="local"}[24h])) > bool 120) or max(absent_over_time(theo_telegram_poll_success_timestamp{environment="local"}[24h]))) and on() (max(theo_channel_configured{channel="telegram",environment="local"})==1)',
+            '((time()-max by(environment)(last_over_time(theo_telegram_poll_success_timestamp[24h])) > bool 120) or (max by(environment)(theo_channel_configured{channel="telegram"}) unless on(environment) max by(environment)(last_over_time(theo_telegram_poll_success_timestamp[24h])))) and on(environment) (max by(environment)(theo_channel_configured{channel="telegram"})==1)',
             "2m",
             "warning",
             "Check network and bot credentials; do not start a second poller.",

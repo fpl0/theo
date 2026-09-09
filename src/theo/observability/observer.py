@@ -286,9 +286,19 @@ class Observer:
             return
         pids = {os.getpid()}
         for candidate in psutil.process_iter(["pid", "name", "cmdline"]):
-            command = " ".join(candidate.info["cmdline"] or [])
-            if candidate.info["name"] == "com.apple.Virtualization.VirtualMachine" or (
-                candidate.info["name"] in {"limactl", "ssh"} and "/.colima/" in command
+            arguments: list[str] = candidate.info["cmdline"] or []
+            command = " ".join(arguments)
+            deployment_helper = any(
+                arg.endswith("/scripts/deploy_services.py") for arg in arguments
+            ) and arguments[-2:] in (["run", "observer"], ["run", "stack"])
+            docker_helper = (
+                candidate.info["name"] in {"docker", "colima"} and "theo-observability" in command
+            )
+            if (
+                candidate.info["name"] == "com.apple.Virtualization.VirtualMachine"
+                or (candidate.info["name"] in {"limactl", "ssh"} and "/.colima/" in command)
+                or deployment_helper
+                or docker_helper
             ):
                 pids.add(candidate.pid)
         process: asyncio.subprocess.Process | None = None

@@ -112,7 +112,7 @@ def main():
         "budget_bytes": 2_000_000_000,
         "container_restarts": {c["Name"]: c["RestartCount"] for c in states},
         "oom_killed": any(c["State"]["OOMKilled"] for c in states),
-        "method": "macOS footprint sum: all Apple VZ helpers, Colima Lima/SSH helpers, native observer; guest Linux/Docker/containers included in VZ footprint. Shared VZ helpers are conservatively overcounted.",
+        "method": "macOS footprint sum: all Apple VZ helpers, Colima Lima/SSH/Docker helpers, native observer and monitoring launchd wrappers; guest Linux/Docker/containers included in VZ footprint. Shared VZ helpers are conservatively overcounted.",
     }
     events = subprocess.check_output(
         [

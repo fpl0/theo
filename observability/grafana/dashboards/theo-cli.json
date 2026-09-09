@@ -30,16 +30,21 @@
         "name": "environment",
         "label": "Traffic",
         "type": "custom",
-        "query": "Live Theo : local,Test fixtures : qualification",
+        "query": "Local Theo : local,Production Theo : production,Test fixtures : qualification",
         "current": {
-          "text": "Live Theo",
+          "text": "Local Theo",
           "value": "local"
         },
         "options": [
           {
-            "text": "Live Theo",
+            "text": "Local Theo",
             "value": "local",
             "selected": true
+          },
+          {
+            "text": "Production Theo",
+            "value": "production",
+            "selected": false
           },
           {
             "text": "Test fixtures",

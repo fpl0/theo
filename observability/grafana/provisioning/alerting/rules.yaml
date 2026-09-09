@@ -429,7 +429,7 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "((time()-max(last_over_time(theo_telegram_poll_success_timestamp{environment=\"local\"}[24h])) > bool 120) or max(absent_over_time(theo_telegram_poll_success_timestamp{environment=\"local\"}[24h]))) and on() (max(theo_channel_configured{channel=\"telegram\",environment=\"local\"})==1)",
+                "expr": "((time()-max by(environment)(last_over_time(theo_telegram_poll_success_timestamp[24h])) > bool 120) or (max by(environment)(theo_channel_configured{channel=\"telegram\"}) unless on(environment) max by(environment)(last_over_time(theo_telegram_poll_success_timestamp[24h])))) and on(environment) (max by(environment)(theo_channel_configured{channel=\"telegram\"})==1)",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,

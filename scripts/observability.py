@@ -249,7 +249,14 @@ def check():
                                 {
                                     "expr": "(" + rule["data"][0]["model"]["expr"] + ") > 0",
                                     "eval_time": "10m",
-                                    "exp_samples": [{"labels": "{}", "value": 1}]
+                                    "exp_samples": [
+                                        {
+                                            "labels": '{environment="'
+                                            + case.get("environment", "local")
+                                            + '"}',
+                                            "value": 1,
+                                        }
+                                    ]
                                     if case["should_alert"]
                                     else [],
                                 }

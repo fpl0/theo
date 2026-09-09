@@ -59,6 +59,9 @@ only after a separate recovery decision and explicit reconciliation.
 
 Grafana at `http://fpl0.local:13000` requires authentication. No router forwarding
 is configured. Prometheus, Loki and Tempo are accessed through its data sources.
+Open `/d/theo-overview?var-environment=production` or select **Production Theo**
+in the Traffic selector. Polling alerts evaluate each environment separately so
+test or laptop traffic cannot mask a stopped production poller.
 The full stack budget is 2,000,000,000 bytes, including the VM and host helpers.
 Metrics retain seven days, logs three days, and traces 24 hours; production trace
 sampling is 10%. Qualification traffic is explicitly labelled separately.
