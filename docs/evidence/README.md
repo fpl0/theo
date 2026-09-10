@@ -12,6 +12,7 @@ These reports preserve observations from specific dates, hosts and source snapsh
 | [Telegram initial](telegram-client-2026-09-09.json), [extended](telegram-client-2026-09-09-extended.json), [outbound and Stop](telegram-client-2026-09-09-outbound.json) | Real private-chat client and transport checks, including synthetic drafts. [Implementation status](../telegram-implementation.md) lists pending coverage. |
 | [Telegram recovery](telegram-client-2026-09-09-recovery.json), [prerequisites](telegram-client-2026-09-09-prerequisites.json) | Lost-acknowledgement reconciliation and a dated setup snapshot. No model-backed Telegram qualification. |
 | [Local observability](observability-local-2026-09-09.json), [dashboard review](dashboard-design-2026-09-09.md) | Ten-minute memory/load qualification, correlation, alerts and dashboard checks. [Runbook](../observability.md). |
+| [fpl0.local monitoring update](observability-fpl0-2026-09-10.json) | The 4 GB budget, incident grouping, quiet test routing, retained measurement-gap state, Telegram delivery, monitoring rollback and a ten-minute production-host telemetry load. |
 | [Native MCP: Claude](mcp-shim-claude.json), [Codex](mcp-shim-codex.json) | Real tool-channel probes; detailed scope below. |
 | [Terminal results](results.json), [terminal capture](terminal-proof.png) | Experimental local Qwen inference, including an instruction-following failure; detailed scope below. |
 

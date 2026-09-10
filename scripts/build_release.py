@@ -12,7 +12,18 @@ from theo import __version__
 from theo.execution.files import file_hash
 
 
-def build(source: Path, destination: Path, release_id: str) -> None:
+def materialize_external_links(destination: Path) -> None:
+    """Keep the staged file manifest inside its root, including the Python binary."""
+    for path in destination.rglob("*"):
+        if path.is_symlink() and not path.resolve().is_relative_to(destination):
+            target = path.resolve(strict=True)
+            if not target.is_file():
+                raise ValueError("Release contains an external directory symlink")
+            path.unlink()
+            shutil.copy2(target, path)
+
+
+def build(source: Path, destination: Path, release_id: str, extras: tuple[str, ...] = ()) -> None:
     if destination.exists():
         raise ValueError("Release destination must be new")
     if subprocess.check_output(
@@ -29,10 +40,20 @@ def build(source: Path, destination: Path, release_id: str) -> None:
         )
         env = {**os.environ, "UV_PROJECT_ENVIRONMENT": str(destination)}
         subprocess.run(
-            ["uv", "sync", "--project", str(source), "--frozen", "--no-dev", "--no-editable"],
+            [
+                "uv",
+                "sync",
+                "--project",
+                str(source),
+                "--frozen",
+                "--no-dev",
+                "--no-editable",
+                *(argument for extra in extras for argument in ("--extra", extra)),
+            ],
             env=env,
             check=True,
         )
+        materialize_external_links(destination)
         python = destination / "bin/python"
         with tempfile.TemporaryDirectory(prefix="theo-release-canary-") as tmp:
             for arguments in (("init",), ("doctor", "--json")):
@@ -81,5 +102,8 @@ if __name__ == "__main__":
     parser.add_argument("--source", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--destination", type=Path, required=True)
     parser.add_argument("--id", required=True)
+    parser.add_argument(
+        "--extra", action="append", default=[], choices=("browser", "embeddings", "speech")
+    )
     args = parser.parse_args()
-    build(args.source.resolve(), args.destination.resolve(), args.id)
+    build(args.source.resolve(), args.destination.resolve(), args.id, tuple(args.extra))

@@ -4,6 +4,7 @@ Validates release manifests and records recovery state; backup creation and data
 export are separate operator services.
 """
 
+import fcntl
 import json
 import os
 import shutil
@@ -77,6 +78,16 @@ class Releases:
         return manifest
 
     async def switch(self, release_id: str) -> Json:
+        with (self.db.root / "daemon.lock").open("a") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise Conflict(
+                    "Pause the supervisor and stop the daemon before switching releases"
+                ) from None
+            return await self._switch_stopped(release_id)
+
+    async def _switch_stopped(self, release_id: str) -> Json:
         target = scoped_path(self.root, release_id)
         manifest = await self.stage(target)
         row = await self.db.one("SELECT max(version) version FROM schema_migrations")
@@ -88,7 +99,7 @@ class Releases:
         running = await self.db.one("SELECT count(*) n FROM jobs WHERE status='running'")
         if running and running["n"]:
             raise Conflict("Drain all workers before switching the release")
-        await backup_create(self.db, self.settings)
+        await backup_create(self.db, self.settings, release_snapshot=True)
         pointer = self.root / "current"
         old = os.readlink(pointer) if pointer.is_symlink() else None
         temporary = self.root / (".current-" + uid())

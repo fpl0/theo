@@ -30,16 +30,21 @@
         "name": "environment",
         "label": "Traffic",
         "type": "custom",
-        "query": "Live Theo : local,Test fixtures : qualification",
+        "query": "Local Theo : local,Production Theo : production,Test fixtures : qualification",
         "current": {
-          "text": "Live Theo",
+          "text": "Local Theo",
           "value": "local"
         },
         "options": [
           {
-            "text": "Live Theo",
+            "text": "Local Theo",
             "value": "local",
             "selected": true
+          },
+          {
+            "text": "Production Theo",
+            "value": "production",
+            "selected": false
           },
           {
             "text": "Test fixtures",
@@ -848,7 +853,7 @@
       "id": 6,
       "type": "stat",
       "title": "Stack memory",
-      "description": "Whole physical footprint: Docker VM, host helpers and native observer. Budget: 2.00 GB decimal. Amber at 90%, red at the budget.",
+      "description": "Whole physical footprint: Docker VM, host helpers and native observer. Budget: 4.00 GB decimal. Amber at 90%, red at the budget.",
       "gridPos": {
         "x": 16,
         "y": 2,
@@ -883,11 +888,11 @@
                 "color": "green"
               },
               {
-                "value": 1800000000,
+                "value": 3600000000,
                 "color": "orange"
               },
               {
-                "value": 2000000000,
+                "value": 4000000000,
                 "color": "red"
               }
             ]
@@ -4298,7 +4303,7 @@
     {
       "id": 21,
       "type": "timeseries",
-      "title": "Memory per component \u00b7 2 GB total budget",
+      "title": "Memory per component \u00b7 4 GB total budget",
       "description": "Observed values over the selected time range. Gaps mean no samples. ",
       "gridPos": {
         "x": 12,

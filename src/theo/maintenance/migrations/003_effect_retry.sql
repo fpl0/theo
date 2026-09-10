@@ -1,0 +1,1 @@
+ALTER TABLE effects ADD COLUMN retryable INTEGER NOT NULL DEFAULT 0 CHECK(retryable IN (0,1));

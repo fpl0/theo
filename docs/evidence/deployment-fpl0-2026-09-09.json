@@ -1,0 +1,273 @@
+{
+  "recorded_at": 1788962655.808365,
+  "host": "fpl0.local",
+  "active_release": "20260909-7cc0327",
+  "source_commit": "7cc032700171087019a4e20471abb7579760d052",
+  "tests": {
+    "initial_973d11a_offline": {
+      "passed": 299,
+      "skipped": 1,
+      "skip_reason": "Linux-only dedicated-UID canary on macOS"
+    },
+    "final_7cc0327_target_focused": {
+      "passed": 21,
+      "skipped": 0
+    },
+    "pyright_errors": 0,
+    "ruff_passed": true
+  },
+  "restart": {
+    "recovery_seconds": 26.063995122909546,
+    "receipts_preserved": true,
+    "owner_alert_status": "accepted"
+  },
+  "release_drill": {
+    "started_at": 1788961722.072994,
+    "steps": [
+      {
+        "switch": {
+          "release": "20260909-7cc0327",
+          "previous": "20260909-2e44471",
+          "schema": 5,
+          "autonomy": "paused"
+        },
+        "core_pid": 14461,
+        "pointer": "20260909-7cc0327"
+      },
+      {
+        "switch": {
+          "release": "20260909-2e44471",
+          "previous": "20260909-7cc0327",
+          "schema": 5,
+          "autonomy": "paused"
+        },
+        "core_pid": 14488,
+        "pointer": "20260909-2e44471"
+      },
+      {
+        "switch": {
+          "release": "20260909-7cc0327",
+          "previous": "20260909-2e44471",
+          "schema": 5,
+          "autonomy": "paused"
+        },
+        "core_pid": 14503,
+        "pointer": "20260909-7cc0327"
+      }
+    ],
+    "receipts_preserved": true,
+    "integrity": [
+      {
+        "integrity_check": "ok"
+      }
+    ],
+    "finished_at": 1788961805.501461
+  },
+  "restore": {
+    "seconds": 0.12600958399707451,
+    "external_blobs": 0,
+    "controls": {
+      "quarantined": "true",
+      "background_paused": "true",
+      "notifications_paused": "true"
+    },
+    "integrity": [
+      {
+        "integrity_check": "ok"
+      }
+    ],
+    "scope": "fresh production snapshot, separate quarantined root on same disk"
+  },
+  "target_isolation": {
+    "denied_read_0": true,
+    "denied_read_1": true,
+    "denied_read_2": true,
+    "denied_read_3": true,
+    "denied_read_4": true,
+    "denied_read_5": true,
+    "service_control_denied": true,
+    "workspace_write_allowed": true,
+    "scope": "actual production configuration, secrets, release, native credentials, sibling workspace and service control; synthetic reads produce no payload output"
+  },
+  "stack_recovery": {
+    "started_at": 1788962342.658873,
+    "recovery_seconds": 34.182868003845215,
+    "grafana_recovered": true,
+    "core_pid_unchanged": true,
+    "core_heartbeat_fresh": true,
+    "method": "Explicitly stopped Grafana; launchd stack supervision recreated availability"
+  },
+  "alert_drill": {
+    "started_at": 1788961966.382234,
+    "synthetic": true,
+    "firing_received_at": 1788962019.943296,
+    "resolved_received_at": 1788962079.88766,
+    "passed": true
+  },
+  "telegram_ui": {
+    "production_start_received": true,
+    "production_status_received": true,
+    "health_firing_and_resolved_received": true,
+    "model_inference_verified": false,
+    "requested_final_greeting_sent": false
+  },
+  "pipeline": {
+    "trace_id": "014d6c79b3e137f3f72db6f3ebf780ef",
+    "trace_stored": true,
+    "logs_correlated": true,
+    "exemplar_correlated": true,
+    "grafana_trace_to_logs_correlated": true,
+    "health": {
+      "grafana": {
+        "ready": true,
+        "status": 200
+      },
+      "alloy": {
+        "ready": true,
+        "status": 200
+      },
+      "prometheus": {
+        "ready": true,
+        "status": 200
+      },
+      "loki": {
+        "ready": true,
+        "status": 200
+      },
+      "tempo": {
+        "ready": true,
+        "status": 200
+      },
+      "observer": {
+        "ready": true,
+        "status": 200
+      }
+    },
+    "dashboard_queries": 86,
+    "log_queries": 10,
+    "query_errors": [],
+    "whole_stack_memory_verified": true,
+    "poller_alert_behavior": {
+      "cases": 11,
+      "passed": true
+    },
+    "alert_queries": 19
+  },
+  "load": {
+    "started_at": 1788961933.307456,
+    "finished_at": 1788962534.282897,
+    "duration_seconds": 600.9703411660012,
+    "operations": 8680,
+    "errors": [],
+    "peak_physical_footprint_bytes": 1852442240,
+    "budget_bytes": 2000000000,
+    "container_restarts": {
+      "/theo-observability-grafana-1": 0,
+      "/theo-observability-loki-1": 0,
+      "/theo-observability-tempo-1": 0,
+      "/theo-observability-alloy-1": 0,
+      "/theo-observability-prometheus-1": 0
+    },
+    "oom_killed": false,
+    "method": "macOS footprint sum: all Apple VZ helpers, Colima Lima/SSH/Docker helpers, native observer and monitoring launchd wrappers; guest Linux/Docker/containers included in VZ footprint. Shared VZ helpers are conservatively overcounted.",
+    "oom_events": 0,
+    "passed": true
+  },
+  "load_note": "A controlled Grafana stop/recovery occurred during this run; Docker RestartCount excludes that explicit restart. This is a 10-minute synthetic telemetry test, not a 7-day assistant soak.",
+  "speech": {
+    "synthetic": true,
+    "passed": true,
+    "transcript": " This is a deployment voice check."
+  },
+  "controls": [
+    {
+      "key": "background_paused",
+      "value": "true"
+    },
+    {
+      "key": "notifications_paused",
+      "value": "false"
+    },
+    {
+      "key": "quarantined",
+      "value": "false"
+    },
+    {
+      "key": "models_paused",
+      "value": "true"
+    },
+    {
+      "key": "maintenance_draining",
+      "value": "false"
+    }
+  ],
+  "jobs": [
+    {
+      "status": "completed",
+      "count": 2
+    }
+  ],
+  "outbox": [
+    {
+      "status": "succeeded",
+      "count": 2
+    }
+  ],
+  "qualification": {
+    "production_qualified": false,
+    "deployment_ready": false,
+    "deployment_gates": {
+      "mac_deployment": true,
+      "behaviour_30_scenarios": false,
+      "genuine_seven_day_soak": false,
+      "target_capacity_and_restore": false,
+      "mandatory_deterministic_suite": false,
+      "codex_live_canary": false,
+      "current_policy_evidence": false
+    },
+    "deployment_exceptions": [
+      "encrypted_storage_deferred",
+      "scheduled_backups_disabled",
+      "unencrypted_local_release_snapshots_allowed"
+    ],
+    "gates": {
+      "claude_live_canary": false,
+      "codex_live_canary": false,
+      "mac_deployment": true,
+      "encrypted_storage": false,
+      "behaviour_30_scenarios": false,
+      "genuine_seven_day_soak": false,
+      "target_capacity_and_restore": false,
+      "mandatory_deterministic_suite": false
+    },
+    "native_backends": {
+      "claude": false,
+      "codex": false,
+      "cursor": false,
+      "grok": false
+    },
+    "note": "No configuration flag substitutes for elapsed observation or native account canaries."
+  },
+  "external_heartbeat_configured": false,
+  "pending": [
+    "Codex spending-control attestation and real native conversation",
+    "Healthchecks.io login and external Telegram outage/recovery verification",
+    "Final greeting after activation",
+    "Remaining autonomy qualification gates"
+  ],
+  "exceptions": {
+    "encrypted_storage_verified": false,
+    "require_encrypted_storage": false,
+    "scheduled_backups_enabled": false,
+    "allow_unencrypted_release_backup": true
+  },
+  "current_health": {
+    "grafana": 200,
+    "alloy": 200,
+    "prometheus": 200,
+    "loki": 200,
+    "tempo": 200,
+    "observer": 200
+  },
+  "core_heartbeat_age": 12.692653179168701
+}

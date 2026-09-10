@@ -38,8 +38,16 @@ async def snapshot_database(db: Database, destination: Path) -> None:
     await asyncio.to_thread(backup)
 
 
-async def backup_create(db: Database, settings: Settings, destination: Path | None = None) -> Path:
-    if not settings.encrypted_storage_verified:
+async def backup_create(
+    db: Database,
+    settings: Settings,
+    destination: Path | None = None,
+    *,
+    release_snapshot: bool = False,
+) -> Path:
+    if not settings.encrypted_storage_verified and not (
+        release_snapshot and settings.allow_unencrypted_release_backup
+    ):
         raise Denied("Verify encrypted owner storage before persisting personal-data backups")
     base = destination or db.root / "backups"
     base.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -76,7 +84,9 @@ async def backup_create(db: Database, settings: Settings, destination: Path | No
             "database_sha256": await asyncio.to_thread(file_hash, database),
             "schema": versions,
             "blobs": blobs,
-            "encrypted_storage": "operator_verified",
+            "encrypted_storage": (
+                "operator_verified" if settings.encrypted_storage_verified else "not_verified"
+            ),
         }
         (temporary / "manifest.json").write_text(json.dumps(manifest, indent=2))
         temporary.rename(path)

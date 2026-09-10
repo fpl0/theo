@@ -1,0 +1,113 @@
+{
+  "scope": "Read-only review for the self-maintenance design; no production changes or model calls",
+  "local_source_commit": "edb2fd2a84f600895003bb0203d301f5f8653826",
+  "checked_at": "2026-09-09T15:39:36.374654+00:00",
+  "release": "20260909-ffdb217",
+  "source_commit": "ffdb2176d87148f325b1b7bce0a3ae4677dac857",
+  "controls": {
+    "background_paused": "true",
+    "maintenance_draining": "false",
+    "models_paused": "false",
+    "notifications_paused": "false"
+  },
+  "maintenance_paused": false,
+  "qualification_reports": [
+    [
+      "mac_deployment",
+      null,
+      "passed"
+    ]
+  ],
+  "tool_count": 52,
+  "tools": [
+    "send_message",
+    "reply",
+    "forward",
+    "edit_message",
+    "delete_message",
+    "pin",
+    "send_photo",
+    "send_document",
+    "send_voice",
+    "send_video",
+    "send_location",
+    "send_poll",
+    "send_buttons",
+    "react",
+    "get_reactions",
+    "schedule_task",
+    "list_tasks",
+    "get_status",
+    "delete_task",
+    "remember",
+    "recall",
+    "forget",
+    "recall_conversation",
+    "connect",
+    "restore",
+    "bulk_memory",
+    "memory_history",
+    "review_corrections",
+    "pin_attention",
+    "unpin_attention",
+    "get_cost_report",
+    "log_deep_work_quality",
+    "browse",
+    "delegate",
+    "goal_create",
+    "goal_update",
+    "step_complete",
+    "fact_propose",
+    "artifact_register",
+    "action_status",
+    "file_read",
+    "file_write",
+    "command_run",
+    "voice_create",
+    "skill_propose",
+    "send_audio",
+    "send_animation",
+    "send_sticker",
+    "send_video_note",
+    "send_media_group",
+    "send_contact",
+    "send_venue"
+  ],
+  "source_hashes": {
+    "tools/registry.py": "badc30679bbdb2daad27ff332c025603c99741c8402db7b6276522fe27f57a40",
+    "application/coordinator.py": "dbc4b80895d52d852fb6d85f9ad194225e1d2a21dd1ccdc86c54e39a8b89bfc5",
+    "execution/workspaces.py": "4b6c312aff50845163477fa76223f78dfa5ef0d5c826872c246402a4ed33bb13",
+    "execution/isolation.py": "0c19e2c7f003d9e56783e55af542a9a93200b06522437bdfefb80dd5d95b43d2",
+    "application/commands.py": "9d53b151d72170a44dac46ecf46d406888838f1032b90d48efa1fc3fc8a68441",
+    "application/service.py": "ddae28d2e7c4120173400fab31114c64a11f64b5663ab51909abf4005dd73b5b",
+    "operations/releases.py": "69db0a7915ad5bed509fa249b8bb70d673784d2958d9e80e736f1501ef63d56f",
+    "operations/qualification.py": "22ceb9b629cc8cd80c1485c6021d9fcff8825e89f05be4f3b581993c92b70cc4",
+    "supervisor.py": "bcb97f90d5ea66bd43c395c275950bc3dd40e5237d947431addca7364b2e4939",
+    "config.py": "09d09500d2361f559b41751c916b5ca4a2852d4cf5feb380776631b6148828cd"
+  },
+  "local_source_hashes_match_all_remote_files": true,
+  "github": {
+    "repository": "fpl0/theo",
+    "visibility": "PUBLIC",
+    "default_branch": "main",
+    "default_branch_commit": "cbda6e23b13dda1adab4e0cf4169e5146f814f89",
+    "observed_on": "2026-09-09",
+    "note": "Remote branch was read through the GitHub API. Reconcile installed deployment changes before using main as the self-maintenance baseline."
+  },
+  "verification": {
+    "command": "env THEO_TEST_OFFLINE=1 HF_HUB_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1 DO_NOT_TRACK=1 .venv/bin/pytest -q tests/test_operational_boundaries.py::test_a27_worktrees_fence_promotion_and_reminder_bypasses_slots tests/test_operational_boundaries.py::test_a32_release_integrity_and_schema_rollback_gate tests/test_deployment.py tests/test_supervisor.py tests/test_macos_isolation.py::test_runner_sqlite_works_without_exposing_core_siblings_or_credentials tests/test_tools_runtime.py::test_a30_a37_tool_schemas_optional_fields_and_scope",
+    "initial_sandboxed_run": {
+      "passed": 8,
+      "failed": 2,
+      "skipped": 1,
+      "reason": "Codex sandbox denied nested macOS sandbox application and Unix server socket creation"
+    },
+    "approved_host_run": {
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 18.9
+    },
+    "meaning": "Existing building blocks pass these focused offline checks; no end-to-end self-edit, GitHub publication, self-deployment or automatic rollback was exercised."
+  }
+}

@@ -15,7 +15,9 @@ from theo.storage import Database
 
 async def test_a33_core_crash_recovers_and_maintenance_does_not_restart(tmp_path):
     try:
-        with tempfile.TemporaryDirectory(prefix="theo-probe-", dir="/tmp") as directory:
+        with tempfile.TemporaryDirectory(
+            prefix="theo-probe-", dir=os.environ.get("THEO_TEST_SOCKET_ROOT", "/tmp")
+        ) as directory:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
                 probe.bind(str(Path(directory) / "probe.sock"))
     except PermissionError:

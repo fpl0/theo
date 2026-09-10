@@ -239,7 +239,9 @@ async def test_broker_shutdown_closes_idle_connections(db, settings):
     from theo.tools.broker import ToolBroker
 
     broker = ToolBroker(db, settings)
-    with tempfile.TemporaryDirectory(prefix="theo-idle-", dir="/tmp") as directory:
+    with tempfile.TemporaryDirectory(
+        prefix="theo-idle-", dir=os.environ.get("THEO_TEST_SOCKET_ROOT", "/tmp")
+    ) as directory:
         path = Path(directory) / "broker.sock"
         await broker.listen(path)
         reader, writer = await asyncio.open_unix_connection(str(path))

@@ -30,16 +30,21 @@
         "name": "environment",
         "label": "Traffic",
         "type": "custom",
-        "query": "Live Theo : local,Test fixtures : qualification",
+        "query": "Local Theo : local,Production Theo : production,Test fixtures : qualification",
         "current": {
-          "text": "Live Theo",
+          "text": "Local Theo",
           "value": "local"
         },
         "options": [
           {
-            "text": "Live Theo",
+            "text": "Local Theo",
             "value": "local",
             "selected": true
+          },
+          {
+            "text": "Production Theo",
+            "value": "production",
+            "selected": false
           },
           {
             "text": "Test fixtures",
@@ -205,14 +210,14 @@
       },
       "options": {
         "mode": "html",
-        "content": "<h2 style=\"font-size:22px;margin:0 0 6px;font-weight:600\">Theo / Infrastructure</h2><p style=\"font-size:13px;color:#b8bdc9;margin:0\">Watch the full 2 GB budget, then inspect container pressure and telemetry delivery.</p>"
+        "content": "<h2 style=\"font-size:22px;margin:0 0 6px;font-weight:600\">Theo / Infrastructure</h2><p style=\"font-size:13px;color:#b8bdc9;margin:0\">Watch the full 4 GB budget, then inspect container pressure and telemetry delivery.</p>"
       }
     },
     {
       "id": 2,
       "type": "stat",
       "title": "Whole observability stack",
-      "description": "Whole physical footprint: Docker VM, host helpers and native observer. Budget: 2.00 GB decimal. Amber at 90%, red at the budget.",
+      "description": "Whole physical footprint: Docker VM, host helpers and native observer. Budget: 4.00 GB decimal. Amber at 90%, red at the budget.",
       "gridPos": {
         "x": 0,
         "y": 2,
@@ -247,11 +252,11 @@
                 "color": "green"
               },
               {
-                "value": 1800000000,
+                "value": 3600000000,
                 "color": "orange"
               },
               {
-                "value": 2000000000,
+                "value": 4000000000,
                 "color": "red"
               }
             ]
@@ -818,7 +823,7 @@
     {
       "id": 6,
       "type": "timeseries",
-      "title": "Whole stack \u00b7 2 GB ceiling",
+      "title": "Whole stack \u00b7 4 GB ceiling",
       "description": "Observed values over the selected time range. Gaps mean no samples. ",
       "gridPos": {
         "x": 0,
@@ -843,11 +848,11 @@
                 "color": "green"
               },
               {
-                "value": 1800000000,
+                "value": 3600000000,
                 "color": "orange"
               },
               {
-                "value": 2000000000,
+                "value": 4000000000,
                 "color": "red"
               }
             ]
@@ -861,7 +866,7 @@
             "spanNulls": false,
             "axisBorderShow": false,
             "axisColorMode": "text",
-            "axisSoftMax": 2100000000,
+            "axisSoftMax": 4200000000,
             "thresholdsStyle": {
               "mode": "line"
             }
@@ -1162,7 +1167,7 @@
         {
           "refId": "A",
           "expr": "theo_observability_memory_bytes{environment=~\"$environment\"}",
-          "legendFormat": "Whole stack \u00b7 2 GB ceiling",
+          "legendFormat": "Whole stack \u00b7 4 GB ceiling",
           "exemplar": true,
           "range": true
         }
@@ -4173,7 +4178,7 @@
     {
       "id": 18,
       "type": "timeseries",
-      "title": "Whole stack / 2 GB budget",
+      "title": "Whole stack / 4 GB budget",
       "description": "Observed values over the selected time range. Gaps mean no samples. ",
       "gridPos": {
         "x": 0,
@@ -4506,7 +4511,7 @@
         {
           "refId": "A",
           "expr": "theo_observability_memory_bytes{environment=~\"$environment\"} / theo_observability_budget_bytes{environment=~\"$environment\"}",
-          "legendFormat": "Whole stack / 2 GB budget",
+          "legendFormat": "Whole stack / 4 GB budget",
           "exemplar": true,
           "range": true
         }
@@ -6652,7 +6657,7 @@
       },
       "options": {
         "mode": "html",
-        "content": "<p style=\"font-size:13px;line-height:1.5;color:#b8bdc9;margin:4px 0\"><strong>Reading the signals</strong> \u00b7 The 2 GB limit includes the Docker VM, observer and host helpers. Container memory is already inside that total. Native Theo/Codex memory is separate. Load test result refers to the last completed qualification; use live memory and headroom for the current state. An unconfigured external monitor cannot detect a whole-laptop outage.</p>"
+        "content": "<p style=\"font-size:13px;line-height:1.5;color:#b8bdc9;margin:4px 0\"><strong>Reading the signals</strong> \u00b7 The 4 GB limit includes the Docker VM, observer and host helpers. Container memory is already inside that total. Native Theo/Codex memory is separate. Load test result refers to the last completed qualification; use live memory and headroom for the current state. An unconfigured external monitor cannot detect a whole-laptop outage.</p>"
       }
     },
     {

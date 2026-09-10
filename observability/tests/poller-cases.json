@@ -64,5 +64,95 @@
       }
     ],
     "should_alert": true
+  },
+  {
+    "name": "production: healthy",
+    "input_series": [
+      {
+        "series": "theo_channel_configured{channel=\"telegram\",environment=\"production\"}",
+        "values": "1x20"
+      },
+      {
+        "series": "theo_telegram_poll_success_timestamp{environment=\"production\"}",
+        "values": "0+60x20"
+      }
+    ],
+    "should_alert": false,
+    "environment": "production"
+  },
+  {
+    "name": "production: stopped after samples expired",
+    "input_series": [
+      {
+        "series": "theo_channel_configured{channel=\"telegram\",environment=\"production\"}",
+        "values": "1x20"
+      },
+      {
+        "series": "theo_telegram_poll_success_timestamp{environment=\"production\"}",
+        "values": "0+60x2 stale"
+      }
+    ],
+    "should_alert": true,
+    "environment": "production"
+  },
+  {
+    "name": "production: configured but never observed",
+    "input_series": [
+      {
+        "series": "theo_channel_configured{channel=\"telegram\",environment=\"production\"}",
+        "values": "1x20"
+      }
+    ],
+    "should_alert": true,
+    "environment": "production"
+  },
+  {
+    "name": "production: not configured",
+    "input_series": [
+      {
+        "series": "theo_channel_configured{channel=\"telegram\",environment=\"production\"}",
+        "values": "0x20"
+      },
+      {
+        "series": "theo_telegram_poll_success_timestamp{environment=\"production\"}",
+        "values": "0+60x2 stale"
+      }
+    ],
+    "should_alert": false,
+    "environment": "production"
+  },
+  {
+    "name": "production: fixtures cannot mask missing live signal",
+    "input_series": [
+      {
+        "series": "theo_channel_configured{channel=\"telegram\",environment=\"production\"}",
+        "values": "1x20"
+      },
+      {
+        "series": "theo_telegram_poll_success_timestamp{environment=\"qualification\"}",
+        "values": "0+60x20"
+      }
+    ],
+    "should_alert": true,
+    "environment": "production"
+  },
+  {
+    "name": "healthy local cannot mask missing production",
+    "environment": "production",
+    "input_series": [
+      {
+        "series": "theo_channel_configured{channel=\"telegram\",environment=\"local\"}",
+        "values": "1x20"
+      },
+      {
+        "series": "theo_channel_configured{channel=\"telegram\",environment=\"production\"}",
+        "values": "1x20"
+      },
+      {
+        "series": "theo_telegram_poll_success_timestamp{environment=\"local\"}",
+        "values": "0+60x20"
+      }
+    ],
+    "should_alert": true
   }
 ]

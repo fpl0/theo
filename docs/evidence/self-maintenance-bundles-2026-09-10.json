@@ -1,0 +1,542 @@
+{
+  "date": "2026-09-10",
+  "status": "runtime_bundle_and_development_components_passed; deployment_incomplete",
+  "repository_commit": "46d8472d208e808144dfde8f86efc6ab3342878c",
+  "repository_tree": "283bf8d1328c4163b420c0caef6ad973099f075b",
+  "source": {
+    "snapshot_sha256": "d738b2d6681badd28d2a9a61d7499fe317090762882ad1e2f467ef2f4b6aafb7",
+    "files": 308,
+    "input_archive_sha256": "602eb95e39f76b152d4a1d4938a884028cab6da21794f9ba076208a406df305e",
+    "matches_repository_git_archive": true,
+    "lock_sha256": "6c408ba9f6318d155aa2d6afc2767434b4b55076ab622f2ec15392210570cc32"
+  },
+  "synthetic_candidate": {
+    "change_id": "vm-bundle-p9",
+    "revision": 1,
+    "base_commit": "032418c2096f32661f3d86f154db744a208dffbd",
+    "commit": "4e077a70183d7d25d1bc172ead0b15551814befe",
+    "tree": "31789e85c42f7fdfcefeb606165196ab5c33351a",
+    "snapshot_sha256": "d738b2d6681badd28d2a9a61d7499fe317090762882ad1e2f467ef2f4b6aafb7",
+    "lock_sha256": "6c408ba9f6318d155aa2d6afc2767434b4b55076ab622f2ec15392210570cc32",
+    "scope": "Component fixture only. Its synthetic Git tree also tracked 26 controller import bytecode files; canonical source excludes bytecode and exactly matches the repository commit above. This is not a publication or deployment commit."
+  },
+  "runtime": {
+    "host": "fpl0.local",
+    "host_os": "macOS 15.7.9 arm64",
+    "vm_image": "ghcr.io/cirruslabs/macos-sequoia-base@sha256:4947ac5ab1b2fdc46ab856132d2ba958f8e45b5f85192c66370dafc028c514dd",
+    "tart_version": "2.32.1",
+    "tart_executable_sha256": "05b65d5c14e8b41e8e44b6d9fd1278de4bedbc8b735d9b99f3c748f76f75862d",
+    "python_version": "3.14.6",
+    "python_archive_sha256": "1200ad1d2a3656f90c774edfcd2006d3af9ec8a63441c2fb5de9a4a05ccf8d96",
+    "uv_sha256": "bb71e6004d716bc7fd93573453261abbf8bfb63d83dc9ffcacb566d5077b201b",
+    "guest_agent_sha256": "2e16ebd8570cbdbb76832b863417acd9953cc63f63625533ad6c51173ca0d74f"
+  },
+  "verification": {
+    "recipe_hash": "86b05f1faa2d38d026ded45d66757b19764903b85ef1a3ab1ed2b9cd0e8c49f5",
+    "checks": [
+      {
+        "name": "development-scratch",
+        "recipe_hash": "1f692a1a1d0b32edf774c1543c4378ee0ba07ab9d26a075341b50cdc8923c12a",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "development-export",
+        "recipe_hash": "65dd1a0588d10984861cb59f3e597864c4e83d33a109b391d7379b16f13f378e",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "18780f4ff5ef114a10949c831d4fa2810ca3e02fe2dad9536ea92f4bf43707bd",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "development-environment",
+        "recipe_hash": "f906b54bf065f0142a94ac3621b96b5c692f22fe796f2d5c12804f1719130428",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "9c39b77d5ee5149bc1603c8db1480d1ec9f28f4579b89eeeff7416f83de859d0",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "development-install",
+        "recipe_hash": "83e1b278f34c87f57e0b5bf319ccb870566b97428a67dab35a0085ab1e4a08de",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "cb24f603bcc4faf65ff371c5d8f1ce383756102d59d982a52b9f3f352411084d",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "editable-project",
+        "recipe_hash": "58468873f2ea387d1c8f8ce57c47e0da197948943843cba0462d3dad6e2f9986",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "ec3bf0254955c09f06f2e200d0fe2019f693d3405c8295ae1bc4754bb1840cc9",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "ruff",
+        "recipe_hash": "32a3b03fd87d507ad48bb70da4fbe7bab380dd195225ba31dc2068f350c12e9f",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "format",
+        "recipe_hash": "c97bd3b71577438f839cca0441bc2f9aa2878a710c0c7347c170000655b0e309",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "fca2e7d68e05a6e985d8714320189112a186ee2f3b4b51d59b23ca4c386499b8",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "pyright",
+        "recipe_hash": "c65ccf22d82b589c0376a012824795c983c994f20e4dcc3e9b947dcfdd44479b",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "6d88a1b220adb7a3d62092b6e38431f0b3fe8babe9864fab90e5849766260332",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "offline",
+        "recipe_hash": "2403d386062a45593cb83d93f997492677ec87127638ef9bec1661b2d10a0211",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "4a6c273bddb8d58af785bb70c59365a35734b1f90084bdaf1a14b5c7bcfc5fe7",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "source-environment-unlink",
+        "recipe_hash": "6eb768998b645dc6cff8ce85ba419477001874c394bf6098e35dd9283667bd18",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "distributions",
+        "recipe_hash": "c8bc347c9d1dd58de7301d9e0915f7fa2b028ca0ea8167592ea6d50d74ca6c5f",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "288f09b91f80d3c477e7fb3391b3023cac6c5458730b63b953507bc90726f19b",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "production-lock",
+        "recipe_hash": "b791488c4469f24a5f0c10f563691054f5227fee7d21e69e162f62b77098aadd",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "3dc9c11eabd67cecad41276fb8e203d71f9e8b293e6d418810f172e29e4e4e66",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "installed-copy",
+        "recipe_hash": "7452c10dbd1902e26d8b32686f4b82111d71bc675c63c9f81e3361ac754b9df8",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "installed-environment",
+        "recipe_hash": "5ae63b51ea138041739212b7bad0a224b4aef9ee070879c93c7f64a2655ecfa8",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "3cd79f8429113d2bd22535924957d4113eba8ee8b4f5e9e303fd86729d918524",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "installed-dependencies",
+        "recipe_hash": "48579c18a8d6e19f8841fe1c3fb3cf07a553e68d53014e31b587f5e5ab34de0f",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "9907cd96312719ba55c3a57e676e8e18ca3616824759f3efa70968cd8707532e",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "installed-wheel",
+        "recipe_hash": "c28955dd5f297ec0702b4eaba36bde4a7fbe528a75c319f6ab7a2b84304e7e78",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "2f0b40aa5e6a2100698250513bb1531e6ea70442eacc8c789d3caa399a6568e3",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "installed-smoke",
+        "recipe_hash": "20c084048c15f57d0a87b2875c3904405a12ca4d3e6e144ae8156ac4d751fd13",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "ce02ea949667c5194326a03f4e2a3d19c8fc3395501532237900aa5633776d91",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "installed-artifacts",
+        "exit_code": 0,
+        "wheel_sha256": "69f9a834b575b0d7667b92e9884a0c28f6679e692d48d90aa1f8ec9875f01bca",
+        "trusted_smoke_sha256": "a638d20da9f903cc7a0fdda43fcbef56b53256d5074eb939854ae30613cc746b"
+      }
+    ],
+    "offline_tests": {
+      "passed": 502,
+      "skipped": 2,
+      "elapsed_seconds": 102.4,
+      "skip_reasons": [
+        "Codex is absent from the disposable guest; no native startup evidence",
+        "Linux root-only UID canary is not Mac evidence"
+      ]
+    },
+    "installed_modules": 122,
+    "core_migrations": 8,
+    "controller_migrations": 4,
+    "wheel_matches_independent_local_build": true
+  },
+  "bundle": {
+    "bundle_id": "vm-bundle-p9-4e077a70183d",
+    "fingerprint": "2847e2e4d372e80c069494953ad622103c4a8ed41aaeea3677c5ad4fee6afcd6",
+    "manifest_files": 11665,
+    "schema_range": [
+      8,
+      8
+    ],
+    "schema_range_is_not_compatibility_proof": true,
+    "native_files": {
+      "native/bin/codex": "b973d440acac501fd2594a43e7ca9ce41e0a65b9dfb28d0d7a7837c99e1261e3:0o550",
+      "native/bin/codex-code-mode-host": "d8a2222e017342718d16a5dbe092921c628961f812f62f42036b8d960e1ffe56:0o550",
+      "native/runtime.json": "b4a0561a88ec0031a4625a1ae91f0df71050b3790c6623fef5866b0da6086d1d:0o440"
+    },
+    "checks": [
+      {
+        "name": "development-scratch",
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "development-export",
+        "exit_code": 0,
+        "log_sha256": "a8eb8547c7ff0dec1f651389f300d1781ab4c24ae2ec36b6cfa980394e308ec6"
+      },
+      {
+        "name": "development-environment",
+        "exit_code": 0,
+        "log_sha256": "9c39b77d5ee5149bc1603c8db1480d1ec9f28f4579b89eeeff7416f83de859d0"
+      },
+      {
+        "name": "development-install",
+        "exit_code": 0,
+        "log_sha256": "be95e7b674724c8e121b1fb75f540dc7e5c6b13657ec411af3b081336339f504"
+      },
+      {
+        "name": "editable-project",
+        "exit_code": 0,
+        "log_sha256": "9de4572a0d3483254d79a6aaa2709bb9d68977d436c72196669f6890dab4eef2"
+      },
+      {
+        "name": "source-environment-unlink",
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "distributions",
+        "exit_code": 0,
+        "log_sha256": "288f09b91f80d3c477e7fb3391b3023cac6c5458730b63b953507bc90726f19b"
+      },
+      {
+        "name": "production-lock",
+        "exit_code": 0,
+        "log_sha256": "3dc9c11eabd67cecad41276fb8e203d71f9e8b293e6d418810f172e29e4e4e66"
+      },
+      {
+        "name": "installed-copy",
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "installed-environment",
+        "exit_code": 0,
+        "log_sha256": "3cd79f8429113d2bd22535924957d4113eba8ee8b4f5e9e303fd86729d918524"
+      },
+      {
+        "name": "installed-dependencies",
+        "exit_code": 0,
+        "log_sha256": "fa04dcfc10e3b04f0b22ea77a17078b3301007aa21345ced33b8f0cc92235cb4"
+      },
+      {
+        "name": "installed-wheel",
+        "exit_code": 0,
+        "log_sha256": "baa35cdd05a473e72bc3caae8dcb44abcca4a058e7ddb20fc43640df1d8945bb"
+      },
+      {
+        "name": "installed-smoke",
+        "exit_code": 0,
+        "log_sha256": "ce02ea949667c5194326a03f4e2a3d19c8fc3395501532237900aa5633776d91"
+      },
+      {
+        "name": "installed-artifacts",
+        "exit_code": 0
+      },
+      {
+        "name": "bundle-prefix",
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "bundle-lock",
+        "exit_code": 0,
+        "log_sha256": "66bdf3d147a6c57ba2e76299c99d68d2aa59cd2a5016d98b0e2381d38b3ed242"
+      },
+      {
+        "name": "bundle-dependencies",
+        "exit_code": 0,
+        "log_sha256": "22ab777e1ae51370b11179613b1b9346fe3bd0774f256f4134647c104be3b872"
+      },
+      {
+        "name": "bundle-wheel",
+        "exit_code": 0,
+        "log_sha256": "65c47d321fe5d527a8397ad6f550b757d637b658f213ef6a820b87c77f688c57"
+      },
+      {
+        "name": "bundle-relocate",
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "bundle-clean",
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "sealed-runtime",
+        "archive_sha256": "2de8465bc6fe5be4c1dfee418c534cebe062cb958a20a426372599c29a47f999",
+        "archive_bytes": 96064404,
+        "source_sha256": "d738b2d6681badd28d2a9a61d7499fe317090762882ad1e2f467ef2f4b6aafb7",
+        "file_count": 12963,
+        "unpacked_bytes": 269834488
+      },
+      {
+        "name": "sealed-prefix-permissions",
+        "exit_code": 0,
+        "log_sha256": "734854bc85eb6b08313772d6053b1b0f4af56e56dc0c392c0d1cb2bb9b1b06fa"
+      },
+      {
+        "name": "core-installed-smoke",
+        "exit_code": 0,
+        "log_sha256": "ce02ea949667c5194326a03f4e2a3d19c8fc3395501532237900aa5633776d91"
+      },
+      {
+        "name": "core-console",
+        "exit_code": 0,
+        "log_sha256": "04a86f2f55676d5d63ef7362c2bea61676e4e584c8942b2f856036c5088a1cf4"
+      },
+      {
+        "name": "core-initialize",
+        "exit_code": 0,
+        "log_sha256": "7c0dbeaffdb84d41764732f591c8dc9e6152a67371ae2c7b3ac6af5c6990bad1"
+      },
+      {
+        "name": "core-doctor",
+        "exit_code": 0,
+        "log_sha256": "a2535f2202b58f92e838f5449b2c9d3e0dd87f5bda210340c220e361ec70381a"
+      },
+      {
+        "name": "worker-installed-smoke",
+        "exit_code": 0,
+        "log_sha256": "ce02ea949667c5194326a03f4e2a3d19c8fc3395501532237900aa5633776d91"
+      },
+      {
+        "name": "worker-console",
+        "exit_code": 0,
+        "log_sha256": "04a86f2f55676d5d63ef7362c2bea61676e4e584c8942b2f856036c5088a1cf4"
+      },
+      {
+        "name": "worker-initialize",
+        "exit_code": 0,
+        "log_sha256": "7c0dbeaffdb84d41764732f591c8dc9e6152a67371ae2c7b3ac6af5c6990bad1"
+      },
+      {
+        "name": "worker-doctor",
+        "exit_code": 0,
+        "log_sha256": "31d2b1d3b19ec7a06d26dac5d9ece29000ca22f62643dca6056b37521c0d7bfc"
+      }
+    ],
+    "export": {
+      "archive_sha256": "2de8465bc6fe5be4c1dfee418c534cebe062cb958a20a426372599c29a47f999",
+      "archive_bytes": 96064404,
+      "source_sha256": "d738b2d6681badd28d2a9a61d7499fe317090762882ad1e2f467ef2f4b6aafb7",
+      "file_count": 12963,
+      "unpacked_bytes": 269834488
+    },
+    "separate_shared_storage": true,
+    "group_file_write_access": false,
+    "archive_and_functional_canaries_use_same_sealed_bytes": true,
+    "macos_acl_grants_removed_before_archive": true,
+    "atomic_acceptance_passed": true
+  },
+  "development": {
+    "source_sha256": "d738b2d6681badd28d2a9a61d7499fe317090762882ad1e2f467ef2f4b6aafb7",
+    "isolation": {
+      "verified": true,
+      "test": "real process denied protected read and write",
+      "platform": "darwin"
+    },
+    "values": [
+      7,
+      8
+    ],
+    "source_restored": true,
+    "distinct_service_identity_proof": false,
+    "export": {
+      "archive_sha256": "06daebf9ce296405c71f756d51f31899e64c92bba2638ca923474019b26bc635",
+      "archive_bytes": 853787704,
+      "source_sha256": "d738b2d6681badd28d2a9a61d7499fe317090762882ad1e2f467ef2f4b6aafb7",
+      "file_count": 71039,
+      "unpacked_bytes": 2871805692
+    },
+    "checks_passed": true,
+    "scope": "Full locked development groups and Python extras built in a fresh VM; source edits imported through the actual generated-code sandbox on the physical host, using the bootstrap user rather than final service identities.",
+    "repair_patch_preserved": true
+  },
+  "limits": {
+    "max_archive_entries": 100000,
+    "max_unpacked_bytes": 4000000000,
+    "max_archive_bytes": 2000000000,
+    "max_metadata_bytes": 67108864,
+    "max_host_vm_memory_bytes": 8000000000,
+    "peak_host_vm_memory_bytes": 7386071040,
+    "max_vm_lifetime_seconds": 3600,
+    "max_virtual_disk_bytes": 350000000000
+  },
+  "vm_processes": [
+    {
+      "name": "theo-build-56a64d067fb14b84a519fc33f5c8352d",
+      "process_receipt": {
+        "pid": 47221,
+        "birth": 1789013476.600912,
+        "peak_memory_bytes": 6830948352,
+        "stop_reason": "cancelled",
+        "vm_name": "theo-build-56a64d067fb14b84a519fc33f5c8352d",
+        "child_pid": 47224,
+        "child_birth": 1789013476.664808,
+        "finished": true
+      },
+      "image_deleted": true
+    },
+    {
+      "name": "theo-build-cc73993da7664236a465dfcd5bf77ed8",
+      "process_receipt": {
+        "pid": 47459,
+        "birth": 1789013678.428966,
+        "peak_memory_bytes": 6928957440,
+        "stop_reason": "cancelled",
+        "vm_name": "theo-build-cc73993da7664236a465dfcd5bf77ed8",
+        "child_pid": 47462,
+        "child_birth": 1789013678.493045,
+        "finished": true
+      },
+      "image_deleted": true
+    },
+    {
+      "name": "theo-build-b2dd5345916544b99fb0e29fd66056b0",
+      "process_receipt": {
+        "pid": 47716,
+        "birth": 1789013823.159866,
+        "peak_memory_bytes": 7386071040,
+        "stop_reason": "cancelled",
+        "vm_name": "theo-build-b2dd5345916544b99fb0e29fd66056b0",
+        "child_pid": 47719,
+        "child_birth": 1789013823.223829,
+        "finished": true
+      },
+      "image_deleted": true
+    }
+  ],
+  "controller_module_sha256": {
+    "vm_watchdog.py": "8b3ea6a7a67141feb596b2fcc86eabf08e65ef9e0cd45194c9e78c77e405062e",
+    "vm_exports.py": "6d1261e074ef9c2a18cc32b611d10edf5de13a14649ba0c0ccf1f6b2a66988a6",
+    "vm_verification.py": "be887550dc2fe2d48ff6fe785f62fec92ca497b1c844a4dc665e13ceb740a453",
+    "vm_guest.py": "3d84e531dd7749122b6cccc5510080e26906071364545307ac2e5a0c7eb84dbc",
+    "vm_bootstrap.py": "1613b01e09baf68e643b309e7321ff887baa135c8e2798422bb97c75988b1d70",
+    "bundle_archive.py": "63fd7261649f31eb45270946c910d5cdb51e554862a7834f1186aac59ca7c743",
+    "vm_driver.py": "49bbf8e2c368c40357488142fff721ab40dd6a37a871fa669499e89ddb16b9d3",
+    "vm_development.py": "68b132b1a5900f485c3d95945a624015aa017bbf9bc4edb488b78a14e407e351",
+    "vm_config.py": "f954998617f2075af2e19091d46151f4e20ed5e1b78b444df8eadeb3961964e6",
+    "vm_transfer.py": "94c6e6a0b59f0c13b703e29e7a9141297faf40810410202e4fab2d07f98b6adb",
+    "vm_bundle.py": "6c276d98d89562e28467d756ab2a0e84216468f3e9c8848d260c38698c82f7cc",
+    "vm_packaging.py": "4e69957bcd18bc324607fd7ec80c60ab84f3b46080c1866f8c5aaf2735dd2948"
+  },
+  "retained_failures": [
+    {
+      "probe": "p1",
+      "failure": "A 256 KiB direct archive response failed in the pinned transport."
+    },
+    {
+      "probe": "p2",
+      "failure": "Repeated individual chunk processes transferred 77 MB before the guest transport failed. One interactive request/reply stream then transferred the same sealed archive successfully as a separate component check."
+    },
+    {
+      "probe": "p4 development",
+      "failure": "The old 30000-entry bound rejected two development prefixes."
+    },
+    {
+      "probe": "p6 packaging",
+      "failure": "Root-owned Python symlinks retained private permissions and broke readlink during the sealed import check."
+    },
+    {
+      "probe": "p7 packaging",
+      "failure": "macOS 15 refused atomic rename after the staging directory lost owner write permission."
+    },
+    {
+      "probe": "p7 development",
+      "failure": "The 60000-entry bound still rejected the complete development prefixes; measured locked wheel contents justified the current 100000-entry bound."
+    }
+  ],
+  "failure_retention": "Private logs remain retained. Selected stopped fixture images were removed under the exclusive VM operation lock after recording log hashes; successful proof VMs were stopped and deleted by the driver.",
+  "local_validation": {
+    "offline_tests_passed": 503,
+    "skipped": 1,
+    "elapsed_seconds": 77.71,
+    "ruff": "passed",
+    "format": "passed",
+    "strict_pyright_errors": 0,
+    "uv_build": "passed",
+    "outside_checkout_installed_wheel": "122 modules and 8 core/4 controller migrations passed",
+    "wheel_sha256": "69f9a834b575b0d7667b92e9884a0c28f6679e692d48d90aa1f8ec9875f01bca",
+    "ci_run": "https://github.com/fpl0/theo/actions/runs/34436310471",
+    "ci_linux": "passed",
+    "ci_macos": "passed"
+  },
+  "running_installation": {
+    "active_release": "20260909-ffdb217",
+    "application_restarted": false,
+    "deployed": false,
+    "proactive_maintenance_enabled": false,
+    "builder_processes_remaining": 0,
+    "existing_monitoring_vm_preserved": true
+  },
+  "remaining": [
+    "Minimum verification gate preservation",
+    "Complete staging/cache/workspace budgets and retention",
+    "Separate controller/core/runner service identities, protected control layer and privileged host launcher",
+    "Old/new schema read/write compatibility canaries",
+    "Independent health, alerts, circuit quarantine and controller handover",
+    "Repository-scoped GitHub App provisioning",
+    "Conversational publication, activation, native and Telegram receipts, ten-minute probation and injected rollback"
+  ]
+}

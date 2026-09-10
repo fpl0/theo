@@ -2,12 +2,19 @@
 
 All handlers pass through owner/run/generation grants in `tools/broker.py` and lease/privacy checks in `tools/authorization.py`. `tools/registry.py` binds each strict schema to a capability handler and an explicit read/write/outbound receipt policy. Implementations live in `tools/handlers/`; they receive an authorized invocation rather than the broker.
 
-The current catalogue contains **51 tools: 33 baseline tools and 18 additions**. Schema JSON is generated from the Pydantic catalog in [tool-schemas.json](tool-schemas.json). Run `uv run python scripts/export_tool_schemas.py` after intentionally changing a tool contract; the architecture tests detect stale documentation. All 33 baseline handlers are exercised by the contract fixture; live channel/provider operation remains a separate gate.
+The current catalogue contains **60 tools: 33 baseline tools and 27 additions**. Schema JSON is generated from the Pydantic catalog in [tool-schemas.json](tool-schemas.json). Run `uv run --no-sync python scripts/export_tool_schemas.py` after intentionally changing a tool contract; the architecture tests detect stale documentation. All 33 baseline handlers are exercised by the contract fixture; live channel/provider operation remains a separate gate.
 
 | Tool | Baseline | Behaviour |
 |---|---|---|
-| `send_message` | Yes | Queue an owner message; committed means queued, never sent. |
-| `reply` | Yes | Queue a reply retaining its message reference. |
+| `host_command` | Additional | Request a command anywhere on the host, including optional privileged execution. Fixed diagnostics use standing permission; general commands require exact private-owner approval. Inspect `action_status` for the exit code and output. |
+| `maintenance_begin` | Additional | Commit a maintenance intent and durable coding/review jobs for the configured repository and installation. |
+| `maintenance_submit` | Additional | Freeze the calling coding job's source revision and queue independent verification. |
+| `maintenance_review` | Additional | Submit independent review evidence from the host-created review job for the exact candidate. |
+| `maintenance_status` | Additional | Inspect actual stages, candidate identity, check receipts and blockers. |
+| `maintenance_cancel` | Additional | Cancel maintenance, recovering an activated release before declaring cancellation. |
+| `maintenance_rollback` | Additional | Request deterministic recovery of the recorded previous compatible bundle. |
+| `send_message` | Yes | Queue an owner message; committed means queued, never sent. Prefer for ordinary conversation; omit `reply_to` unless a reference clarifies the answer. |
+| `reply` | Yes | Queue a quoted reply to distinguish questions or refer back to an earlier message. `reply_to` selects a known Telegram message ID; otherwise it references the current input. |
 | `forward` | Yes | Forward an existing Telegram message through the action ledger. |
 | `edit_message` | Yes | Edit an exact Telegram message. |
 | `delete_message` | Yes | Request reviewed deletion of a Telegram message. |
@@ -29,7 +36,9 @@ The current catalogue contains **51 tools: 33 baseline tools and 18 additions**.
 | `react` | Yes | React to a specific message. |
 | `get_reactions` | Yes | Read reactions observed by the bot; absence is unknown. |
 | `schedule_task` | Yes | Persist a reminder before promising it; an omitted timezone uses the owner's configured timezone. |
-| `list_tasks` | Yes | List persisted schedules. |
+| `list_tasks` | Yes | List persisted reminder schedules; use `get_status` for the job queue. |
+| `get_status` | Additional | Read current job counts, unfinished work and pause controls, excluding the reporting request. Private chat sees owner work; groups see only their topic. |
+| `runtime_control` | Additional | Pause/resume a granted operational scope in private owner-requested work. Requires the current control revision from `get_status`; cannot change standing policy or qualification. |
 | `delete_task` | Yes | Cancel a schedule without deleting its history. |
 | `remember` | Yes | Save an inference or propose a reviewed correction; no silent overwrite. |
 | `recall` | Yes | Search current active SQLite memory. |
@@ -61,3 +70,13 @@ The current catalogue contains **51 tools: 33 baseline tools and 18 additions**.
 Mutating tools report committed, ready, awaiting approval, pending review, failed or uncertain outcomes; queued delivery is not a successful remote send. `get_reactions` reports only observed feedback and marks completeness false. Generated commands require the verified Mac boundary. Model-facing tools do not activate skills, review their own corrections, edit billing/isolation configuration or promote production releases.
 
 Outbound schemas accept `destination_id` for an explicitly registered destination; legacy `target` resolves through the same routing checks. Cross-destination sends retain approval requirements. Polls default to non-anonymous so owner answers can be observed where Telegram permits them. See [Telegram](telegram.md) for visibility and review behavior.
+
+`get_status` reads the same queue projection used by `/status`. It returns an observation time, counts by job status, pause controls, and a bounded page of unfinished jobs with their kind, lane, state, summary and timing. `limit` defaults to 20 (maximum 50); use `offset` to continue when `has_more` is true. Counts cover all visible work even when the page is truncated. Summaries are bounded untrusted evidence. Empty actions, goals or reminder schedules do not imply an empty job queue. The snapshot does not establish native account eligibility or deployment qualification; workers should use this tool instead of trying to run the operator CLI against protected core state.
+
+`runtime_control` accepts `scope`, `paused`, `reason`, and `expected_revision` from
+the latest `get_status.runtime_control_revision`. Grants come from the operator's
+`model_runtime_controls` configuration and the host-created requested-work context.
+Autonomous jobs and groups cannot change global controls. `background` updates both
+`autonomy` and `requested_work`; other scopes are `models`, `deployments`, and
+`notifications`. Replaying a call returns its original revision receipt; a later
+change needs a fresh status/revision. Readiness policy is shared with owner commands.

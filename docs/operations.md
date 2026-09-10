@@ -22,7 +22,27 @@ Generated commands require the Mac sandbox. They cannot change the protected dat
 
 ## Account evidence
 
-Log in through official native subscription workflows under the runner identity. Do not pass API keys or copy credential files into Theo's database. Inspect effective account billing controls, turn off extra usage/on-demand/top-ups, and establish that an included allowance ends at a hard stop. A display label or a balance alone does not prove eligibility.
+Log in through official native subscription workflows under the runner identity. Do not pass API keys or copy credential files into Theo's database.
+
+**Codex with ChatGPT Plus or Pro verifies access automatically.** Before every
+turn, the isolated App Server checks the signed-in identity, the selected model's
+catalogue entry, fresh included allowance and the absence of available paid
+credits. It repeats account/allowance checks every 30 seconds during a turn and
+stops on quota or credit-state changes. Missing, stale or unknown measurements
+stop inference and preserve the job. There is no daily manual renewal for this
+route; saved observations cannot authorize a later turn. Spark's separate quota
+pool is not supported by this automatic route.
+
+These observations do not prove that provider purchase or automatic top-up
+settings are disabled. They enforce admission using the current native allowance
+and credit state, with no API-key, paid-credit or alternate-provider fallback.
+Provider-side changes between observations remain outside Theo's control.
+The protocol is documented in [Codex App Server](https://learn.chatgpt.com/docs/app-server#6-rate-limits-chatgpt).
+
+Other native backends use the operator evidence workflow below. Inspect effective
+account billing controls, turn off extra usage/on-demand/top-ups, and establish
+that an included allowance ends at a hard stop. A display label or a balance alone
+does not prove eligibility for that workflow.
 
 The exact evidence fields are:
 
@@ -43,7 +63,7 @@ The exact evidence fields are:
 }
 ```
 
-This is a format example, **not qualifying evidence**. `theo accounts verify claude --evidence /path/evidence.json` reports current version/fingerprints if they differ. Populate the evidence only from actual observations, then run verification again. Eligible evidence expires after 24 hours or any runtime/configuration change. Codex additionally checks App Server `account/read` for ChatGPT subscription authentication. Runtime upgrades must pass fresh contract canaries.
+This is a format example, **not qualifying evidence**. `theo accounts verify claude --evidence /path/evidence.json` reports current version/fingerprints if they differ. Populate the evidence only from actual observations, then run verification again. This manually verified evidence expires after 24 hours or any runtime/configuration change. Codex uses the live checks described above. Runtime upgrades must pass fresh contract canaries.
 
 `theo accounts list`, `theo models list` and `/usage` distinguish unknown telemetry from exhausted allowance. After observing renewed included allowance, `theo accounts quota BACKEND --available` records that explicit operator confirmation across its shared pools. Reverify stale login/billing evidence, then inspect and resume with `theo jobs retry JOB_ID`. An uncertain effect must be reconciled first. There is no automatic paid or cross-provider fallback. Choose another verified route using `/backend BACKEND MODEL` or local `chat` flags.
 
@@ -59,7 +79,62 @@ uv run --no-sync theo runs inspect RUN_ID
 uv run --no-sync theo actions inspect ACTION_ID
 ```
 
-Telegram offers status, model selection, jobs, schedules, reminders, memory review, approvals and delivery recovery. See the [complete control reference](telegram.md#controls). Status and due reminders do not wait for model slots; notifications still honor delivery pauses and quarantine. Background resumption requires recorded production qualification; ordinary requested conversation work can run after account/isolation checks.
+Telegram offers status, model selection, jobs, schedules, reminders, memory review, approvals and delivery recovery. See the [complete control reference](telegram.md#controls). Status and due reminders do not wait for model slots; notifications still honor delivery pauses and quarantine. Ordinary requested conversation work runs after account/isolation checks. Background admission follows the explicit operating policy below.
+
+### Host access and confirmations
+
+The owner can enable `host_access_enabled` for private host administration. The
+`host_command` tool accepts an absolute executable, arguments, working directory,
+timeout and explanation. It can operate outside job workspaces. The native model
+and maintenance test processes retain their existing isolation.
+
+Exact built-in diagnostics (`id`, `uname -a`, `df -h`, `uptime`, `sw_vers` and
+`vm_stat`, with the executable paths advertised by the tool) run under standing
+permission. General commands can read private data, modify files, make network
+requests or execute code, so they require a private `/review` approval bound to the
+exact command, identity and expiry. Theo cannot mark its own command as safe.
+Arguments must not contain credentials. The result records the exit code and bounded
+output; a queued action does not establish execution and a nonzero exit does not
+establish that nothing changed. Uncertain commands are not replayed automatically.
+
+Privileged commands additionally require `as_root=true` and a separately installed,
+root-owned `host_root_launcher`. Its wrapper must use a pinned root-owned Python
+with isolated mode (`-I`) to run `execution/host_launcher.py`; its Python environment,
+script and every parent directory must be non-writable by the core and runner.
+Permit only the exact wrapper with no command-line arguments for the core service
+identity in sudoers. Candidate sandboxes must be canary-tested against this path
+before enabling it. The launcher reads the approved request over stdin and enforces
+an independent deadline. Installing this privileged path is a separate host setup
+operation, and setting a path alone does not establish root access.
+
+### Operating permission and pause scopes
+
+`operating_mode="qualified"` preserves the original deployment-evidence gate.
+An operator may explicitly select `operating_mode="owner_authorized"` to permit
+requested tasks and bounded autonomy before the complete seven-day qualification.
+This mode still requires configured native routing and verified isolation; every
+inference attempt independently checks the native account and included allowance.
+It never changes qualification records or reports an unobserved soak as complete.
+
+Use `theo control status`, `theo control pause SCOPE`, and
+`theo control resume SCOPE` for deterministic local controls. Scopes are `autonomy`,
+`requested_work`, `models`, `deployments`, and `notifications`; `background` is an
+alias for autonomy plus requested work. Model pauses stop all inference, while
+requested reminders retain their existing delivery path. A service pause is still
+a separate supervisor operation. Interactive terminal `/resume NAME` continues to
+select a conversation; use the operator CLI to change operating controls locally.
+
+Set `model_runtime_controls` to the scope names Theo is allowed to change under
+standing permission, for example `["autonomy", "requested_work", "deployments"]`.
+The default empty list grants no model control authority. The `runtime_control`
+tool is restricted to private owner-requested jobs, records an audit event, and
+checks a status revision to avoid overwriting a newer owner pause. Source-editing,
+GitHub publication, and deployment are separate maintenance capabilities.
+
+Upgrading preserves an existing background pause as both autonomy and requested
+work paused. Requested child jobs inherit their parent's origin even when they use
+background capacity. Pausing unsolicited autonomy therefore need not pause a
+requested coding task. Configuration changes still require a daemon restart.
 
 Inspect an action's target, request and hash before deciding:
 

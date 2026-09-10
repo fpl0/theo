@@ -5,6 +5,8 @@ serialized fast-forward promotion against the owning job lease.
 """
 
 import asyncio
+import os
+import shutil
 from pathlib import Path
 
 from theo.backends.process import stop_process
@@ -93,11 +95,42 @@ async def execute_scoped(
 
     if settings.worker_home is None:
         raise Denied("Configure a verified native runner before executing generated code")
-    command, options = launch_options(settings, data_root, workspace, argv, generated=True)
+    environment = worker_environment(settings.worker_home, runner_uid=settings.runner_uid)
+    scratch = workspace / ".theo/command"
+    environment.update(
+        {
+            "HOME": str(scratch / "home"),
+            "TMPDIR": str(scratch / "tmp"),
+            "THEO_TEST_SOCKET_ROOT": str(scratch / "tmp"),
+            "XDG_CACHE_HOME": str(scratch / "cache"),
+            "UV_CACHE_DIR": str(scratch / "cache/uv"),
+            "UV_PYTHON_DOWNLOADS": "never",
+            "UV_OFFLINE": "1",
+            "THEO_TEST_OFFLINE": "1",
+            "HF_HUB_OFFLINE": "1",
+            "HF_HUB_DISABLE_TELEMETRY": "1",
+            "PATH": str(workspace / ".venv/bin")
+            + os.pathsep
+            + environment.get("PATH", "/usr/bin:/bin"),
+        }
+    )
+    executable = Path(argv[0])
+    if not executable.is_absolute():
+        selected = (
+            str(workspace / executable)
+            if "/" in argv[0]
+            else shutil.which(argv[0], path=environment["PATH"])
+        )
+        if selected is None:
+            raise Denied("Command executable is unavailable in the job environment")
+        argv = [selected, *argv[1:]]
+    command, options = launch_options(
+        settings, data_root, workspace, argv, generated=True, command_scratch=True
+    )
     process = await asyncio.create_subprocess_exec(
         *command,
         cwd=workspace,
-        env=worker_environment(settings.worker_home, runner_uid=settings.runner_uid),
+        env=environment,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
         start_new_session=True,

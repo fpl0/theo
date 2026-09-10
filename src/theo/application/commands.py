@@ -17,6 +17,8 @@ from theo.domain import (
     Json,
     encode,
 )
+from theo.operations.controls import Controls
+from theo.privacy import group_scope
 from theo.storage import Database
 
 
@@ -46,6 +48,7 @@ class ConversationCommands:
                         text,
                         f"final:{job['id']}",
                         reply=json.loads(incoming["body"]).get("reply") if incoming else None,
+                        job_id=job["id"],
                     )
                 except (Denied, ValueError) as exc:
                     await TelegramUI(self.db, self.settings).card(
@@ -58,7 +61,7 @@ class ConversationCommands:
                         (encode({"command": True}), self.db.clock(), job["id"]),
                     )
                     continue
-            response = await self.command(job["conversation_id"], text)
+            response = await self.command(job["conversation_id"], text, job_id=job["id"])
 
             def complete(db: sqlite3.Connection, job: Json = job, response: str = response) -> None:
                 Delivery(self.db, self.settings).prepare_in(
@@ -77,26 +80,31 @@ class ConversationCommands:
 
             await self.db.write(complete)
 
-    async def command(self, conversation: str, text: str) -> str:
+    async def command(self, conversation: str, text: str, *, job_id: str | None = None) -> str:
         pieces = text.strip().split()
         command = pieces[0].split("@")[0]
         if command in ("/help", "/start"):
-            return "Theo commands: /status /backend [name model] /models /jobs /cancel <job-id> /pause [background|models|notifications] /resume [scope] /memory [query] /goals /usage /help. Requested reminders remain active during background pause."
+            return "Theo commands: /status /backend [name model] /models /jobs /cancel <job-id> /pause [background|autonomy|requested_work|models|deployments|notifications] /resume [scope] /memory [query] /goals /usage /help. Requested reminders remain active during background pause."
         if command == "/cancel" and len(pieces) == 2:
             await self.cancel(pieces[1])
             return "Cancellation recorded. Already dispatched effects remain inspectable."
         if command in ("/pause", "/resume"):
             scope = pieces[1] if len(pieces) > 1 else "background"
-            if scope not in ("background", "models", "notifications"):
-                return "Choose background, models or notifications."
-            if command == "/resume" and scope == "background":
-                from theo.operations.qualification import qualification_status
-
-                if not (await qualification_status(self.db, self.settings))["production_qualified"]:
-                    return "Background activation requires recorded native, Mac, behaviour and seven-day deployment qualification."
-            await self.db.set_control(
-                self.owner, scope + "_paused", "true" if command == "/pause" else "false"
-            )
+            if scope not in (
+                "background",
+                "autonomy",
+                "requested_work",
+                "models",
+                "deployments",
+                "notifications",
+            ):
+                return "Choose background, autonomy, requested_work, models, deployments or notifications."
+            try:
+                await Controls(self.db, self.settings).set(
+                    scope, command == "/pause", "Explicit owner command", conversation=conversation
+                )
+            except Denied as exc:
+                return str(exc)
             return f"{scope.capitalize()} {'paused' if command == '/pause' else 'resumed'}. Requested reminder schedules are preserved."
         if command == "/backend":
             if len(pieces) == 3:
@@ -142,5 +150,12 @@ class ConversationCommands:
                 )
             )
         if command == "/status":
-            return encode(await status(self.db, self.settings))
+            return encode(
+                await status(
+                    self.db,
+                    self.settings,
+                    scope=await group_scope(self.db, conversation),
+                    exclude_job_id=job_id,
+                )
+            )
         return "Unknown command. Use /help."

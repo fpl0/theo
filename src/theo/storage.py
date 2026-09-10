@@ -120,14 +120,18 @@ class Database:
     async def execute(self, sql: str, args: Sequence[Any] = ()) -> int:
         return await self.write(lambda db: db.execute(sql, args).rowcount)
 
-    async def initialize(self, owner: str = "owner", timezone: str = "Europe/Dublin") -> None:
+    async def migrate(self, directory: Path) -> None:
+        """Apply bundled checksummed SQL; filesystem reads happen before the writer call."""
+        sources = [
+            (int(path.name.split("_")[0]), path.read_text())
+            for path in sorted(directory.glob("*.sql"))
+        ]
+
         def migrate(db: sqlite3.Connection) -> None:
             db.execute(
                 "CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY, checksum TEXT NOT NULL, applied_at REAL NOT NULL)"
             )
-            for path in sorted((Path(__file__).parent / "migrations").glob("*.sql")):
-                version = int(path.name.split("_")[0])
-                source = path.read_text()
+            for version, source in sources:
                 checksum = hashlib.sha256(source.encode()).hexdigest()
                 existing = db.execute(
                     "SELECT checksum FROM schema_migrations WHERE version=?", (version,)
@@ -150,6 +154,9 @@ class Database:
 
         await self._call(migrate)
 
+    async def initialize(self, owner: str = "owner", timezone: str = "Europe/Dublin") -> None:
+        await self.migrate(Path(__file__).parent / "migrations")
+
         def seed(db: sqlite3.Connection) -> None:
             db.execute(
                 "INSERT INTO owners VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET timezone=excluded.timezone",
@@ -164,6 +171,10 @@ class Database:
                 ("notifications_paused", "false"),
                 ("quarantined", "false"),
                 ("models_paused", "false"),
+                ("autonomy_paused", "true"),
+                ("requested_work_paused", "true"),
+                ("deployments_paused", "false"),
+                ("runtime_control_revision", "0"),
             ):
                 db.execute("INSERT OR IGNORE INTO control VALUES(?,?,?)", (owner, key, value))
 
@@ -174,10 +185,41 @@ class Database:
         return str(row["value"]) if row else None
 
     async def set_control(self, owner: str, key: str, value: str) -> None:
-        await self.execute(
-            "INSERT INTO control VALUES(?,?,?) ON CONFLICT(owner_id,key) DO UPDATE SET value=excluded.value",
-            (owner, key, value),
-        )
+        await self.write(lambda db: self.set_control_in(db, owner, key, value))
+
+    @staticmethod
+    def set_control_in(db: sqlite3.Connection, owner: str, key: str, value: str) -> int:
+        """Apply a host control and its compatibility projection atomically."""
+        query = "INSERT INTO control VALUES(?,?,?) ON CONFLICT(owner_id,key) DO UPDATE SET value=excluded.value"
+        db.execute(query, (owner, key, value))
+        if key == "background_paused":
+            for child in ("autonomy_paused", "requested_work_paused"):
+                db.execute(query, (owner, child, value))
+        elif key in ("autonomy_paused", "requested_work_paused"):
+            paused = db.execute(
+                "SELECT 1 FROM control WHERE owner_id=? AND key IN ('autonomy_paused','requested_work_paused') AND value='true'",
+                (owner,),
+            ).fetchone()
+            db.execute(query, (owner, "background_paused", "true" if paused else "false"))
+        if key in {
+            "background_paused",
+            "autonomy_paused",
+            "requested_work_paused",
+            "models_paused",
+            "deployments_paused",
+            "notifications_paused",
+            "maintenance_draining",
+            "quarantined",
+        }:
+            db.execute(
+                "INSERT INTO control VALUES(?,'runtime_control_revision','1') ON CONFLICT(owner_id,key) DO UPDATE SET value=CAST(CAST(control.value AS INTEGER)+1 AS TEXT)",
+                (owner,),
+            )
+        row = db.execute(
+            "SELECT value FROM control WHERE owner_id=? AND key='runtime_control_revision'",
+            (owner,),
+        ).fetchone()
+        return int(row[0]) if row else 0
 
     async def health(self, owner: str, kind: str, detail: Json) -> None:
         from theo.observability.telemetry import event

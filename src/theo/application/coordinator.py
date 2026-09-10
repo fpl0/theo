@@ -197,6 +197,9 @@ class Coordinator:
                     run_id=run_id,
                     generation=job["generation"],
                     workspace=workspace,
+                    control_scopes=frozenset(self.settings.model_runtime_controls)
+                    if job["origin"] == "requested"
+                    else frozenset(),
                     tools=frozenset(
                         {
                             "recall",
@@ -207,6 +210,10 @@ class Coordinator:
                         }
                     )
                     if job["kind"] == "critic"
+                    else frozenset({"file_read", "maintenance_review", "maintenance_status"})
+                    if job["kind"] == "maintenance_review"
+                    else frozenset({"get_status"})
+                    if job["kind"] == "maintenance_canary"
                     else frozenset(REGISTRY),
                 )
                 token = self.broker.grant(tool_context)

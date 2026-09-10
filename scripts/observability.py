@@ -14,6 +14,8 @@ from pathlib import Path
 import httpx
 import psutil
 
+from theo.observability.budget import MEMORY_BUDGET_BYTES
+
 ROOT = Path(__file__).resolve().parents[1]
 STACK = ROOT / "observability"
 STATE = ROOT / ".local/observability"
@@ -154,9 +156,11 @@ def check():
     queries = 0
     log_queries = 0
     errors = []
-    configured = httpx.get("http://127.0.0.1:13000/api/datasources/uid/tempo", timeout=5).json()[
-        "jsonData"
-    ]["tracesToLogsV2"]
+    configured = httpx.get(
+        "http://127.0.0.1:13000/api/datasources/uid/tempo",
+        timeout=5,
+        auth=("admin", credentials()["GRAFANA_ADMIN_PASSWORD"]),
+    ).json()["jsonData"]["tracesToLogsV2"]
     trace_query = (
         configured.get("query", "")
         .replace("${__tags}", 'deployment_environment_name="local"')
@@ -219,7 +223,8 @@ def check():
         log_queries=log_queries,
         query_errors=errors,
         whole_stack_memory_verified=qualification.exists()
-        and json.loads(qualification.read_text()).get("passed") is True,
+        and json.loads(qualification.read_text()).get("passed") is True
+        and json.loads(qualification.read_text()).get("budget_bytes") == MEMORY_BUDGET_BYTES,
     )
     rule_queries = 0
     for group in json.loads((STACK / "grafana/provisioning/alerting/rules.yaml").read_text())[
@@ -247,7 +252,14 @@ def check():
                                 {
                                     "expr": "(" + rule["data"][0]["model"]["expr"] + ") > 0",
                                     "eval_time": "10m",
-                                    "exp_samples": [{"labels": "{}", "value": 1}]
+                                    "exp_samples": [
+                                        {
+                                            "labels": '{environment="'
+                                            + case.get("environment", "local")
+                                            + '"}',
+                                            "value": 1,
+                                        }
+                                    ]
                                     if case["should_alert"]
                                     else [],
                                 }

@@ -22,7 +22,10 @@ def launch_options(
     command: list[str],
     *,
     generated: bool = False,
+    command_scratch: bool = False,
 ) -> tuple[list[str], Json]:
+    if command_scratch and not generated:
+        raise ValueError("Command scratch is limited to generated-code execution")
     if not settings.isolation_verified or settings.worker_home is None:
         raise Denied(
             "Native execution requires a verified isolated runner; run theo isolation verify"
@@ -47,8 +50,20 @@ def launch_options(
             workspace,
             generated=generated,
             runtime_executable=executable,
+            worker_runtime=settings.worker_python.parent.parent if settings.worker_python else None,
         )
-        return ["/usr/bin/sandbox-exec", "-p", profile, str(executable), *command[1:]], {}
+        arguments = [str(executable), *command[1:]]
+        if command_scratch:
+            # Create caches only after entering the sandbox. Candidate-created
+            # scratch symlinks must never redirect writes by the core itself.
+            arguments = [
+                "/bin/sh",
+                "-c",
+                'umask 007; /bin/mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" || exit; exec "$@"',
+                "theo-command",
+                *arguments,
+            ]
+        return ["/usr/bin/sandbox-exec", "-p", profile, *arguments], {}
     raise Denied("No qualified OS execution boundary on this host")
 
 
@@ -59,6 +74,7 @@ def sandbox_profile(
     *,
     generated: bool = False,
     runtime_executable: Path | None = None,
+    worker_runtime: Path | None = None,
 ) -> str:
     import json
 
@@ -70,17 +86,26 @@ def sandbox_profile(
     runtime_exception = (
         f" (require-not (literal {quote(runtime_executable)}))" if runtime_executable else ""
     )
+    worker_exception = f" (require-not (subpath {quote(worker_runtime)}))" if worker_runtime else ""
+    if worker_runtime and worker_runtime.resolve().is_relative_to(root.resolve()):
+        raise Denied("Worker runtime must remain outside protected core state")
     profile = (
         f"(version 1)(allow default)(deny file-read* file-write* (subpath {quote(root)}))"
-        f"(deny file-read* (require-all (subpath {quote(Path.home())}) (require-not (subpath {quote(runner)})) (require-not (subpath {quote(Path(sys.prefix))})) (require-not (subpath {quote(Path(sys.base_prefix))})) (require-not (subpath {quote(Path(__file__).resolve().parents[2])})){runtime_exception}))"
+        f"(deny file-read* (require-all (subpath {quote(Path.home())}) (require-not (subpath {quote(runner)})) (require-not (subpath {quote(Path(sys.prefix))})) (require-not (subpath {quote(Path(sys.base_prefix))})) (require-not (subpath {quote(Path(__file__).resolve().parents[2])})){runtime_exception}{worker_exception}))"
         f"(allow file-read-metadata (literal {quote(Path.home())}))"
         f"(deny file-read* file-write* (require-all (subpath {quote(runner / 'workspaces')}) (require-not (subpath {quote(work)}))))"
-        f'(deny file-write* (require-all (require-not (subpath {quote(runner)})) (require-not (literal "/dev/null"))))'
-        '(deny process-exec (literal "/bin/launchctl") (literal "/bin/launchd") (literal "/usr/bin/security"))'
+        f'(deny file-write* (require-all (require-not (subpath {quote(runner)})) (require-not (subpath {quote(work)})) (require-not (literal "/dev/null"))))'
+        '(deny process-exec (literal "/bin/launchctl") (literal "/bin/launchd") (literal "/usr/bin/security") (literal "/usr/bin/sudo") (literal "/usr/bin/su") (literal "/bin/su"))'
         "(deny mach-priv*)(deny process-info* (require-not (target self)))(deny signal)"
     )
     if generated:
         profile += f"(deny network*)(deny file-read* file-write* (require-all (subpath {quote(runner)}) (require-not (subpath {quote(work)}))))"
+        # Offline broker/protocol tests need IPC within their own workspace.
+        # No Internet, loopback TCP, or external Unix endpoint is authorized.
+        profile += (
+            f"(allow network-bind (local unix-socket (subpath {quote(work)})))"
+            f"(allow network-outbound (remote unix-socket (subpath {quote(work)})))"
+        )
     # SQLite and native runtimes resolve every parent directory before opening
     # state files. Permit only ancestor metadata, never listing or file contents.
     for ancestor in work.resolve().parents:

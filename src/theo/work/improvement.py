@@ -111,6 +111,7 @@ class Critic:
                 {"text": prompt, "action_id": row["id"], "request_hash": row["request_hash"]},
                 "critic:" + row["id"],
                 deadline=self.db.clock() + 120,
+                origin="system",
             )
             queued += 1
         return queued

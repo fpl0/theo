@@ -159,7 +159,11 @@ reminders can become delivery obligations directly, without claiming a model slo
   and stops owned process trees. Recovery validates process birth time as well as
   PID; never kill an unrelated process based on a stale PID alone.
 - Native eligibility is bound to account, included model, runtime/configuration
-  fingerprint, and expiring evidence. Keep hard stops and explicit operator retry
+  fingerprint, and fresh evidence. Codex obtains live subscription, catalogue,
+  allowance and credit-state evidence before each turn and monitors it during
+  inference; it does not require a daily manual attestation. Other adapters retain
+  expiring operator evidence. Never turn native observations into claims about
+  provider billing settings that were not observed. Keep hard stops and explicit operator retry
   after auth/quota recovery. Missing allowance data stays unknown, not zero.
   Do not weaken these gates to make a test or demo pass.
 
@@ -306,7 +310,7 @@ seven-day service evidence; passing CI or setting configuration flags cannot
 substitute for it. Unattended self-patch deployment remains unqualified.
 
 The optional local Grafana/Alloy/Prometheus/Loki/Tempo stack is separate from the
-assistant runtime. Its **whole-host budget is 2,000,000,000 bytes**, including VM,
+assistant runtime. Its **whole-host budget is 4,000,000,000 bytes**, including VM,
 Docker, observer, and host helpers. The observer is read-only and must not create
 or migrate a database. Keep telemetry queues/retention bounded and export failure
 off the execution path. Exclude prompts, message text, tool arguments, credentials,

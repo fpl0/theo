@@ -94,6 +94,17 @@ async def execute(args: argparse.Namespace) -> Any:
             return await doctor(db, settings)
         if args.command == "status":
             return await status(db, settings)
+        if args.command == "control":
+            from theo.operations.controls import Controls
+
+            controls = Controls(db, settings)
+            if args.operation == "status":
+                return {
+                    **await controls.snapshot(),
+                    "readiness": await controls.readiness(),
+                    "model_runtime_controls": settings.model_runtime_controls,
+                }
+            return await controls.set(args.scope, args.operation == "pause", args.reason)
         if args.command == "serve":
             if bool(settings.telegram_owner_id) != bool(settings.telegram_chat_id):
                 raise Denied("Telegram requires both an exact owner ID and chat ID")

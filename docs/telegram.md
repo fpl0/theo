@@ -42,13 +42,17 @@ Each topic has its own conversation. Group retrieval excludes private memory, fa
 - `/review` presents action approvals and proposed memory/fact changes in the private chat.
 - `/actions [PAGE]` exposes delivery details and uncertainty. Confirm no effect only after checking the destination yourself.
 - `/delivered ACTION_ID CHUNK_ID [MESSAGE_IDS]` records an owner-verified receipt for an uncertain delivery; see the recovery instructions below.
-- `/pause [background|models|notifications]` and `/resume [SCOPE]` retain the core's activation gates.
+- `/pause [background|autonomy|requested_work|models|deployments|notifications]` and `/resume [SCOPE]` use the core's operating policy. `background` controls both autonomy and requested work; the narrower scopes can be changed separately.
 
 Pages are zero-indexed in commands and one-indexed in displayed labels. Button capabilities expire after an hour and bind to the actual review message, owner, operation and object state. Open a fresh view after expiry. Interrupted button operations are not blindly repeated; inspect the resulting object before retrying.
+
+`/status` excludes its own command from the work counts and explicitly shows `queued: 0` when nothing else is queued. Private-chat counts cover the owner's work; group counts cover only that topic. Theo can inspect the same queue through the read-only `get_status` tool when asked what is waiting, including background jobs and work waiting for authentication or quota. Reminder schedules, pending actions and goals are separate records, so their absence says nothing about the job queue.
 
 ## Messages, media and delivery
 
 Inbound updates are durably received before polling acknowledges them. Replies retain quoted context; edits retain immutable revisions. Editing queued work replaces its input. Editing work that already started fences that run and admits a correction; previous effects are preserved and cannot be automatically repeated by correction tools.
+
+Ordinary private-chat answers appear as plain messages. Theo adds a quoted reference when answering an earlier input after another message has arrived, or when explicitly referring back to a particular message. Group answers retain their message and topic references. Incoming quotes still supply context without requiring Theo to quote every answer. A prepared answer keeps its original reference choice during retries.
 
 Albums wait for one second of inactivity, up to five seconds. Late members are separate follow-ups. Original media is retained; extraction state distinguishes ready, unsupported, oversized and failed. Speech uses local assets. Video uses at most eight timestamped samples and available audio transcription, with partial coverage disclosed.
 

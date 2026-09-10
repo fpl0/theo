@@ -1,5 +1,11 @@
 {
   "apiVersion": 1,
+  "deleteRules": [
+    {
+      "orgId": 1,
+      "uid": "theo-codex-evidence-expiring"
+    }
+  ],
   "groups": [
     {
       "orgId": 1,
@@ -12,16 +18,21 @@
           "title": "Theo core unavailable",
           "condition": "C",
           "for": "2m",
-          "noDataState": "NoData",
-          "execErrState": "Error",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "KeepLast",
+          "execErrState": "KeepLast",
           "annotations": {
             "summary": "Theo core unavailable",
-            "description": "Inspect native Theo logs and heartbeat; the observer remains independent.",
-            "runbook_url": "http://localhost:13000/d/theo-overview"
+            "description": "Inspect the core heartbeat and supervisor recovery log on this host.",
+            "measurement": "{{ with $values.B }}{{ printf \"%.3g\" .Value }}{{ else }}unavailable{{ end }} ready (1=yes)"
           },
           "labels": {
             "service": "theo",
-            "severity": "critical"
+            "severity": "critical",
+            "incident": "availability",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
           },
           "data": [
             {
@@ -33,7 +44,23 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "max(theo_core_ready) < bool 1",
+                "expr": "(max by(environment)(theo_core_ready{environment=~\"local|production\"}) and on(environment) (max by(environment)(theo_database_readable{environment=~\"local|production\"}) == 1)) < bool 1",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "max by(environment)(theo_core_ready{environment=~\"local|production\"}) and on(environment) (max by(environment)(theo_database_readable{environment=~\"local|production\"}) == 1)",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,
@@ -75,19 +102,24 @@
         },
         {
           "uid": "theo-observer-missing",
-          "title": "Theo observer missing",
+          "title": "Theo monitoring unavailable",
           "condition": "C",
           "for": "2m",
-          "noDataState": "NoData",
-          "execErrState": "Error",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "Alerting",
+          "execErrState": "Alerting",
           "annotations": {
-            "summary": "Theo observer missing",
-            "description": "Restart the native observer and inspect its log.",
-            "runbook_url": "http://localhost:13000/d/theo-overview"
+            "summary": "Theo monitoring unavailable",
+            "description": "Check the observer and Prometheus. Existing incidents retain their last state while measurements are unavailable.",
+            "measurement": "{{ with $values.B }}{{ printf \"%.3g\" .Value }}{{ else }}unavailable{{ end }} observer reachable (1=yes)"
           },
           "labels": {
             "service": "theo",
-            "severity": "critical"
+            "severity": "critical",
+            "incident": "monitoring",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
           },
           "data": [
             {
@@ -99,7 +131,197 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "up{job=\"theo-observer\"} < bool 1",
+                "expr": "(min(up{job=\"theo-observer\"}) or vector(0)) < bool 1",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "min(up{job=\"theo-observer\"}) or vector(0)",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uid": "theo-observer-stale",
+          "title": "Theo monitoring snapshot stale",
+          "condition": "C",
+          "for": "2m",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "Alerting",
+          "execErrState": "KeepLast",
+          "annotations": {
+            "summary": "Theo monitoring snapshot stale",
+            "description": "Inspect the observer refresh loop; a reachable endpoint can still serve old measurements.",
+            "measurement": "{{ with $values.B }}{{ printf \"%.3g\" .Value }}{{ else }}unavailable{{ end }} seconds since refresh"
+          },
+          "labels": {
+            "service": "theo",
+            "severity": "critical",
+            "incident": "monitoring",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
+          },
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "(time()-max by(environment)(theo_observer_refresh_timestamp_seconds{environment=~\"local|production\"})) > bool 60",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "time()-max by(environment)(theo_observer_refresh_timestamp_seconds{environment=~\"local|production\"})",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uid": "theo-database-unreadable",
+          "title": "Theo monitoring cannot read state",
+          "condition": "C",
+          "for": "2m",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "Alerting",
+          "execErrState": "KeepLast",
+          "annotations": {
+            "summary": "Theo monitoring cannot read state",
+            "description": "Check the observer's read-only database access. Missing inventory must not be interpreted as completed work.",
+            "measurement": "{{ with $values.B }}{{ printf \"%.3g\" .Value }}{{ else }}unavailable{{ end }} database readable (1=yes)"
+          },
+          "labels": {
+            "service": "theo",
+            "severity": "critical",
+            "incident": "monitoring",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
+          },
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "(max by(environment)(theo_database_readable{environment=~\"local|production\"})) < bool 1",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "max by(environment)(theo_database_readable{environment=~\"local|production\"})",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,
@@ -144,16 +366,21 @@
           "title": "Theo queue stalled",
           "condition": "C",
           "for": "5m",
-          "noDataState": "OK",
-          "execErrState": "Error",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "KeepLast",
+          "execErrState": "KeepLast",
           "annotations": {
             "summary": "Theo queue stalled",
-            "description": "Inspect waiting jobs, Codex auth and allowance, and deliberate pause controls.",
-            "runbook_url": "http://localhost:13000/d/theo-overview"
+            "description": "Inspect queued jobs and deliberate pause controls.",
+            "measurement": "{{ with $values.B }}{{ printf \"%.3g\" .Value }}{{ else }}unavailable{{ end }} seconds queued"
           },
           "labels": {
             "service": "theo",
-            "severity": "warning"
+            "severity": "warning",
+            "incident": "work",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
           },
           "data": [
             {
@@ -165,7 +392,23 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "max(theo_queue_oldest_seconds) > bool 300",
+                "expr": "(max by(environment)(theo_queue_oldest_seconds{environment=~\"local|production\"}) and on(environment) (max by(environment)(theo_database_readable{environment=~\"local|production\"}) == 1)) > bool 300",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "max by(environment)(theo_queue_oldest_seconds{environment=~\"local|production\"}) and on(environment) (max by(environment)(theo_database_readable{environment=~\"local|production\"}) == 1)",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,
@@ -210,16 +453,21 @@
           "title": "Theo delivery stalled",
           "condition": "C",
           "for": "5m",
-          "noDataState": "OK",
-          "execErrState": "Error",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "KeepLast",
+          "execErrState": "KeepLast",
           "annotations": {
             "summary": "Theo delivery stalled",
-            "description": "Inspect Telegram API failures, retry delays and the delivery ledger.",
-            "runbook_url": "http://localhost:13000/d/theo-overview"
+            "description": "Inspect Telegram transport errors and the delivery ledger before retrying.",
+            "measurement": "{{ with $values.B }}{{ printf \"%.3g\" .Value }}{{ else }}unavailable{{ end }} seconds waiting"
           },
           "labels": {
             "service": "theo",
-            "severity": "warning"
+            "severity": "warning",
+            "incident": "delivery",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
           },
           "data": [
             {
@@ -231,7 +479,23 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "max(theo_outbox_oldest_seconds) > bool 300",
+                "expr": "(max by(environment)(theo_outbox_oldest_seconds{environment=~\"local|production\"}) and on(environment) (max by(environment)(theo_database_readable{environment=~\"local|production\"}) == 1)) > bool 300",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "max by(environment)(theo_outbox_oldest_seconds{environment=~\"local|production\"}) and on(environment) (max by(environment)(theo_database_readable{environment=~\"local|production\"}) == 1)",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,
@@ -276,16 +540,21 @@
           "title": "Theo uncertain delivery",
           "condition": "C",
           "for": "1m",
-          "noDataState": "OK",
-          "execErrState": "Error",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "KeepLast",
+          "execErrState": "KeepLast",
           "annotations": {
             "summary": "Theo uncertain delivery",
-            "description": "Reconcile the existing receipt before retrying; do not blindly resend.",
-            "runbook_url": "http://localhost:13000/d/theo-overview"
+            "description": "Reconcile the exact receipt; do not resend an uncertain delivery.",
+            "measurement": "{{ with $values.B }}{{ printf \"%.3g\" .Value }}{{ else }}unavailable{{ end }} uncertain actions"
           },
           "labels": {
             "service": "theo",
-            "severity": "warning"
+            "severity": "warning",
+            "incident": "delivery",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
           },
           "data": [
             {
@@ -297,7 +566,23 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "max(theo_actions_uncertain) > bool 0",
+                "expr": "(max by(environment)(theo_actions_uncertain{environment=~\"local|production\"}) and on(environment) (max by(environment)(theo_database_readable{environment=~\"local|production\"}) == 1)) > bool 0",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "max by(environment)(theo_actions_uncertain{environment=~\"local|production\"}) and on(environment) (max by(environment)(theo_database_readable{environment=~\"local|production\"}) == 1)",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,
@@ -342,16 +627,21 @@
           "title": "Theo Telegram poller stale",
           "condition": "C",
           "for": "2m",
-          "noDataState": "OK",
-          "execErrState": "Error",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "KeepLast",
+          "execErrState": "KeepLast",
           "annotations": {
             "summary": "Theo Telegram poller stale",
-            "description": "Check network and bot credentials; do not start a second poller.",
-            "runbook_url": "http://localhost:13000/d/theo-overview"
+            "description": "Check the core, network and bot credentials. Do not start a second poller.",
+            "measurement": "{{ with $values.B }}{{ printf \"%.3g\" .Value }}{{ else }}unavailable{{ end }} stale (1=yes)"
           },
           "labels": {
             "service": "theo",
-            "severity": "warning"
+            "severity": "warning",
+            "incident": "availability",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
           },
           "data": [
             {
@@ -363,7 +653,23 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "((time()-max(last_over_time(theo_telegram_poll_success_timestamp{environment=\"local\"}[24h])) > bool 120) or max(absent_over_time(theo_telegram_poll_success_timestamp{environment=\"local\"}[24h]))) and on() (max(theo_channel_configured{channel=\"telegram\",environment=\"local\"})==1)",
+                "expr": "((((time()-max by(environment)(last_over_time(theo_telegram_poll_success_timestamp{environment=~\"local|production\"}[24h])) > bool 120) or (max by(environment)(theo_channel_configured{environment=~\"local|production\",channel=\"telegram\"}) unless on(environment) max by(environment)(last_over_time(theo_telegram_poll_success_timestamp{environment=~\"local|production\"}[24h])))) and on(environment) (max by(environment)(theo_channel_configured{environment=~\"local|production\",channel=\"telegram\"})==1)) or on(environment) (0 * max by(environment)(theo_channel_configured{environment=~\"local|production\",channel=\"telegram\"}))) > bool 0",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "(((time()-max by(environment)(last_over_time(theo_telegram_poll_success_timestamp{environment=~\"local|production\"}[24h])) > bool 120) or (max by(environment)(theo_channel_configured{environment=~\"local|production\",channel=\"telegram\"}) unless on(environment) max by(environment)(last_over_time(theo_telegram_poll_success_timestamp{environment=~\"local|production\"}[24h])))) and on(environment) (max by(environment)(theo_channel_configured{environment=~\"local|production\",channel=\"telegram\"})==1)) or on(environment) (0 * max by(environment)(theo_channel_configured{environment=~\"local|production\",channel=\"telegram\"}))",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,
@@ -405,19 +711,24 @@
         },
         {
           "uid": "theo-codex-auth",
-          "title": "Theo Codex authentication required",
+          "title": "Theo model access requires attention",
           "condition": "C",
           "for": "1m",
-          "noDataState": "OK",
-          "execErrState": "Error",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "KeepLast",
+          "execErrState": "KeepLast",
           "annotations": {
-            "summary": "Theo Codex authentication required",
-            "description": "Reauthenticate through supported Codex subscription login.",
-            "runbook_url": "http://localhost:13000/d/theo-overview"
+            "summary": "Theo model access requires attention",
+            "description": "Inspect the waiting job's access error. Codex verifies login and included allowance automatically; resolve the reported condition, then explicitly retry the preserved job.",
+            "measurement": "{{ with $values.B }}{{ printf \"%.3g\" .Value }}{{ else }}unavailable{{ end }} blocked jobs"
           },
           "labels": {
             "service": "theo",
-            "severity": "warning"
+            "severity": "warning",
+            "incident": "model-access",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
           },
           "data": [
             {
@@ -429,7 +740,23 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "sum(theo_jobs_current{status=\"waiting_for_auth\"}) > bool 0",
+                "expr": "((sum by(environment)(theo_jobs_current{environment=~\"local|production\",status=\"waiting_for_auth\"}) or on(environment) (0 * (max by(environment)(theo_database_readable{environment=~\"local|production\"}) == 1))) and on(environment) (max by(environment)(theo_database_readable{environment=~\"local|production\"}) == 1)) > bool 0",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "(sum by(environment)(theo_jobs_current{environment=~\"local|production\",status=\"waiting_for_auth\"}) or on(environment) (0 * (max by(environment)(theo_database_readable{environment=~\"local|production\"}) == 1))) and on(environment) (max by(environment)(theo_database_readable{environment=~\"local|production\"}) == 1)",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,
@@ -471,19 +798,24 @@
         },
         {
           "uid": "theo-codex-quota",
-          "title": "Theo Codex allowance exhausted",
+          "title": "Theo model allowance exhausted",
           "condition": "C",
           "for": "1m",
-          "noDataState": "OK",
-          "execErrState": "Error",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "KeepLast",
+          "execErrState": "KeepLast",
           "annotations": {
-            "summary": "Theo Codex allowance exhausted",
-            "description": "Wait for reported allowance reset; no paid fallback.",
-            "runbook_url": "http://localhost:13000/d/theo-overview"
+            "summary": "Theo model allowance exhausted",
+            "description": "Wait for the reported allowance reset, then explicitly retry the preserved job. No paid fallback.",
+            "measurement": "{{ with $values.B }}{{ printf \"%.3g\" .Value }}{{ else }}unavailable{{ end }} blocked jobs"
           },
           "labels": {
             "service": "theo",
-            "severity": "warning"
+            "severity": "warning",
+            "incident": "model-access",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
           },
           "data": [
             {
@@ -495,7 +827,23 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "sum(theo_jobs_current{status=\"waiting_for_quota\"}) > bool 0",
+                "expr": "((sum by(environment)(theo_jobs_current{environment=~\"local|production\",status=\"waiting_for_quota\"}) or on(environment) (0 * (max by(environment)(theo_database_readable{environment=~\"local|production\"}) == 1))) and on(environment) (max by(environment)(theo_database_readable{environment=~\"local|production\"}) == 1)) > bool 0",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "(sum by(environment)(theo_jobs_current{environment=~\"local|production\",status=\"waiting_for_quota\"}) or on(environment) (0 * (max by(environment)(theo_database_readable{environment=~\"local|production\"}) == 1))) and on(environment) (max by(environment)(theo_database_readable{environment=~\"local|production\"}) == 1)",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,
@@ -540,16 +888,21 @@
           "title": "Theo host disk pressure",
           "condition": "C",
           "for": "5m",
-          "noDataState": "OK",
-          "execErrState": "Error",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "KeepLast",
+          "execErrState": "KeepLast",
           "annotations": {
             "summary": "Theo host disk pressure",
-            "description": "Inspect retention and telemetry disk use.",
-            "runbook_url": "http://localhost:13000/d/theo-overview"
+            "description": "Inspect retention and disk use before storage fills.",
+            "measurement": "{{ with $values.B }}{{ humanizePercentage .Value }}{{ else }}unavailable{{ end }} of disk used (threshold: 85%)"
           },
           "labels": {
             "service": "theo",
-            "severity": "warning"
+            "severity": "warning",
+            "incident": "resources",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
           },
           "data": [
             {
@@ -561,7 +914,23 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "max(theo_host_disk_used_ratio)> bool 0.85",
+                "expr": "(max by(environment)(theo_host_disk_used_ratio{environment=~\"local|production\"})) > bool 0.85",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "max by(environment)(theo_host_disk_used_ratio{environment=~\"local|production\"})",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,
@@ -603,19 +972,24 @@
         },
         {
           "uid": "theo-container-memory",
-          "title": "Theo observability memory pressure",
+          "title": "Theo container memory pressure",
           "condition": "C",
           "for": "5m",
-          "noDataState": "OK",
-          "execErrState": "Error",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "KeepLast",
+          "execErrState": "KeepLast",
           "annotations": {
-            "summary": "Theo observability memory pressure",
-            "description": "Inspect per-component queries and ingestion; total budget is 2 GB.",
-            "runbook_url": "http://localhost:13000/d/theo-overview"
+            "summary": "Theo container memory pressure",
+            "description": "Inspect this container's memory trend and OOM events. This is its own hard limit; the separate whole-stack budget is 4 GB.",
+            "measurement": "{{ with $values.B }}{{ humanizePercentage .Value }}{{ else }}unavailable{{ end }} of container limit (threshold: 90%)"
           },
           "labels": {
             "service": "theo",
-            "severity": "warning"
+            "severity": "warning",
+            "incident": "resources",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
           },
           "data": [
             {
@@ -627,7 +1001,23 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "max(theo_container_memory_bytes/theo_container_memory_limit_bytes)> bool 0.9",
+                "expr": "(max by(environment,component)(theo_container_memory_bytes{environment=~\"local|production\"}/theo_container_memory_limit_bytes{environment=~\"local|production\"})) > bool 0.9",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "max by(environment,component)(theo_container_memory_bytes{environment=~\"local|production\"}/theo_container_memory_limit_bytes{environment=~\"local|production\"})",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,
@@ -672,16 +1062,21 @@
           "title": "Theo telemetry backend unavailable",
           "condition": "C",
           "for": "2m",
-          "noDataState": "OK",
-          "execErrState": "Error",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "KeepLast",
+          "execErrState": "KeepLast",
           "annotations": {
             "summary": "Theo telemetry backend unavailable",
-            "description": "Inspect the affected Compose service and its native health endpoint.",
-            "runbook_url": "http://localhost:13000/d/theo-overview"
+            "description": "Inspect the affected Compose service and its health endpoint.",
+            "measurement": "{{ with $values.B }}{{ printf \"%.3g\" .Value }}{{ else }}unavailable{{ end }} backend reachable (1=yes)"
           },
           "labels": {
             "service": "theo",
-            "severity": "critical"
+            "severity": "critical",
+            "incident": "monitoring",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
           },
           "data": [
             {
@@ -693,7 +1088,23 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "up{job=\"infrastructure\"}< bool 1",
+                "expr": "(up{job=\"infrastructure\"}) < bool 1",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "up{job=\"infrastructure\"}",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,
@@ -735,19 +1146,24 @@
         },
         {
           "uid": "theo-alert-test",
-          "title": "Theo observability test",
+          "title": "Theo notification delivery test",
           "condition": "C",
           "for": "0s",
-          "noDataState": "OK",
-          "execErrState": "Error",
+          "keepFiringFor": "0s",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "KeepLast",
+          "execErrState": "KeepLast",
           "annotations": {
-            "summary": "Theo observability test",
-            "description": "Labelled local alert delivery and recovery test. No user action required.",
-            "runbook_url": "http://localhost:13000/d/theo-overview"
+            "summary": "Theo notification delivery test",
+            "description": "Explicit operator notification test. No recovery action is required.",
+            "measurement": "{{ with $values.B }}{{ printf \"%.3g\" .Value }}{{ else }}unavailable{{ end }} test marker (1=active)"
           },
           "labels": {
             "service": "theo",
-            "severity": "test"
+            "severity": "test",
+            "incident": "notification-test",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
           },
           "data": [
             {
@@ -759,7 +1175,23 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "max(theo_observability_test_alert)> bool 0",
+                "expr": "(max by(environment)(theo_observability_test_alert{environment=~\"local|production\"})) > bool 0",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "max by(environment)(theo_observability_test_alert{environment=~\"local|production\"})",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,
@@ -804,16 +1236,21 @@
           "title": "Theo whole-stack memory budget exceeded",
           "condition": "C",
           "for": "1m",
-          "noDataState": "OK",
-          "execErrState": "Error",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "KeepLast",
+          "execErrState": "KeepLast",
           "annotations": {
             "summary": "Theo whole-stack memory budget exceeded",
-            "description": "Inspect the Infrastructure dashboard. The budget includes the Docker VM and native observer.",
-            "runbook_url": "http://localhost:13000/d/theo-overview"
+            "description": "Inspect the Infrastructure dashboard. The 4 GB budget includes the VM, Docker, observer and host helpers.",
+            "measurement": "{{ with $values.B }}{{ humanize .Value }}B{{ else }}unavailable{{ end }} / 4 GB whole-stack budget"
           },
           "labels": {
             "service": "theo",
-            "severity": "critical"
+            "severity": "critical",
+            "incident": "resources",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
           },
           "data": [
             {
@@ -825,7 +1262,110 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "max(theo_observability_memory_bytes)> bool 2000000000",
+                "expr": "(max by(environment)(theo_observability_memory_bytes{environment=~\"local|production\"}) and on(environment) (max by(environment)(theo_observability_memory_measurement_available{environment=~\"local|production\"})==1)) > bool 4000000000",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "max by(environment)(theo_observability_memory_bytes{environment=~\"local|production\"}) and on(environment) (max by(environment)(theo_observability_memory_measurement_available{environment=~\"local|production\"})==1)",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uid": "theo-memory-measurement",
+          "title": "Theo memory measurement unavailable",
+          "condition": "C",
+          "for": "5m",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "Alerting",
+          "execErrState": "KeepLast",
+          "annotations": {
+            "summary": "Theo memory measurement unavailable",
+            "description": "Inspect the observer's host-memory collection; the last footprint is not a current budget check.",
+            "measurement": "{{ with $values.B }}{{ printf \"%.3g\" .Value }}{{ else }}unavailable{{ end }} measurement available (1=yes)"
+          },
+          "labels": {
+            "service": "theo",
+            "severity": "warning",
+            "incident": "monitoring",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
+          },
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "(max by(environment)(theo_observability_memory_measurement_available{environment=~\"local|production\"})) < bool 1",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "max by(environment)(theo_observability_memory_measurement_available{environment=~\"local|production\"})",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,
@@ -870,16 +1410,21 @@
           "title": "Theo telemetry container restarted",
           "condition": "C",
           "for": "0s",
-          "noDataState": "OK",
-          "execErrState": "Error",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "KeepLast",
+          "execErrState": "KeepLast",
           "annotations": {
             "summary": "Theo telemetry container restarted",
-            "description": "Inspect container OOM events and logs; a recovered process can still have lost data.",
-            "runbook_url": "http://localhost:13000/d/theo-overview"
+            "description": "Inspect the container's OOM events and logs. A recovered process can still have lost telemetry.",
+            "measurement": "{{ with $values.B }}{{ printf \"%.3g\" .Value }}{{ else }}unavailable{{ end }} restarts in 5 minutes"
           },
           "labels": {
             "service": "theo",
-            "severity": "warning"
+            "severity": "warning",
+            "incident": "monitoring",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
           },
           "data": [
             {
@@ -891,7 +1436,23 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "max(delta(theo_container_restarts[5m]))> bool 0",
+                "expr": "(max by(environment,component)(delta(theo_container_restarts{environment=~\"local|production\"}[5m]))) > bool 0",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "max by(environment,component)(delta(theo_container_restarts{environment=~\"local|production\"}[5m]))",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,
@@ -936,16 +1497,21 @@
           "title": "Theo native telemetry stale",
           "condition": "C",
           "for": "3m",
-          "noDataState": "OK",
-          "execErrState": "Error",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "Alerting",
+          "execErrState": "KeepLast",
           "annotations": {
             "summary": "Theo native telemetry stale",
-            "description": "The independent observer may be healthy while native OTLP export is unavailable. Check telemetry configuration and Alloy.",
-            "runbook_url": "http://localhost:13000/d/theo-overview"
+            "description": "Check the core's telemetry configuration and Alloy export. Core availability and telemetry export are separate signals.",
+            "measurement": "{{ with $values.B }}{{ printf \"%.3g\" .Value }}{{ else }}unavailable{{ end }} seconds since telemetry"
           },
           "labels": {
             "service": "theo",
-            "severity": "warning"
+            "severity": "warning",
+            "incident": "availability",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
           },
           "data": [
             {
@@ -957,7 +1523,23 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "((time()-max(theo_runtime_telemetry_timestamp))> bool 120) or absent(theo_runtime_telemetry_timestamp)",
+                "expr": "(time()-max by(environment)(theo_runtime_telemetry_timestamp{environment=~\"local|production\"})) > bool 120",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "time()-max by(environment)(theo_runtime_telemetry_timestamp{environment=~\"local|production\"})",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,
@@ -1002,16 +1584,21 @@
           "title": "Theo telemetry records dropped",
           "condition": "C",
           "for": "1m",
-          "noDataState": "OK",
-          "execErrState": "Error",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "KeepLast",
+          "execErrState": "KeepLast",
           "annotations": {
             "summary": "Theo telemetry records dropped",
-            "description": "Inspect SDK buffers and Alloy queues. Missing telemetry is not evidence of successful operations.",
-            "runbook_url": "http://localhost:13000/d/theo-overview"
+            "description": "Inspect bounded SDK buffers. Missing telemetry does not prove successful operations.",
+            "measurement": "{{ with $values.B }}{{ printf \"%.3g\" .Value }}{{ else }}unavailable{{ end }} dropped records in 5 minutes"
           },
           "labels": {
             "service": "theo",
-            "severity": "warning"
+            "severity": "warning",
+            "incident": "monitoring",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
           },
           "data": [
             {
@@ -1023,7 +1610,23 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "sum(increase({__name__=~\"otelcol_.*(refused|send_failed|enqueue_failed).*_total|otel_sdk_processor_(span|log)_processed_total\",error_type!=\"\"}[5m]))> bool 0",
+                "expr": "(sum(increase({__name__=~\"otel_sdk_processor_(span|log)_processed_total\",error_type!=\"\"}[5m]))) > bool 0",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "sum(increase({__name__=~\"otel_sdk_processor_(span|log)_processed_total\",error_type!=\"\"}[5m]))",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,
@@ -1068,16 +1671,21 @@
           "title": "Theo collector export failures",
           "condition": "C",
           "for": "1m",
-          "noDataState": "OK",
-          "execErrState": "Error",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "KeepLast",
+          "execErrState": "KeepLast",
           "annotations": {
             "summary": "Theo collector export failures",
             "description": "Inspect downstream backends and bounded collector queues.",
-            "runbook_url": "http://localhost:13000/d/theo-overview"
+            "measurement": "{{ with $values.B }}{{ printf \"%.3g\" .Value }}{{ else }}unavailable{{ end }} failed exports in 5 minutes"
           },
           "labels": {
             "service": "theo",
-            "severity": "warning"
+            "severity": "warning",
+            "incident": "monitoring",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
           },
           "data": [
             {
@@ -1089,7 +1697,23 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "sum(increase(label_replace({__name__=~\"otelcol_.*(refused|send_failed|enqueue_failed).*_total\"},\"signal\",\"$1\",\"__name__\",\"(.*)\")[5m:30s]))> bool 0",
+                "expr": "(sum(increase(label_replace({__name__=~\"otelcol_.*(refused|send_failed|enqueue_failed).*_total\"},\"signal\",\"$1\",\"__name__\",\"(.*)\")[5m:30s]))) > bool 0",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "sum(increase(label_replace({__name__=~\"otelcol_.*(refused|send_failed|enqueue_failed).*_total\"},\"signal\",\"$1\",\"__name__\",\"(.*)\")[5m:30s]))",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,
@@ -1134,16 +1758,21 @@
           "title": "Theo schedule overdue",
           "condition": "C",
           "for": "5m",
-          "noDataState": "OK",
-          "execErrState": "Error",
+          "keepFiringFor": "2m",
+          "missing_series_evals_to_resolve": 20,
+          "noDataState": "KeepLast",
+          "execErrState": "KeepLast",
           "annotations": {
             "summary": "Theo schedule overdue",
             "description": "Inspect the scheduler and deliberate background pause controls.",
-            "runbook_url": "http://localhost:13000/d/theo-overview"
+            "measurement": "{{ with $values.B }}{{ printf \"%.3g\" .Value }}{{ else }}unavailable{{ end }} seconds overdue"
           },
           "labels": {
             "service": "theo",
-            "severity": "warning"
+            "severity": "warning",
+            "incident": "work",
+            "host": "$THEO_ALERT_HOST",
+            "environment": "{{ if $$labels.environment }}{{ $$labels.environment }}{{ else }}$THEO_ENVIRONMENT{{ end }}"
           },
           "data": [
             {
@@ -1155,7 +1784,23 @@
               "datasourceUid": "prometheus",
               "model": {
                 "refId": "A",
-                "expr": "max(theo_schedule_overdue_seconds)> bool 300",
+                "expr": "(max by(environment)(theo_schedule_overdue_seconds{environment=~\"local|production\"}) and on(environment) (max by(environment)(theo_database_readable{environment=~\"local|production\"}) == 1)) > bool 300",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "B",
+                "expr": "max by(environment)(theo_schedule_overdue_seconds{environment=~\"local|production\"}) and on(environment) (max by(environment)(theo_database_readable{environment=~\"local|production\"}) == 1)",
                 "instant": true,
                 "range": false,
                 "intervalMs": 1000,

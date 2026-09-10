@@ -8,11 +8,32 @@ from typing import Literal
 
 from pydantic import Field
 
-from theo.domain import StrictModel
+from theo.domain import ControlScope, StrictModel
+from theo.maintenance.contracts import CandidateIdentity
 
 
 class Empty(StrictModel):
     pass
+
+
+class StatusArgs(StrictModel):
+    limit: int = Field(default=20, ge=1, le=50)
+    offset: int = Field(default=0, ge=0, le=10000)
+
+
+class RuntimeControlArgs(StrictModel):
+    scope: ControlScope
+    paused: bool
+    reason: str = Field(min_length=1, max_length=1000)
+    expected_revision: int = Field(ge=0)
+
+
+class HostCommandArgs(StrictModel):
+    argv: list[str] = Field(min_length=1, max_length=100)
+    cwd: str = Field(default="/", min_length=1, max_length=4096)
+    timeout_seconds: int = Field(default=60, ge=1, le=600)
+    as_root: bool = False
+    reason: str = Field(min_length=1, max_length=1000)
 
 
 class MessageArgs(StrictModel):
@@ -221,3 +242,32 @@ class SkillArgs(StrictModel):
     name: str
     body: str
     triggers: list[str] = Field(min_length=1, max_length=20)
+
+
+class MaintenanceBeginArgs(StrictModel):
+    objective: str = Field(min_length=1, max_length=4000)
+    target: Literal["publish", "deploy"]
+    evidence: list[str] = Field(default_factory=list, max_length=20)
+
+
+class MaintenanceStatusArgs(StrictModel):
+    change_id: str | None = None
+
+
+class MaintenanceChangeArgs(StrictModel):
+    change_id: str = Field(min_length=1, max_length=128)
+
+
+class MaintenanceSubmitArgs(MaintenanceChangeArgs):
+    expected_revision: int = Field(ge=1)
+    summary: str = Field(min_length=1, max_length=4000)
+
+
+class MaintenanceReviewArgs(MaintenanceChangeArgs):
+    candidate: CandidateIdentity
+    approved: bool
+    findings: str = Field(min_length=1, max_length=8000)
+
+
+class MaintenanceRollbackArgs(MaintenanceChangeArgs):
+    reason: str = Field(min_length=1, max_length=1000)

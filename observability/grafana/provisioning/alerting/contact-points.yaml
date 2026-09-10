@@ -3,10 +3,25 @@
   "contactPoints": [
     {
       "orgId": 1,
-      "name": "Theo operational alerts",
+      "name": "Theo local diagnostics",
       "receivers": [
         {
           "uid": "theo-local-receipts",
+          "type": "webhook",
+          "settings": {
+            "url": "http://host.docker.internal:19464/alerts",
+            "httpMethod": "POST"
+          },
+          "disableResolveMessage": false
+        }
+      ]
+    },
+    {
+      "orgId": 1,
+      "name": "Theo operational alerts",
+      "receivers": [
+        {
+          "uid": "theo-operational-receipts",
           "type": "webhook",
           "settings": {
             "url": "http://host.docker.internal:19464/alerts",
@@ -22,7 +37,7 @@
             "chatid": "$THEO_ALERT_CHAT_ID",
             "parse_mode": "",
             "disable_web_page_preview": true,
-            "message": "[THEO OBSERVABILITY TEST] {{ .Status | toUpper }}\n{{ range .Alerts }}{{ .Annotations.summary }}\n{{ end }}"
+            "message": "[$THEO_ALERT_LABEL] {{ .CommonLabels.host }} \u00b7 {{ .CommonLabels.incident }}\n{{ if .Alerts.Firing }}ACTIVE: {{ len .Alerts.Firing }}\n{{ range .Alerts.Firing }}\u2022 [{{ .Labels.severity | toUpper }}] {{ .Annotations.summary }}{{ with .Labels.component }} \u2014 {{ . }}{{ end }}{{ with .Labels.instance }} \u2014 {{ . }}{{ end }}\n  {{ .Annotations.measurement }}\n  {{ .Annotations.description }}\n{{ end }}{{ end }}{{ if .Alerts.Resolved }}{{ range .Alerts.Resolved }}{{ if .Annotations.grafana_state_reason }}STATE CHANGED: {{ .Annotations.summary }} ({{ .Annotations.grafana_state_reason }}; recovery not verified)\n{{ else }}RECOVERED: {{ .Annotations.summary }}{{ with .Labels.component }} \u2014 {{ . }}{{ end }}\n{{ end }}{{ end }}{{ end }}{{ reReplaceAll \"/$\" \"\" .ExternalURL }}/d/theo-overview?var-environment={{ .CommonLabels.environment }}"
           },
           "disableResolveMessage": false
         }
@@ -32,13 +47,54 @@
   "policies": [
     {
       "orgId": 1,
-      "receiver": "Theo operational alerts",
+      "receiver": "Theo local diagnostics",
       "group_by": [
-        "alertname"
+        "environment",
+        "host",
+        "incident"
       ],
-      "group_wait": "10s",
-      "group_interval": "1m",
-      "repeat_interval": "4h"
+      "group_wait": "1m",
+      "group_interval": "5m",
+      "repeat_interval": "12h",
+      "routes": [
+        {
+          "receiver": "Theo operational alerts",
+          "object_matchers": [
+            [
+              "severity",
+              "=",
+              "test"
+            ]
+          ],
+          "group_wait": "10s",
+          "group_interval": "1m",
+          "repeat_interval": "12h"
+        },
+        {
+          "receiver": "Theo operational alerts",
+          "object_matchers": [
+            [
+              "environment",
+              "=",
+              "production"
+            ]
+          ],
+          "routes": [
+            {
+              "receiver": "Theo operational alerts",
+              "object_matchers": [
+                [
+                  "incident",
+                  "=~",
+                  "availability|delivery|monitoring"
+                ]
+              ],
+              "group_wait": "30s",
+              "repeat_interval": "4h"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

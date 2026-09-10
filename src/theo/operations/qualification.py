@@ -9,8 +9,12 @@ import sys
 from typing import cast
 
 from theo.config import Settings
-from theo.domain import Denied, Json, encode, uid
+from theo.domain import Denied, Json, digest, encode, uid
 from theo.storage import Database
+
+
+def deployment_policy_hash(settings: Settings) -> str:
+    return digest(settings.model_dump(mode="json"))
 
 
 async def qualification_status(db: Database, settings: Settings) -> Json:
@@ -45,8 +49,45 @@ async def qualification_status(db: Database, settings: Settings) -> Json:
         "target_capacity_and_restore": passed("capacity_restore"),
         "mandatory_deterministic_suite": passed("deterministic"),
     }
+    deployment_gates = {
+        key: value
+        for key, value in gates.items()
+        if key not in ("claude_live_canary", "codex_live_canary", "encrypted_storage")
+    }
+    deployment_gates.update(
+        {name + "_live_canary": native[name] for name in settings.required_backends}
+    )
+    if settings.require_encrypted_storage:
+        deployment_gates["encrypted_storage"] = settings.encrypted_storage_verified
+    policy_hash = deployment_policy_hash(settings)
+    report_kinds: list[tuple[str, str | None]] = [
+        (kind, None)
+        for kind in (
+            "mac_deployment",
+            "behaviour",
+            "seven_day_soak",
+            "capacity_restore",
+            "deterministic",
+        )
+    ]
+    report_kinds.extend(("native_canary", backend) for backend in settings.required_backends)
+    deployment_gates["current_policy_evidence"] = all(
+        key in latest
+        and json.loads(latest[key]["evidence"]).get("deployment_policy_hash") == policy_hash
+        for key in report_kinds
+    )
+    exceptions: list[str] = []
+    if not settings.require_encrypted_storage:
+        exceptions.append("encrypted_storage_deferred")
+    if not settings.scheduled_backups_enabled:
+        exceptions.append("scheduled_backups_disabled")
+    if settings.allow_unencrypted_release_backup:
+        exceptions.append("unencrypted_local_release_snapshots_allowed")
     return {
         "production_qualified": all(gates.values()),
+        "deployment_ready": all(deployment_gates.values()),
+        "deployment_gates": deployment_gates,
+        "deployment_exceptions": exceptions,
         "gates": gates,
         "native_backends": native,
         "note": "No configuration flag substitutes for elapsed observation or native account canaries.",
@@ -167,6 +208,7 @@ async def record_qualification(db: Database, settings: Settings, report: Json) -
     else:
         raise ValueError("Unknown qualification kind")
     record = uid()
+    evidence = {**evidence, "deployment_policy_hash": deployment_policy_hash(settings)}
     await db.execute(
         "INSERT INTO qualification_results VALUES(?,?,?,?,?,?,?,?)",
         (

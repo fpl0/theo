@@ -180,6 +180,9 @@ class Accounts:
             if (
                 account["billing_mode"] != "included_subscription"
                 or account["status"] != "verified"
+                # Live Codex observations are diagnostic records, never a token
+                # that authorizes inference without another native check.
+                or account["method"] == "native_live_allowance"
             ):
                 continue
             if (

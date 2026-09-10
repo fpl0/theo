@@ -1,0 +1,692 @@
+{
+  "date": "2026-09-10",
+  "timezone": "Europe/Dublin",
+  "host": "fpl0.local",
+  "scope": "Monitoring-only update: alert routing, incident state, notification detail and the 4 GB whole-stack budget.",
+  "source_commit": "0a57491e4633fcd81f3d09fd06111c423579c89d",
+  "change_base": "edb2fd2",
+  "core_release": "20260909-ffdb217",
+  "core_restarted": false,
+  "core_database_changed_by_this_update": false,
+  "offline_validation": {
+    "full_suite": {
+      "source_tree": "8d218cb854dc755e973c72d4af8893a0ac9d8c6b",
+      "passed": 363,
+      "skipped": 1,
+      "skip_reason": "Linux-root dedicated-UID isolation case on macOS"
+    },
+    "final_targeted_regressions_passed": 11,
+    "prometheus_behavioral_scenarios_passed": 25,
+    "ruff_check": "passed",
+    "ruff_format_check": "passed",
+    "strict_pyright": "0 errors",
+    "wheel_and_sdist_build": "passed",
+    "installed_wheel_smoke": {
+      "modules": 87,
+      "migrations": 5,
+      "outside_checkout": true
+    },
+    "installed_source_comparison": {
+      "source_commit": "0a57491e4633fcd81f3d09fd06111c423579c89d",
+      "python": "3.14.7",
+      "installed_files_compared": 94,
+      "mismatches": [],
+      "source_clean": true,
+      "lock_sha256": "5dc57c608fc769ac1654bf73acae009e28741d7780c5a4a8d269749d460c179c"
+    }
+  },
+  "resources": {
+    "budget_bytes": 4000000000,
+    "vm_memory_gib": 3,
+    "grafana_hard_limit_mib": 768,
+    "grafana_go_memory_target_mib": 480,
+    "containers": [
+      {
+        "name": "/theo-observability-grafana-1",
+        "memory_limit_bytes": 805306368,
+        "restarts": 0,
+        "oom_killed": false,
+        "restart_policy": "unless-stopped"
+      },
+      {
+        "name": "/theo-observability-loki-1",
+        "memory_limit_bytes": 335544320,
+        "restarts": 0,
+        "oom_killed": false,
+        "restart_policy": "unless-stopped"
+      },
+      {
+        "name": "/theo-observability-tempo-1",
+        "memory_limit_bytes": 268435456,
+        "restarts": 0,
+        "oom_killed": false,
+        "restart_policy": "unless-stopped"
+      },
+      {
+        "name": "/theo-observability-alloy-1",
+        "memory_limit_bytes": 134217728,
+        "restarts": 0,
+        "oom_killed": false,
+        "restart_policy": "unless-stopped"
+      },
+      {
+        "name": "/theo-observability-prometheus-1",
+        "memory_limit_bytes": 268435456,
+        "restarts": 0,
+        "oom_killed": false,
+        "restart_policy": "unless-stopped"
+      }
+    ]
+  },
+  "production_validation": {
+    "started_at": 1788994706.763755,
+    "source_commit": "0a57491e4633fcd81f3d09fd06111c423579c89d",
+    "grafana": {
+      "database": "ok",
+      "version": "13.2.1",
+      "commit": "56cd3e9288d8255fecebe5d05b48d191f50674b5"
+    },
+    "rule_count": 21,
+    "rule_recovery_and_retention_verified": true,
+    "notification_policy": {
+      "receiver": "Theo local diagnostics",
+      "group_by": [
+        "environment",
+        "host",
+        "incident"
+      ],
+      "routes": [
+        {
+          "receiver": "Theo operational alerts",
+          "object_matchers": [
+            [
+              "severity",
+              "=",
+              "test"
+            ]
+          ],
+          "group_wait": "10s",
+          "group_interval": "1m",
+          "repeat_interval": "12h"
+        },
+        {
+          "receiver": "Theo operational alerts",
+          "object_matchers": [
+            [
+              "environment",
+              "=",
+              "production"
+            ]
+          ],
+          "routes": [
+            {
+              "receiver": "Theo operational alerts",
+              "object_matchers": [
+                [
+                  "incident",
+                  "=~",
+                  "availability|delivery|monitoring"
+                ]
+              ],
+              "group_wait": "30s",
+              "repeat_interval": "4h"
+            }
+          ]
+        }
+      ],
+      "group_wait": "1m",
+      "group_interval": "5m",
+      "repeat_interval": "12h",
+      "provenance": "file"
+    },
+    "contact_points": [
+      {
+        "uid": "theo-local-receipts",
+        "name": "Theo local diagnostics",
+        "type": "webhook",
+        "disableResolveMessage": false
+      },
+      {
+        "uid": "theo-operational-receipts",
+        "name": "Theo operational alerts",
+        "type": "webhook",
+        "disableResolveMessage": false
+      },
+      {
+        "uid": "theo-telegram-test",
+        "name": "Theo operational alerts",
+        "type": "telegram",
+        "disableResolveMessage": false
+      }
+    ],
+    "health": {
+      "grafana": true,
+      "alloy": true,
+      "prometheus": true,
+      "loki": true,
+      "tempo": true,
+      "observer": true
+    },
+    "query_counts": {
+      "prometheus": 86,
+      "loki": 10,
+      "alert": 42
+    },
+    "query_errors": [],
+    "measurements": {
+      "theo_observability_memory_bytes": 2736214208.0,
+      "theo_observability_memory_measurement_available": 1.0,
+      "theo_observability_budget_bytes": 4000000000.0,
+      "theo_host_swap_bytes": 0.0,
+      "theo_core_ready": 1.0,
+      "theo_database_readable": 1.0,
+      "theo_observer_refresh_timestamp_seconds": 1788994682.613333
+    },
+    "synthetic_pipeline": {
+      "trace_stored": true,
+      "logs_correlated": true,
+      "exemplar_correlated": true,
+      "trace_id": "97702d1d81351260ba7c66a0e20d6cb3",
+      "environment": "qualification"
+    },
+    "active_alerts": [],
+    "containers": [
+      {
+        "name": "/theo-observability-grafana-1",
+        "memory_limit_bytes": 805306368,
+        "restarts": 0,
+        "oom_killed": false,
+        "restart_policy": "unless-stopped"
+      },
+      {
+        "name": "/theo-observability-loki-1",
+        "memory_limit_bytes": 335544320,
+        "restarts": 0,
+        "oom_killed": false,
+        "restart_policy": "unless-stopped"
+      },
+      {
+        "name": "/theo-observability-tempo-1",
+        "memory_limit_bytes": 268435456,
+        "restarts": 0,
+        "oom_killed": false,
+        "restart_policy": "unless-stopped"
+      },
+      {
+        "name": "/theo-observability-alloy-1",
+        "memory_limit_bytes": 134217728,
+        "restarts": 0,
+        "oom_killed": false,
+        "restart_policy": "unless-stopped"
+      },
+      {
+        "name": "/theo-observability-prometheus-1",
+        "memory_limit_bytes": 268435456,
+        "restarts": 0,
+        "oom_killed": false,
+        "restart_policy": "unless-stopped"
+      }
+    ],
+    "passed": true,
+    "finished_at": 1788994713.277746
+  },
+  "synthetic_load": {
+    "started_at": 1788994707.853751,
+    "finished_at": 1788995308.2455401,
+    "duration_seconds": 600.4084655840124,
+    "operations": 8660,
+    "samples": [
+      {
+        "theo_observability_memory_bytes": 2740195520.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 0.02,
+        "operations": 10,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 2812400128.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 15.15,
+        "operations": 160,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 2812400128.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 30.26,
+        "operations": 310,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 2823901760.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 45.34,
+        "operations": 460,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 2857505536.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 60.45,
+        "operations": 610,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 2870530816.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 75.54,
+        "operations": 760,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 2892141440.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 90.63,
+        "operations": 910,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 2892141440.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 105.75,
+        "operations": 1060,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 2934100864.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 120.84,
+        "operations": 1210,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 2943112064.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 135.94,
+        "operations": 1360,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 2943538112.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 151.06,
+        "operations": 1510,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 2948142144.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 166.16,
+        "operations": 1660,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 2957841472.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 181.27,
+        "operations": 1810,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 2957841472.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 196.37,
+        "operations": 1960,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 2964624448.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 211.52,
+        "operations": 3190,
+        "burst": true
+      },
+      {
+        "theo_observability_memory_bytes": 2970146048.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 226.67,
+        "operations": 4690,
+        "burst": true
+      },
+      {
+        "theo_observability_memory_bytes": 2970375552.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 241.78,
+        "operations": 5110,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 2980828672.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 256.88,
+        "operations": 5260,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 2988856832.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 271.97,
+        "operations": 5410,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 2988856832.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 287.08,
+        "operations": 5560,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 2997442048.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 302.19,
+        "operations": 5710,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3023279616.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 317.29,
+        "operations": 5860,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3029243520.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 332.39,
+        "operations": 6010,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3034125952.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 347.51,
+        "operations": 6160,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3034125952.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 362.59,
+        "operations": 6310,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3037402752.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 377.68,
+        "operations": 6460,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3039843968.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 392.79,
+        "operations": 6610,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3046561408.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 407.9,
+        "operations": 6760,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3047003776.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 423.07,
+        "operations": 6910,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3047036544.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 438.17,
+        "operations": 7060,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3047036544.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 453.28,
+        "operations": 7210,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3049166464.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 468.38,
+        "operations": 7360,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3049969280.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 483.5,
+        "operations": 7510,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3058472576.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 498.6,
+        "operations": 7660,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3058587264.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 513.72,
+        "operations": 7810,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3058587264.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 528.81,
+        "operations": 7960,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3058751104.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 543.92,
+        "operations": 8110,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3058783872.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 559.03,
+        "operations": 8260,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3058947712.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 574.14,
+        "operations": 8410,
+        "burst": false
+      },
+      {
+        "theo_observability_memory_bytes": 3058964096.0,
+        "theo_observability_memory_measurement_available": 1.0,
+        "theo_host_swap_bytes": 0.0,
+        "elapsed": 589.25,
+        "operations": 8560,
+        "burst": false
+      }
+    ],
+    "errors": [],
+    "peak_physical_footprint_bytes": 3058964096.0,
+    "budget_bytes": 4000000000,
+    "container_restarts": {
+      "/theo-observability-grafana-1": 0,
+      "/theo-observability-loki-1": 0,
+      "/theo-observability-tempo-1": 0,
+      "/theo-observability-alloy-1": 0,
+      "/theo-observability-prometheus-1": 0
+    },
+    "oom_killed": false,
+    "method": "macOS footprint sum: all Apple VZ helpers, Colima Lima/SSH/Docker helpers, native observer and monitoring launchd wrappers; guest Linux/Docker/containers included in VZ footprint. Shared VZ helpers are conservatively overcounted.",
+    "oom_events": 0,
+    "passed": true
+  },
+  "notification_delivery": {
+    "started_at": 1788994795.7386749,
+    "synthetic": true,
+    "marker": "explicit notification test",
+    "firing": {
+      "status": "firing",
+      "received_at": 1788994840.008496,
+      "state_reason": null
+    },
+    "marker_removed": true,
+    "recovery": {
+      "status": "resolved",
+      "received_at": 1788994900.010327,
+      "state_reason": null
+    },
+    "passed": true,
+    "finished_at": 1788994900.998903,
+    "telegram_client_observed": {
+      "firing": true,
+      "recovered": true,
+      "host_and_lan_link": true
+    },
+    "routine_local_alerts": "Local webhook only; live provisioned routing checked and diagnostic receipts observed."
+  },
+  "synthetic_notification_template": {
+    "synthetic": true,
+    "passed": true,
+    "result": {
+      "results": [
+        {
+          "name": "monitoring.validation",
+          "text": "[THEO PRODUCTION] fpl0.local \u00b7 resources\nACTIVE: 1\n\u2022 [WARNING] Synthetic memory sample \u2014 fixture\n  93% of container limit (threshold: 90%)\n  Inspect component memory and OOM events.\nSTATE CHANGED: Synthetic missing series (MissingSeries; recovery not verified)\nhttp://fpl0.local:13000/d/theo-overview?var-environment=production",
+          "scope": "."
+        }
+      ]
+    }
+  },
+  "local_synthetic_grafana_lifecycle": {
+    "started_at": 1788995010.2218618,
+    "synthetic": true,
+    "accelerated_evaluation_seconds": 10,
+    "accelerated_recovery_seconds": 20,
+    "stored_recovery_seconds": 20,
+    "stored_missing_series_evaluations": 20,
+    "initial_firing": true,
+    "gap_kept_firing": true,
+    "gap_query_requests": 8,
+    "gap_states": [
+      "Alerting",
+      "Alerting (NoData, KeepLast)"
+    ],
+    "error_kept_firing": true,
+    "error_states": [
+      "Alerting (Error, KeepLast)",
+      "Alerting (NoData, KeepLast)"
+    ],
+    "healthy_started_recovery": true,
+    "healthy_recovered": true,
+    "passed": true,
+    "finished_at": 1788995131.505902
+  },
+  "final_state": {
+    "checked_at": 1788995356.268398,
+    "passed": true,
+    "core_process_unchanged": true,
+    "core_heartbeat_age_seconds": 22.172932147979736,
+    "supervisor_definition_unchanged": true,
+    "metrics": {
+      "theo_observability_budget_verified": 1.0,
+      "theo_core_ready": 1.0,
+      "theo_database_readable": 1.0,
+      "theo_observability_memory_bytes": 3058948096.0,
+      "theo_observability_memory_measurement_available": 1.0,
+      "theo_host_swap_bytes": 0.0
+    },
+    "grafana_memory_ratio": 0.33125,
+    "health": {
+      "grafana": true,
+      "alloy": true,
+      "prometheus": true,
+      "loki": true,
+      "tempo": true,
+      "observer": true
+    },
+    "active_alerts": [],
+    "explicit_test_marker_removed": true,
+    "vm_memory_bytes": 3221225472,
+    "vm_cpus": 2,
+    "lan_grafana_health_from_laptop": true,
+    "unauthenticated_dashboard_api_status": 401,
+    "qualification_report_loaded": true
+  },
+  "retained_failures": [
+    {
+      "stage": "Initial local Grafana lifecycle harness",
+      "result": "Missing-data retention passed; recovery assertion failed because the HTTP harness used the file-provisioning field keepFiringFor. Corrected to API keep_firing_for, asserted the stored fields, and repeated successfully."
+    },
+    {
+      "stage": "Missing-series configuration review",
+      "result": "Grafana ignored the API-style missingSeriesEvalsToResolve field in provisioning files. Corrected to missing_series_evals_to_resolve and verified 20 evaluations stored for all 21 deployed rules."
+    },
+    {
+      "stage": "Monitoring service replacement",
+      "result": "launchctl bootstrap returned code 5 before the old observer finished exiting. The previous manifest, environment and plists were restored and the 3 GiB monitoring VM restarted. Retrying after waiting for owned processes to exit succeeded. The core PID and birth time remained unchanged."
+    }
+  ],
+  "grafana_schema_references": [
+    "https://github.com/grafana/grafana/blob/v13.2.1/pkg/services/provisioning/alerting/rules_types.go",
+    "https://github.com/grafana/grafana/blob/v13.2.1/pkg/services/ngalert/api/tooling/definitions/provisioning_alert_rules.go"
+  ],
+  "qualification_limits": [
+    "Ten-minute synthetic telemetry load on fpl0.local; not long-term retention or arbitrary ingestion capacity.",
+    "Measurement-gap and query-error lifecycle transitions used local Grafana with a 10-second evaluation and 20-second recovery interval. Production configuration was separately verified at 30-second evaluation and two-minute recovery.",
+    "Missing individual series are retained for 20 evaluations; later eviction is reported as a state change with recovery unverified.",
+    "No new native model, autonomy, restore, machine-loss recovery or seven-day production qualification was performed.",
+    "Unrelated concurrent feature edits in the main working tree were excluded from these commits and deployment."
+  ]
+}

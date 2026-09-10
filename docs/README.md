@@ -10,7 +10,9 @@ The [project README](../README.md) introduces Theo and the local setup. These gu
 | [Telegram](telegram.md) | Bot pairing, private token handling, groups/topics, controls, media and delivery recovery. |
 | [Personality](personality.md) | Conversational voice, humour, personal context and how saved personas affect replies. |
 | [Operations](operations.md) | Configuration, native accounts, isolation, assets, backups, releases and qualification. |
-| [Observability](observability.md) | Local Grafana setup, telemetry, alerts, correlation and the 2 GB stack budget. |
+| [Self-maintenance](maintenance.md) | Candidate revisions, independent review, host controls and remaining deployment gates. |
+| [Observability](observability.md) | Local Grafana setup, telemetry, alerts, correlation and the 4 GB stack budget. |
+| [fpl0.local deployment](deployment-fpl0.md) | Native services, LAN monitoring, owner-selected exceptions and safe code rollback. |
 | [Tool catalogue](tools.md) | All model-facing tools and the generated input schemas. |
 
 ## Develop and verify
@@ -28,6 +30,7 @@ The [project README](../README.md) introduces Theo and the local setup. These gu
 
 ## Dated design and evaluation records
 
+- [Self-maintenance design](self-maintenance-design.md): proposed source editing, GitHub publication, independent deployment, and automatic recovery under standing owner permission.
 - [8 September code review](review-2026-09-08.md) and [9 September complex evaluation](complex-evaluation-2026-09-09.md).
 - [Telegram implementation plan](telegram-integration-plan.md), retained as the original design and completion criteria.
 - [9 September dashboard review](evidence/dashboard-design-2026-09-09.md).

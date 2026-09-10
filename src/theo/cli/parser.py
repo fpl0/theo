@@ -122,6 +122,22 @@ def parser() -> argparse.ArgumentParser:
     install.add_argument("--output", type=Path)
     for command in ("pause", "resume"):
         services.add_parser(command)
+    controls = sub.add_parser("control").add_subparsers(dest="operation", required=True)
+    controls.add_parser("status")
+    for operation in ("pause", "resume"):
+        control = controls.add_parser(operation)
+        control.add_argument(
+            "scope",
+            choices=(
+                "background",
+                "autonomy",
+                "requested_work",
+                "models",
+                "deployments",
+                "notifications",
+            ),
+        )
+        control.add_argument("--reason", default="Explicit owner command")
     for command in ("upgrade", "rollback"):
         release = sub.add_parser(command)
         release.add_argument("--release", required=True)

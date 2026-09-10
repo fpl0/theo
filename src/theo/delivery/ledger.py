@@ -57,6 +57,10 @@ class Delivery:
         if job_id and generation is not None:
             Jobs(self.db, self.owner).check(db, job_id, generation)
         request = dict(request)
+        existing = db.execute(
+            "SELECT id,request_hash,request FROM actions WHERE owner_id=? AND semantic_key=?",
+            (self.owner, key),
+        ).fetchone()
         binding = None
         if destination_id:
             binding = db.execute(
@@ -83,6 +87,7 @@ class Delivery:
             if (
                 job_id
                 and binding["conversation_id"] == conversation
+                and "reply_to" not in request
                 and operation
                 in (
                     "send_message",
@@ -96,10 +101,27 @@ class Delivery:
                     "send_media_group",
                 )
             ):
-                input_job = db.execute("SELECT payload FROM jobs WHERE id=?", (job_id,)).fetchone()
-                reply = json.loads(input_job[0]).get("reply_to") if input_job else None
-                if reply and "reply_to" not in request:
-                    request["reply_to"] = reply
+                if existing:
+                    # Replay keeps the original presentation even if newer input arrived.
+                    saved_request = json.loads(existing["request"])
+                    if "reply_to" in saved_request:
+                        request["reply_to"] = saved_request["reply_to"]
+                else:
+                    input_job = db.execute(
+                        "SELECT payload FROM jobs WHERE id=? AND owner_id=? AND conversation_id=?",
+                        (job_id, self.owner, conversation),
+                    ).fetchone()
+                    payload: Json = json.loads(input_job[0]) if input_job else {}
+                    newer_input = db.execute(
+                        "SELECT 1 FROM messages source JOIN messages newer ON newer.owner_id=source.owner_id AND newer.conversation_id=source.conversation_id AND newer.sequence>source.sequence WHERE source.id=? AND source.owner_id=? AND source.conversation_id=? AND newer.role='user' LIMIT 1",
+                        (payload.get("message_id"), self.owner, conversation),
+                    ).fetchone()
+                    # Private chat normally flows without a quote. References help when
+                    # answering an earlier input, addressing a group, or explicitly replying.
+                    if payload.get("reply_to") and (
+                        not binding["private"] or newer_input or operation == "reply"
+                    ):
+                        request["reply_to"] = payload["reply_to"]
         recipient = target or str(conv["target"])
         external = (
             recipient != str(conv["target"])
@@ -108,10 +130,6 @@ class Delivery:
         )
         canonical = {"operation": operation, "request": request, "target": recipient, "role": role}
         request_hash = digest(canonical)
-        existing = db.execute(
-            "SELECT id,request_hash FROM actions WHERE owner_id=? AND semantic_key=?",
-            (self.owner, key),
-        ).fetchone()
         if existing:
             if existing["request_hash"] != request_hash:
                 raise Conflict("Logical action already binds different content")
@@ -253,7 +271,14 @@ class Delivery:
         assert conv
         if self._job_cancelled(db, row["action_id"]):
             return "job_cancelled"
-        if row["target"] != conv["target"]:
+        # Recheck every explicit approval, even for same-chat actions. A ready
+        # status alone is not authority for a host command or other protected effect.
+        explicit_approval = db.execute(
+            "SELECT 1 FROM approvals WHERE action_id=?", (row["action_id"],)
+        ).fetchone()
+        if row["operation"] == "host_command" and not settings.host_access_enabled:
+            return "authorization_missing"
+        if row["target"] != conv["target"] or explicit_approval:
             approval = db.execute(
                 "SELECT 1 FROM approvals WHERE action_id=? AND owner_id=? AND request_hash=? AND target=? AND expires_at>? AND decision='approved'",
                 (row["action_id"], self.owner, row["request_hash"], row["target"], self.db.clock()),

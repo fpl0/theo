@@ -1,0 +1,52 @@
+--- a/internal/vsock/listener.go
++++ b/internal/vsock/listener.go
+@@ -45,3 +45,23 @@
+-	fd, _, err := unix.Accept(int(listener.file.Fd()))
+-	if err != nil {
+-		return nil, err
++	// Only the hypervisor host can issue administrative guest commands. A guest
++	// process can otherwise connect to its own CID and inherit this agent's UID.
++	for {
++		fd, _, err := unix.Accept(int(listener.file.Fd()))
++		if err != nil {
++			return nil, err
++		}
++		file := os.NewFile(uintptr(fd), "vsock")
++		peerName, err := unix.Getpeername(fd)
++		if err != nil {
++			file.Close()
++			return nil, fmt.Errorf("failed to get AF_VSOCK peer identity: %w", err)
++		}
++		peer, ok := peerName.(*unix.SockaddrVM)
++		if !ok || peer.CID != unix.VMADDR_CID_HOST {
++			file.Close()
++			continue
++		}
++		if err := unix.SetNonblock(fd, true); err != nil {
++			file.Close()
++			return nil, err
++		}
++		return &conn{file: file, localPort: listener.port, remotePort: peer.Port}, nil
+@@ -49,22 +68,0 @@
+-
+-	if err := unix.SetNonblock(fd, true); err != nil {
+-		return nil, err
+-	}
+-
+-	file := os.NewFile(uintptr(fd), "vsock")
+-
+-	peerName, err := unix.Getpeername(int(file.Fd()))
+-	if err != nil {
+-		return nil, fmt.Errorf("failed to get a peer name for an AF_VSOCK connection %w", err)
+-	}
+-
+-	peerNameVM, ok := peerName.(*unix.SockaddrVM)
+-	if !ok {
+-		return nil, fmt.Errorf("accepted a non-AF_VSOCK connection on an AF_VSOCK socket")
+-	}
+-
+-	return &conn{
+-		file:       file,
+-		localPort:  listener.port,
+-		remotePort: peerNameVM.Port,
+-	}, nil

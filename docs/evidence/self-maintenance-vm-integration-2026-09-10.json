@@ -1,0 +1,166 @@
+{
+  "date": "2026-09-10",
+  "status": "verification_driver_component_passed; deployment_not_complete",
+  "parent_repository_commit": "c823f5c2308d3abac02d65210c336621f5482827",
+  "source": {
+    "scope": "Synthetic immutable Git snapshot made from the intended working tree; not a GitHub publication or deployment receipt",
+    "commit": "03b58c7aafbdf664c5c34520bb0339ae81cc5e68",
+    "tree": "956a05e80099528916b262ab813a7faca2e0e7ae",
+    "snapshot_sha256": "fe36fed0802d8b9164cfb0388a50c988877897d56b656aebe201438c60dffce8",
+    "input_archive_sha256": "8348d60a899d367ee116570f70e0668f35cf3a5e234ee442a6202a897bc4a702",
+    "lock_sha256": "6c408ba9f6318d155aa2d6afc2767434b4b55076ab622f2ec15392210570cc32"
+  },
+  "controller_file_sha256": {
+    "vm_bootstrap.py": "c6086e1e7c819663f55cafa79d0114499f4161377c38bf7b945ceecb7cd56a85",
+    "vm_config.py": "0da74e01ab93e56279da0078cf6d3a085b2e4f57c3c23c9b85cf37e1680429bf",
+    "vm_driver.py": "8971c2a04852e5d4132939d48491d334cd6cf4558b291c29d15f041d39f23ad9",
+    "vm_guest.py": "3d84e531dd7749122b6cccc5510080e26906071364545307ac2e5a0c7eb84dbc",
+    "vm_verification.py": "654072172cb07419014a01b8e6b6c063b587b3d688449f6a65eac362a4ed934a",
+    "vm_watchdog.py": "8b3ea6a7a67141feb596b2fcc86eabf08e65ef9e0cd45194c9e78c77e405062e"
+  },
+  "runtime": {
+    "host": "fpl0.local",
+    "host_os": "macOS 15.7.9 arm64",
+    "vm_image": "ghcr.io/cirruslabs/macos-sequoia-base@sha256:4947ac5ab1b2fdc46ab856132d2ba958f8e45b5f85192c66370dafc028c514dd",
+    "tart_version": "2.32.1",
+    "tart_executable_sha256": "05b65d5c14e8b41e8e44b6d9fd1278de4bedbc8b735d9b99f3c748f76f75862d",
+    "python_version": "3.14.6",
+    "python_archive_sha256": "1200ad1d2a3656f90c774edfcd2006d3af9ec8a63441c2fb5de9a4a05ccf8d96",
+    "uv_sha256": "bb71e6004d716bc7fd93573453261abbf8bfb63d83dc9ffcacb566d5077b201b",
+    "guest_agent_sha256": "2e16ebd8570cbdbb76832b863417acd9953cc63f63625533ad6c51173ca0d74f"
+  },
+  "guest_boundary": {
+    "build_uid": 622,
+    "supplementary_groups": [],
+    "published_accounts_disabled_before_candidate_admission": true,
+    "required_directory_service_result": "eDSAuthAccountDisabled",
+    "build_uid_sudo_and_default_admin_authentication_denied": true,
+    "host_directory_shares": false,
+    "clipboard": false,
+    "audio": false,
+    "routed_network": false,
+    "transport": "Pinned host-only virtiosocket guest agent and verified bounded log chunks"
+  },
+  "verification": {
+    "vm": "theo-build-0629f16588c746d0bd0b95811950be56",
+    "receipt_count": 18,
+    "ruff": "passed",
+    "format": "passed",
+    "strict_pyright": "passed",
+    "offline_tests": {
+      "passed": 472,
+      "skipped": 2,
+      "elapsed_seconds": 103.23,
+      "skip_reasons": [
+        "Codex is not installed in the disposable guest; no native startup evidence",
+        "Linux root-only dedicated-UID canary is not Mac evidence"
+      ],
+      "log_sha256": "d82c286ab969d5860118ff7214b158ec38890c113120e6a2fd3fcb839e303a85"
+    },
+    "distributions": "passed",
+    "installed_wheel": {
+      "passed": true,
+      "outside_checkout": true,
+      "trusted_controller_script": true,
+      "imported_modules": 116,
+      "core_migrations": 8,
+      "controller_migrations": 4,
+      "wheel_sha256": "644a45360ac04aecdddfdbfd2817b8f66113643943f92170a3d06c2926d32811",
+      "trusted_smoke_sha256": "a638d20da9f903cc7a0fdda43fcbef56b53256d5074eb939854ae30613cc746b",
+      "matches_independent_local_wheel": true
+    },
+    "vm_stopped_and_deleted": true
+  },
+  "limits": {
+    "cpus": 4,
+    "guest_memory_mib": 4096,
+    "host_memory_limit_bytes": 8000000000,
+    "observed_peak_host_memory_bytes": 7094091776,
+    "vm_lifetime_seconds": 3600,
+    "minimum_free_disk_bytes": 20000000000,
+    "free_disk_after_proofs_bytes": 290506510336,
+    "configuration_virtual_disk_limit_bytes": 350000000000,
+    "note": "The larger proof disk limit includes earlier retained stopped fixtures. Complete staging/cache retention policy remains pending."
+  },
+  "controller_death_recovery": {
+    "scope": "Killed a separate process running the production VmDriver, then called the production startup reconciliation function; not a deployed controller-service acceptance run",
+    "passed": true,
+    "controller_pid": 37053,
+    "controller_birth": 1789006319.166088,
+    "watchdog_survived_controller": true,
+    "watchdog_pid": 37070,
+    "watchdog_birth": 1789006346.325583,
+    "tart_pid": 37073,
+    "tart_birth": 1789006346.389591,
+    "guest_sleep_pid": 538,
+    "owned_virtualization_processes_exited": [
+      37075,
+      37077,
+      37078
+    ],
+    "preexisting_virtualization_preserved": true,
+    "stopped_probe_vm_deleted": true
+  },
+  "retained_failure_evidence": [
+    {
+      "probe": "c1",
+      "failure": "Guest account password change refused; candidate code was not admitted",
+      "stopped_vm_removed_after_log_preservation": true
+    },
+    {
+      "probe": "c2",
+      "failure": "Deprecated policy query reports disabled accounts as an error; direct authentication later proved the account was disabled",
+      "stopped_vm_removed_after_log_preservation": true
+    },
+    {
+      "probe": "c3",
+      "failure": "Pyright rejected an unnecessary isinstance check",
+      "private_logs_and_stopped_vm_retained": true
+    },
+    {
+      "probe": "c4",
+      "failure": "Distribution build included temporary verifier environment; fixed by moving scratch outside source and removing the temporary environment link before building",
+      "offline_tests_passed": 472,
+      "private_logs_and_stopped_vm_retained": true
+    }
+  ],
+  "relocatable_runtime_experiment": {
+    "scope": "Local Apple Silicon physical-host experiment with a complete standalone interpreter prefix and locked dependencies; not yet integrated with VM bundle export or deployment",
+    "passed": true,
+    "original_build_path_absent": true,
+    "isolated_python_mode": true,
+    "interpreter_version": "3.14.6",
+    "installed_modules": 116,
+    "core_migrations": 8,
+    "controller_migrations": 4,
+    "console_script_relocation": "Not yet qualified; acceptance used the bundled Python interpreter"
+  },
+  "remaining": [
+    "Integrate relocatable core/worker bundles and safe bounded artifact export",
+    "Complete development-workspace preparation and minimum-gate preservation",
+    "Bound all retained staging/cache/workspace data and qualify separate controller identity",
+    "Complete old/new schema read/write canaries and independent health/alerts/handover",
+    "Provision repository-scoped GitHub App and privileged host launcher",
+    "Complete conversational publication, activation, native/Telegram verification, probation and injected rollback before enabling proactive maintenance"
+  ],
+  "running_installation": {
+    "application_restarted": false,
+    "deployed": false,
+    "proactive_maintenance_enabled": false,
+    "builder_vms_left_running": 0
+  },
+  "local_validation": {
+    "offline_tests_passed": 473,
+    "skipped": 1,
+    "elapsed_seconds": 75.42,
+    "skip_reason": "Linux root-only dedicated-UID canary on macOS",
+    "focused_vm_driver_tests": 21,
+    "ruff": "passed",
+    "format": "passed",
+    "strict_pyright_errors": 0,
+    "uv_build": "passed",
+    "publication_source_scan": "passed",
+    "scanned_files": 300,
+    "installed_complete_runtime_smoke": "passed after relocation, outside checkout"
+  }
+}

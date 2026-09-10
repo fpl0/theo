@@ -11,6 +11,7 @@ import httpx
 from prometheus_client.parser import text_string_to_metric_families
 
 from theo.observability import telemetry
+from theo.observability.budget import MEMORY_BUDGET_BYTES
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -109,10 +110,10 @@ def main():
         "samples": samples,
         "errors": errors,
         "peak_physical_footprint_bytes": max(memory) if memory else None,
-        "budget_bytes": 2_000_000_000,
+        "budget_bytes": MEMORY_BUDGET_BYTES,
         "container_restarts": {c["Name"]: c["RestartCount"] for c in states},
         "oom_killed": any(c["State"]["OOMKilled"] for c in states),
-        "method": "macOS footprint sum: all Apple VZ helpers, Colima Lima/SSH helpers, native observer; guest Linux/Docker/containers included in VZ footprint. Shared VZ helpers are conservatively overcounted.",
+        "method": "macOS footprint sum: all Apple VZ helpers, Colima Lima/SSH/Docker helpers, native observer and monitoring launchd wrappers; guest Linux/Docker/containers included in VZ footprint. Shared VZ helpers are conservatively overcounted.",
     }
     events = subprocess.check_output(
         [
@@ -136,7 +137,7 @@ def main():
     report["oom_events"] = len(events)
     report["passed"] = bool(
         len(memory) >= 10
-        and max(memory) < 2_000_000_000
+        and max(memory) < MEMORY_BUDGET_BYTES
         and not errors
         and not report["oom_killed"]
         and not events

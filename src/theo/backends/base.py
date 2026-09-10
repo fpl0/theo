@@ -47,6 +47,9 @@ TOOL_CONTRACT = (
     "work accurately without claiming it is already applied or completed. Follow the owner's "
     "requested response format and length. For JSON responses, put explanations inside the "
     "requested object, include only the requested keys, and use no prose outside it. "
+    "For questions about queued or running work, use get_status to inspect actual jobs and "
+    "pause controls. Empty goals, pending actions or reminder schedules do not establish an "
+    "empty job queue. Do not run the operator CLI from a worker workspace to inspect core state. "
     "A newer canonical fact revision supersedes older context; it does not prove an earlier "
     "answer lacked evidence or was wrong at the time. Distinguish changed facts from errors. "
     "Preserve the supplied units; do not invent "
@@ -106,7 +109,7 @@ class NativeBackend:
             raise ProtocolError("Runtime version probe failed")
         return raw.decode(errors="replace").strip()
 
-    async def preparation(self, request: ExecutionRequest) -> tuple[dict[str, str], Json]:
+    async def runtime_configuration(self) -> tuple[dict[str, str], Json]:
         if os.environ.get("THEO_TEST_OFFLINE") == "1":
             raise Denied("Live native execution is disabled in offline tests")
         home = self.settings.worker_home
@@ -115,9 +118,20 @@ class NativeBackend:
         env = worker_environment(home, runner_uid=self.settings.runner_uid)
         version = await self.version()
         configuration = inspect_configuration(configuration_files(home, self.name))
-        fingerprint = digest({"backend": self.name, "version": version, "transport": "theo-v1"})
+        runtime: Json = {"backend": self.name, "version": version, "transport": "theo-v1"}
+        if self.settings.bundle_native_fingerprint:
+            runtime["native_bundle"] = self.settings.bundle_native_fingerprint
+        fingerprint = digest(runtime)
+        return env, {
+            "runtime_version": version,
+            "fingerprint": fingerprint,
+            "config_hash": configuration,
+        }
+
+    async def preparation(self, request: ExecutionRequest) -> tuple[dict[str, str], Json]:
+        env, runtime = await self.runtime_configuration()
         account = await Accounts(self.db, request.owner_id).eligible(
-            self.name, request.model, fingerprint, configuration
+            self.name, request.model, runtime["fingerprint"], runtime["config_hash"]
         )
         return env, account
 

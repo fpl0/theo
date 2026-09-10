@@ -37,6 +37,22 @@ def parse_time(value: str, timezone: str) -> datetime:
 
 def action_preview(operation: str, request: Json, target: str) -> str:
     """Show the authorized content and destination without internal routing IDs."""
+    if operation == "host_command":
+        import shlex
+
+        return "\n".join(
+            [
+                "Host command approval",
+                "Run as: " + ("root" if request.get("as_root") else "Theo service account"),
+                "Working directory: " + request["cwd"],
+                "Time limit: " + str(request["timeout_seconds"]) + " seconds",
+                "Reason: " + request["reason"],
+                "",
+                shlex.join(request["argv"]),
+                "",
+                "This command can access host files and services. Approving permits the exact command above.",
+            ]
+        )
     raw_binding = request.get("_telegram")
     destination = target
     if isinstance(raw_binding, dict):
@@ -112,7 +128,13 @@ class TelegramUI:
         return await self.db.write(queue)
 
     async def command(
-        self, conversation: str, text: str, key: str, *, reply: Json | None = None
+        self,
+        conversation: str,
+        text: str,
+        key: str,
+        *,
+        reply: Json | None = None,
+        job_id: str | None = None,
     ) -> bool:
         pieces = text.strip().split(maxsplit=2)
         command = pieces[0].split("@")[0]
@@ -236,15 +258,24 @@ class TelegramUI:
             assert row is not None
             output = f"Current route: {row['backend'] or self.settings.primary_backend or 'not selected'} · {row['model'] or self.settings.primary_model or 'not selected'}\nUse /models to choose a route."
         elif command == "/status":
-            jobs = await self.db.read(
-                "SELECT status,count(*) n FROM jobs WHERE owner_id=? AND (? IS NULL OR conversation_id=?) GROUP BY status",
-                (self.owner, scope, scope),
+            work = await Jobs(self.db, self.owner).inspect(scope=scope, exclude_job_id=job_id)
+            counts = {row["status"]: row["count"] for row in work["jobs"]}
+            output = f"Theo status\nqueued: {counts.get('queued', 0)}"
+            output += "".join(
+                f"\n{name.replace('_', ' ')}: {count}"
+                for name, count in counts.items()
+                if name != "queued"
             )
-            output = "Theo status\n" + "\n".join(
-                f"{r['status'].replace('_', ' ')}: {r['n']}" for r in jobs
-            )
-            for name in ("background", "models", "notifications"):
-                output += f"\n{name.title()}: {'paused' if await self.db.control(self.owner, name + '_paused') == 'true' else 'enabled'}"
+            controls = {row["key"]: row["value"] for row in work["controls"]}
+            for name in (
+                "background",
+                "autonomy",
+                "requested_work",
+                "models",
+                "deployments",
+                "notifications",
+            ):
+                output += f"\n{name.replace('_', ' ').title()}: {'paused' if controls.get(name + '_paused') == 'true' else 'enabled'}"
             if not scope:
                 events = await self.db.read(
                     "SELECT status,count(*) n FROM telegram_events WHERE owner_id=? AND status IN ('failed','pending') GROUP BY status",
