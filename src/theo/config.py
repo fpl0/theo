@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import Field, field_validator
 
-from theo.domain import StrictModel, TelegramDestination
+from theo.domain import ControlScope, StrictModel, TelegramDestination
 
 
 def default_root() -> Path:
@@ -59,6 +59,14 @@ class Settings(StrictModel):
     allow_unencrypted_release_backup: bool = False
     qualified_backends: tuple[str, ...] = ()
     soak_completed: bool = False
+    operating_mode: Literal["qualified", "owner_authorized"] = "qualified"
+    model_runtime_controls: tuple[ControlScope, ...] = ()
+    maintenance_proactive: bool = False
+    maintenance_socket: Path | None = None
+    maintenance_token_file: Path | None = None
+    maintenance_installation_id: str | None = None
+    host_access_enabled: bool = False
+    host_root_launcher: Path | None = None
 
     @field_validator("required_backends")
     @classmethod

@@ -37,6 +37,22 @@ def parse_time(value: str, timezone: str) -> datetime:
 
 def action_preview(operation: str, request: Json, target: str) -> str:
     """Show the authorized content and destination without internal routing IDs."""
+    if operation == "host_command":
+        import shlex
+
+        return "\n".join(
+            [
+                "Host command approval",
+                "Run as: " + ("root" if request.get("as_root") else "Theo service account"),
+                "Working directory: " + request["cwd"],
+                "Time limit: " + str(request["timeout_seconds"]) + " seconds",
+                "Reason: " + request["reason"],
+                "",
+                shlex.join(request["argv"]),
+                "",
+                "This command can access host files and services. Approving permits the exact command above.",
+            ]
+        )
     raw_binding = request.get("_telegram")
     destination = target
     if isinstance(raw_binding, dict):
@@ -251,8 +267,15 @@ class TelegramUI:
                 if name != "queued"
             )
             controls = {row["key"]: row["value"] for row in work["controls"]}
-            for name in ("background", "models", "notifications"):
-                output += f"\n{name.title()}: {'paused' if controls.get(name + '_paused') == 'true' else 'enabled'}"
+            for name in (
+                "background",
+                "autonomy",
+                "requested_work",
+                "models",
+                "deployments",
+                "notifications",
+            ):
+                output += f"\n{name.replace('_', ' ').title()}: {'paused' if controls.get(name + '_paused') == 'true' else 'enabled'}"
             if not scope:
                 events = await self.db.read(
                     "SELECT status,count(*) n FROM telegram_events WHERE owner_id=? AND status IN ('failed','pending') GROUP BY status",

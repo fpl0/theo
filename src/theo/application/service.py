@@ -25,15 +25,22 @@ from theo.domain import (
 )
 from theo.observability import telemetry
 from theo.operations.backups import backup_create, retain_backups
+from theo.operations.controls import Controls
 from theo.storage import Database
 from theo.tools.broker import ToolBroker
 from theo.work.autonomy import Autonomy
 from theo.work.improvement import Critic
 from theo.work.jobs import Jobs
+from theo.work.maintenance import Maintenance
 from theo.work.scheduling import Scheduler
 
 
 async def serve(db: Database, settings: Settings, token: str | None = None) -> None:
+    from theo.maintenance.bundles import selected_settings
+
+    selected = selected_settings(db.root)
+    if selected:
+        settings = settings.model_copy(update={"worker_python": selected[1]})
     telemetry.configure(db.root)
     lock = (db.root / "daemon.lock").open("a")
     try:
@@ -118,6 +125,10 @@ async def _run_service(
                     pass
 
     async def sender(operation: str, payload: Json) -> Json:
+        if operation == "host_command":
+            from theo.execution.host import execute
+
+            return await execute(settings, payload)
         channel = payload.pop("_channel", "local")
         if telegram and channel == "telegram":
             return await telegram.send(operation, payload)
@@ -133,7 +144,9 @@ async def _run_service(
     async def dispatch() -> None:
         while not stop.is_set():
             try:
-                if await Delivery(db, settings).dispatch_one(sender):
+                if await db.control(
+                    settings.owner_id, "maintenance_draining"
+                ) != "true" and await Delivery(db, settings).dispatch_one(sender):
                     continue
             except Exception as exc:
                 await db.health(settings.owner_id, "dispatch_error", {"error": type(exc).__name__})
@@ -158,6 +171,20 @@ async def _run_service(
             except TimeoutError:
                 pass
 
+    async def maintenance_bridge() -> None:
+        while not stop.is_set():
+            try:
+                await Maintenance(db, settings).bridge()
+            except Exception as exc:
+                await db.health(
+                    settings.owner_id, "maintenance_bridge_error", {"error": type(exc).__name__}
+                )
+            try:
+                await asyncio.wait_for(stop.wait(), 2)
+            except TimeoutError:
+                pass
+
+    bridge_task = asyncio.create_task(maintenance_bridge())
     embedding_task = asyncio.create_task(repair_embeddings())
     last_maintenance = 0.0
     last_backup = db.clock()
@@ -171,23 +198,22 @@ async def _run_service(
             await coordinator.reconcile_cancellations()
             await Scheduler(db, settings.owner_id).tick()
             await Scheduler(db, settings.owner_id).deliver_reminders(settings)
-            background_paused = await db.control(settings.owner_id, "background_paused") == "true"
-            if not background_paused and db.clock() - last_maintenance >= 30:
-                from theo.operations.qualification import qualification_status
-
-                if not (await qualification_status(db, settings))["deployment_ready"]:
+            controls = await Controls(db, settings).snapshot()
+            background_paused = controls["paused"]["background"]
+            if (
+                not (controls["paused"]["autonomy"] and controls["paused"]["requested_work"])
+                and db.clock() - last_maintenance >= 30
+            ):
+                if not (await Controls(db, settings).readiness())["allowed"]:
                     await db.set_control(settings.owner_id, "background_paused", "true")
                     background_paused = True
-            draining = await db.control(settings.owner_id, "maintenance_draining") == "true"
             for lane in ("interactive", "background"):
-                if draining:
-                    break
                 job = await Jobs(db, settings.owner_id).claim(
                     lane,
                     str(os.getpid()),
                     max_total=settings.max_runs,
                     max_background=settings.max_background,
-                    reminders_only=background_paused and lane == "background",
+                    honor_operating_controls=True,
                 )
                 if job:
                     task = asyncio.create_task(coordinator.run_job(job))
@@ -254,6 +280,9 @@ async def _run_service(
         embedding_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await embedding_task
+        bridge_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await bridge_task
         dispatch_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await dispatch_task

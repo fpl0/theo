@@ -62,6 +62,23 @@ async def get_status(call: ToolCall, args: Json) -> ToolResult:
         limit=args["limit"],
         offset=args["offset"],
     )
+    if not call.scope:
+        data["maintenance"] = {
+            "configured": bool(
+                call.settings.maintenance_socket
+                and call.settings.maintenance_token_file
+                and call.settings.maintenance_installation_id
+            ),
+            "proactive_permitted_by_core": call.settings.maintenance_proactive,
+            "status_tool": "maintenance_status",
+        }
+    data["runtime_control_scopes"] = sorted(call.context.control_scopes) if not call.scope else []
+    data["runtime_control_revision"] = int(
+        next(
+            (row["value"] for row in data["controls"] if row["key"] == "runtime_control_revision"),
+            "0",
+        )
+    )
     return ToolResult(status="ok", data=data)
 
 

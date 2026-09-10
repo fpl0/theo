@@ -8,9 +8,51 @@ from functools import partial
 
 from theo.tools import schemas
 from theo.tools.contracts import ToolDefinition
-from theo.tools.handlers import feedback, memory, outbound, work, workspace
+from theo.tools.handlers import feedback, host, maintenance, memory, outbound, work, workspace
 
 REGISTRY: dict[str, ToolDefinition] = {
+    "host_command": ToolDefinition(
+        schemas.HostCommandArgs,
+        "Run a command anywhere on the host. Fixed diagnostics use standing permission. All other commands, including file access, mutation, networking and privileged execution, require the owner's exact approval in /review. Never put credentials in arguments. Results appear in action_status; queued is not executed.",
+        host.command,
+        "outbound",
+    ),
+    "maintenance_begin": ToolDefinition(
+        schemas.MaintenanceBeginArgs,
+        "Start a durable private owner source change for publication or deployment.",
+        maintenance.begin,
+        "write",
+    ),
+    "maintenance_submit": ToolDefinition(
+        schemas.MaintenanceSubmitArgs,
+        "Submit this coding job's source revision. End source writes after submission.",
+        maintenance.submit,
+        "write",
+    ),
+    "maintenance_review": ToolDefinition(
+        schemas.MaintenanceReviewArgs,
+        "Record independent review of the exact immutable candidate; review jobs only.",
+        maintenance.review,
+        "write",
+    ),
+    "maintenance_status": ToolDefinition(
+        schemas.MaintenanceStatusArgs,
+        "Read actual maintenance stages, check receipts, publication and deployment outcomes.",
+        maintenance.status,
+        "read",
+    ),
+    "maintenance_cancel": ToolDefinition(
+        schemas.MaintenanceChangeArgs,
+        "Cancel a durable maintenance change; active deployments recover before cancellation completes.",
+        maintenance.cancel,
+        "write",
+    ),
+    "maintenance_rollback": ToolDefinition(
+        schemas.MaintenanceRollbackArgs,
+        "Request code rollback to the recorded compatible prior bundle; never restore the database.",
+        maintenance.rollback,
+        "write",
+    ),
     "send_message": ToolDefinition(
         schemas.MessageArgs,
         "Queue an owner message; committed means queued, never sent. Prefer this for ordinary "
@@ -122,6 +164,16 @@ REGISTRY: dict[str, ToolDefinition] = {
         "This is a work-queue snapshot, not native account or deployment qualification.",
         work.get_status,
         "read",
+    ),
+    "runtime_control": ToolDefinition(
+        schemas.RuntimeControlArgs,
+        "Pause or resume an operational scope under the owner's standing grant. "
+        "background controls both autonomy and requested_work; choose the narrow scope needed. "
+        "Use get_status for current controls, granted scopes and the required expected_revision. "
+        "The receipt records the applied revision; refresh status before another change. This cannot change account "
+        "eligibility, installation policy or qualification evidence.",
+        maintenance.runtime_control,
+        "write",
     ),
     "delete_task": ToolDefinition(
         schemas.IdArgs, "Cancel a schedule without deleting its history.", work.delete_task, "write"

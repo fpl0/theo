@@ -57,6 +57,7 @@ def test_internal_module_imports_are_acyclic(imports):
         ("theo.work", ("theo.application", "theo.channels", "theo.cli", "theo.tools")),
         ("theo.content", ("theo.application", "theo.channels", "theo.cli", "theo.tools")),
         ("theo.delivery", ("theo.application", "theo.channels", "theo.cli", "theo.tools")),
+        ("theo.maintenance", ("theo.application", "theo.channels", "theo.cli", "theo.tools")),
         (
             "theo.tools.handlers",
             (

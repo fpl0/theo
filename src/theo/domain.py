@@ -10,13 +10,17 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
 type Json = dict[str, Any]
 type Clock = Callable[[], float]
+type WorkOrigin = Literal["requested", "autonomous", "system"]
+type ControlScope = Literal[
+    "background", "autonomy", "requested_work", "models", "deployments", "notifications"
+]
 
 
 def now() -> float:
@@ -161,6 +165,7 @@ class ToolContext(StrictModel):
     generation: int
     workspace: Path
     tools: frozenset[str]
+    control_scopes: frozenset[ControlScope] = frozenset()
 
 
 class ToolResult(StrictModel):

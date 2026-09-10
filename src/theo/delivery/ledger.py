@@ -271,7 +271,14 @@ class Delivery:
         assert conv
         if self._job_cancelled(db, row["action_id"]):
             return "job_cancelled"
-        if row["target"] != conv["target"]:
+        # Recheck every explicit approval, even for same-chat actions. A ready
+        # status alone is not authority for a host command or other protected effect.
+        explicit_approval = db.execute(
+            "SELECT 1 FROM approvals WHERE action_id=?", (row["action_id"],)
+        ).fetchone()
+        if row["operation"] == "host_command" and not settings.host_access_enabled:
+            return "authorization_missing"
+        if row["target"] != conv["target"] or explicit_approval:
             approval = db.execute(
                 "SELECT 1 FROM approvals WHERE action_id=? AND owner_id=? AND request_hash=? AND target=? AND expires_at>? AND decision='approved'",
                 (row["action_id"], self.owner, row["request_hash"], row["target"], self.db.clock()),

@@ -1,5 +1,290 @@
 [
   {
+    "name": "host_command",
+    "baseline": false,
+    "description": "Run a command anywhere on the host. Fixed diagnostics use standing permission. All other commands, including file access, mutation, networking and privileged execution, require the owner's exact approval in /review. Never put credentials in arguments. Results appear in action_status; queued is not executed.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Argv",
+          "type": "array"
+        },
+        "cwd": {
+          "default": "/",
+          "maxLength": 4096,
+          "minLength": 1,
+          "title": "Cwd",
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "default": 60,
+          "maximum": 600,
+          "minimum": 1,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        },
+        "as_root": {
+          "default": false,
+          "title": "As Root",
+          "type": "boolean"
+        },
+        "reason": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "argv",
+        "reason"
+      ],
+      "title": "HostCommandArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "maintenance_begin",
+    "baseline": false,
+    "description": "Start a durable private owner source change for publication or deployment.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "objective": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Objective",
+          "type": "string"
+        },
+        "target": {
+          "enum": [
+            "publish",
+            "deploy"
+          ],
+          "title": "Target",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Evidence",
+          "type": "array"
+        }
+      },
+      "required": [
+        "objective",
+        "target"
+      ],
+      "title": "MaintenanceBeginArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "maintenance_submit",
+    "baseline": false,
+    "description": "Submit this coding job's source revision. End source writes after submission.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "change_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Change Id",
+          "type": "string"
+        },
+        "expected_revision": {
+          "minimum": 1,
+          "title": "Expected Revision",
+          "type": "integer"
+        },
+        "summary": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "change_id",
+        "expected_revision",
+        "summary"
+      ],
+      "title": "MaintenanceSubmitArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "maintenance_review",
+    "baseline": false,
+    "description": "Record independent review of the exact immutable candidate; review jobs only.",
+    "inputSchema": {
+      "$defs": {
+        "CandidateIdentity": {
+          "additionalProperties": false,
+          "properties": {
+            "change_id": {
+              "$ref": "#/$defs/Identity"
+            },
+            "revision": {
+              "minimum": 1,
+              "title": "Revision",
+              "type": "integer"
+            },
+            "base_commit": {
+              "$ref": "#/$defs/Commit"
+            },
+            "commit": {
+              "$ref": "#/$defs/Commit"
+            },
+            "tree": {
+              "$ref": "#/$defs/Commit"
+            },
+            "snapshot_sha256": {
+              "pattern": "^[a-f0-9]{64}$",
+              "title": "Snapshot Sha256",
+              "type": "string"
+            },
+            "lock_sha256": {
+              "pattern": "^[a-f0-9]{64}$",
+              "title": "Lock Sha256",
+              "type": "string"
+            }
+          },
+          "required": [
+            "change_id",
+            "revision",
+            "base_commit",
+            "commit",
+            "tree",
+            "snapshot_sha256",
+            "lock_sha256"
+          ],
+          "title": "CandidateIdentity",
+          "type": "object"
+        },
+        "Commit": {
+          "pattern": "^[a-f0-9]{40}(?:[a-f0-9]{24})?$",
+          "type": "string"
+        },
+        "Identity": {
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "change_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Change Id",
+          "type": "string"
+        },
+        "candidate": {
+          "$ref": "#/$defs/CandidateIdentity"
+        },
+        "approved": {
+          "title": "Approved",
+          "type": "boolean"
+        },
+        "findings": {
+          "maxLength": 8000,
+          "minLength": 1,
+          "title": "Findings",
+          "type": "string"
+        }
+      },
+      "required": [
+        "change_id",
+        "candidate",
+        "approved",
+        "findings"
+      ],
+      "title": "MaintenanceReviewArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "maintenance_status",
+    "baseline": false,
+    "description": "Read actual maintenance stages, check receipts, publication and deployment outcomes.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "change_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Change Id"
+        }
+      },
+      "title": "MaintenanceStatusArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "maintenance_cancel",
+    "baseline": false,
+    "description": "Cancel a durable maintenance change; active deployments recover before cancellation completes.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "change_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Change Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "change_id"
+      ],
+      "title": "MaintenanceChangeArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "maintenance_rollback",
+    "baseline": false,
+    "description": "Request code rollback to the recorded compatible prior bundle; never restore the database.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "change_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Change Id",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "change_id",
+        "reason"
+      ],
+      "title": "MaintenanceRollbackArgs",
+      "type": "object"
+    }
+  },
+  {
     "name": "send_message",
     "baseline": true,
     "description": "Queue an owner message; committed means queued, never sent. Prefer this for ordinary conversation and omit reply_to unless a message reference helps clarify the answer.",
@@ -989,6 +1274,55 @@
         }
       },
       "title": "StatusArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "runtime_control",
+    "baseline": false,
+    "description": "Pause or resume an operational scope under the owner's standing grant. background controls both autonomy and requested_work; choose the narrow scope needed. Use get_status for current controls, granted scopes and the required expected_revision. The receipt records the applied revision; refresh status before another change. This cannot change account eligibility, installation policy or qualification evidence.",
+    "inputSchema": {
+      "$defs": {
+        "ControlScope": {
+          "enum": [
+            "background",
+            "autonomy",
+            "requested_work",
+            "models",
+            "deployments",
+            "notifications"
+          ],
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/ControlScope"
+        },
+        "paused": {
+          "title": "Paused",
+          "type": "boolean"
+        },
+        "reason": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "expected_revision": {
+          "minimum": 0,
+          "title": "Expected Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "scope",
+        "paused",
+        "reason",
+        "expected_revision"
+      ],
+      "title": "RuntimeControlArgs",
       "type": "object"
     }
   },

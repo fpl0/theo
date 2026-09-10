@@ -41,7 +41,7 @@ class Autonomy:
     async def opportunity(self, kind: str) -> Json:
         if kind not in CADENCES:
             raise ValueError("Unknown autonomy behavior")
-        if await self.db.control(self.owner, "background_paused") == "true":
+        if await self.db.control(self.owner, "autonomy_paused") == "true":
             return {"status": "noop", "reason": "background_paused"}
         if kind == "deep_work":
             goals = await self.db.read(
@@ -162,7 +162,7 @@ class Autonomy:
         }
 
     async def tick(self, conversation: str) -> list[Json]:
-        if await self.db.control(self.owner, "background_paused") == "true":
+        if await self.db.control(self.owner, "autonomy_paused") == "true":
             return []
         reports: list[Json] = []
         for kind, cadence in CADENCES.items():
@@ -202,6 +202,7 @@ class Autonomy:
                     {"text": result["text"], "evidence": result["evidence"]},
                     key,
                     deadline=self.db.clock() + (5400 if kind == "deep_work" else 1800),
+                    origin="autonomous",
                 )
         return reports
 

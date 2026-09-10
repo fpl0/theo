@@ -17,6 +17,7 @@ from theo.domain import (
     Json,
     encode,
 )
+from theo.operations.controls import Controls
 from theo.privacy import group_scope
 from theo.storage import Database
 
@@ -83,22 +84,27 @@ class ConversationCommands:
         pieces = text.strip().split()
         command = pieces[0].split("@")[0]
         if command in ("/help", "/start"):
-            return "Theo commands: /status /backend [name model] /models /jobs /cancel <job-id> /pause [background|models|notifications] /resume [scope] /memory [query] /goals /usage /help. Requested reminders remain active during background pause."
+            return "Theo commands: /status /backend [name model] /models /jobs /cancel <job-id> /pause [background|autonomy|requested_work|models|deployments|notifications] /resume [scope] /memory [query] /goals /usage /help. Requested reminders remain active during background pause."
         if command == "/cancel" and len(pieces) == 2:
             await self.cancel(pieces[1])
             return "Cancellation recorded. Already dispatched effects remain inspectable."
         if command in ("/pause", "/resume"):
             scope = pieces[1] if len(pieces) > 1 else "background"
-            if scope not in ("background", "models", "notifications"):
-                return "Choose background, models or notifications."
-            if command == "/resume" and scope == "background":
-                from theo.operations.qualification import qualification_status
-
-                if not (await qualification_status(self.db, self.settings))["deployment_ready"]:
-                    return "Background activation requires recorded native, Mac, behaviour and seven-day deployment qualification."
-            await self.db.set_control(
-                self.owner, scope + "_paused", "true" if command == "/pause" else "false"
-            )
+            if scope not in (
+                "background",
+                "autonomy",
+                "requested_work",
+                "models",
+                "deployments",
+                "notifications",
+            ):
+                return "Choose background, autonomy, requested_work, models, deployments or notifications."
+            try:
+                await Controls(self.db, self.settings).set(
+                    scope, command == "/pause", "Explicit owner command", conversation=conversation
+                )
+            except Denied as exc:
+                return str(exc)
             return f"{scope.capitalize()} {'paused' if command == '/pause' else 'resumed'}. Requested reminder schedules are preserved."
         if command == "/backend":
             if len(pieces) == 3:

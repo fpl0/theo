@@ -6,7 +6,7 @@ Native execution and user-facing delivery are coordinated by the application.
 
 import sqlite3
 
-from theo.domain import Conflict, Denied, Json, Outcome, encode, uid
+from theo.domain import Conflict, Denied, Json, Outcome, WorkOrigin, encode, uid
 from theo.observability import telemetry
 from theo.storage import Database
 
@@ -45,14 +45,14 @@ class Jobs:
             items = [
                 dict(row)
                 for row in db.execute(
-                    f"SELECT id,conversation_id,parent_id,kind,lane,status,substr(coalesce(json_extract(payload,'$.text'),kind),1,600) summary,created_at,updated_at,available_at,deadline FROM jobs WHERE {where} AND status NOT IN ('completed','failed','cancelled') ORDER BY created_at,id LIMIT ? OFFSET ?",
+                    f"SELECT id,conversation_id,parent_id,kind,lane,origin,status,substr(coalesce(json_extract(payload,'$.text'),kind),1,600) summary,created_at,updated_at,available_at,deadline FROM jobs WHERE {where} AND status NOT IN ('completed','failed','cancelled') ORDER BY created_at,id LIMIT ? OFFSET ?",
                     (*args, limit, offset),
                 )
             ]
             controls = [
                 dict(row)
                 for row in db.execute(
-                    "SELECT key,value FROM control WHERE owner_id=? AND key IN ('background_paused','models_paused','notifications_paused','quarantined','maintenance_draining')",
+                    "SELECT key,value FROM control WHERE owner_id=? AND key IN ('background_paused','autonomy_paused','requested_work_paused','deployments_paused','models_paused','notifications_paused','quarantined','maintenance_draining','runtime_control_revision')",
                     (self.owner,),
                 )
             ]
@@ -80,6 +80,7 @@ class Jobs:
         parent: str | None = None,
         deadline: float | None = None,
         available: float | None = None,
+        origin: WorkOrigin | None = None,
     ) -> str:
         conv = db.execute(
             "SELECT id FROM conversations WHERE id=? AND owner_id=?", (conversation, self.owner)
@@ -88,16 +89,21 @@ class Jobs:
             raise Denied("Conversation unavailable")
         parent_row = (
             db.execute(
-                "SELECT root_id FROM jobs WHERE id=? AND owner_id=?", (parent, self.owner)
+                "SELECT root_id,origin FROM jobs WHERE id=? AND owner_id=?", (parent, self.owner)
             ).fetchone()
             if parent
             else None
         )
         if parent and parent_row is None:
             raise Denied("Parent unavailable")
+        if parent_row:
+            if origin is not None and origin != parent_row["origin"]:
+                raise Denied("A child cannot change the authority that originated its work")
+            origin = parent_row["origin"]
+        origin = origin or "requested"
         job_id, timestamp = uid(), self.db.clock()
         db.execute(
-            "INSERT OR IGNORE INTO jobs(id,owner_id,conversation_id,parent_id,root_id,kind,lane,status,payload,semantic_key,deadline,available_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT OR IGNORE INTO jobs(id,owner_id,conversation_id,parent_id,root_id,kind,lane,status,payload,semantic_key,deadline,available_at,created_at,updated_at,origin) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 job_id,
                 self.owner,
@@ -113,14 +119,22 @@ class Jobs:
                 available if available is not None else timestamp,
                 timestamp,
                 timestamp,
+                origin,
             ),
         )
         row = db.execute(
-            "SELECT id,payload,kind FROM jobs WHERE owner_id=? AND semantic_key=?",
+            "SELECT id,payload,kind,origin,parent_id,conversation_id,lane FROM jobs WHERE owner_id=? AND semantic_key=?",
             (self.owner, key),
         ).fetchone()
         assert row is not None
-        if row["payload"] != encode(payload) or row["kind"] != kind:
+        if (
+            row["payload"] != encode(payload)
+            or row["kind"] != kind
+            or row["origin"] != origin
+            or row["parent_id"] != parent
+            or row["conversation_id"] != conversation
+            or row["lane"] != lane
+        ):
             raise Conflict("Job identity already binds a different request")
         traceparent = telemetry.carrier()
         if traceparent:
@@ -141,6 +155,7 @@ class Jobs:
         parent: str | None = None,
         deadline: float | None = None,
         available: float | None = None,
+        origin: WorkOrigin | None = None,
     ) -> str:
         return await self.db.write(
             lambda db: self.insert(
@@ -153,6 +168,7 @@ class Jobs:
                 parent=parent,
                 deadline=deadline,
                 available=available,
+                origin=origin,
             )
         )
 
@@ -212,6 +228,7 @@ class Jobs:
         max_total: int = 2,
         max_background: int = 1,
         reminders_only: bool = False,
+        honor_operating_controls: bool = False,
     ) -> Json | None:
         def claim(db: sqlite3.Connection) -> Json | None:
             paused = db.execute(
@@ -219,6 +236,21 @@ class Jobs:
                 (self.owner,),
             ).fetchone()
             only_reminders = reminders_only or bool(paused and paused[0] == "true")
+            requested_allowed = autonomous_allowed = True
+            draining = False
+            if honor_operating_controls:
+                controls = dict(
+                    connection_row
+                    for connection_row in db.execute(
+                        "SELECT key,value FROM control WHERE owner_id=?", (self.owner,)
+                    )
+                )
+                if controls.get("quarantined") == "true":
+                    return None
+                draining = controls.get("maintenance_draining") == "true"
+                if lane == "background":
+                    requested_allowed = controls.get("requested_work_paused") != "true"
+                    autonomous_allowed = controls.get("autonomy_paused") != "true"
             active = db.execute(
                 "SELECT lane,count(*) n FROM jobs WHERE owner_id=? AND status='running' GROUP BY lane",
                 (self.owner,),
@@ -229,8 +261,16 @@ class Jobs:
             ):
                 return None
             row = db.execute(
-                "SELECT j.* FROM jobs j WHERE j.owner_id=? AND j.lane=? AND j.status IN ('queued','interrupted') AND j.available_at<=? AND (?=0 OR j.kind='reminder') AND NOT EXISTS(SELECT 1 FROM jobs x WHERE x.conversation_id=j.conversation_id AND x.status='running') AND NOT EXISTS(SELECT 1 FROM job_dependencies d JOIN jobs p ON p.id=d.depends_on WHERE d.job_id=j.id AND p.status<>'completed') ORDER BY j.created_at LIMIT 1",
-                (self.owner, lane, self.db.clock(), int(only_reminders)),
+                "SELECT j.* FROM jobs j WHERE j.owner_id=? AND j.lane=? AND j.status IN ('queued','interrupted') AND j.available_at<=? AND (?=0 OR j.kind='reminder') AND (?=0 OR j.kind='maintenance_canary') AND (j.kind='reminder' OR (j.origin='requested' AND ?=1) OR (j.origin IN ('autonomous','system') AND ?=1)) AND NOT EXISTS(SELECT 1 FROM jobs x WHERE x.conversation_id=j.conversation_id AND x.status='running') AND NOT EXISTS(SELECT 1 FROM job_dependencies d JOIN jobs p ON p.id=d.depends_on WHERE d.job_id=j.id AND p.status<>'completed') ORDER BY j.created_at LIMIT 1",
+                (
+                    self.owner,
+                    lane,
+                    self.db.clock(),
+                    int(only_reminders),
+                    int(draining),
+                    int(requested_allowed),
+                    int(autonomous_allowed),
+                ),
             ).fetchone()
             if row is None:
                 return None

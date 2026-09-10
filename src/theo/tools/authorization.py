@@ -43,7 +43,13 @@ class BoundDatabase(Database):
 async def authorize(db: Database, ctx: ToolContext, name: str, args: Json) -> str | None:
     scope = await group_scope(db, ctx.conversation_id)
     if scope:
-        if name in {"get_cost_report", "command_run", "skill_propose"}:
+        if name.startswith("maintenance_") or name in {
+            "get_cost_report",
+            "command_run",
+            "skill_propose",
+            "runtime_control",
+            "host_command",
+        }:
             raise Denied("Use the owner private chat for this capability")
         for argument, kind in (("artifact_id", "artifact"), ("source_message_id", "message")):
             if argument in args:
@@ -86,6 +92,11 @@ async def authorize(db: Database, ctx: ToolContext, name: str, args: Json) -> st
                 raise Denied("Message is not in this conversation")
             if args.get("target") or args.get("destination_id") or name == "forward":
                 raise Denied("Review cross-conversation message operations privately")
+    if name in {"file_write", "command_run"} and await db.one(
+        "SELECT 1 FROM maintenance_rounds WHERE coding_job_id=? AND submission IS NOT NULL",
+        (ctx.job_id,),
+    ):
+        raise Denied("Submitted source is sealed; start a new candidate revision")
     correction = await db.one("SELECT payload FROM jobs WHERE id=?", (ctx.job_id,))
     if (
         correction
