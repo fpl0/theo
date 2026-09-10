@@ -86,3 +86,48 @@ work schedules and uses positional schedule inserts. Preserve the old release an
 snapshot, retain compatibility gates, and never automatically restore the database
 or resend uncertain effects. A target activation record must separately state the
 installed source, actual checks and any remaining qualification gaps.
+
+## Follow-through correction
+
+The first production canary successfully read the archive and executed a privileged
+command without approval, but its narrowly scoped verification reply left the owner
+with another unfinished-work status. The owner correctly identified the missing
+plan, timeline and unsolicited next update. Access alone had not solved ownership.
+
+The correction adds `goal_checkpoint`: one transaction saves a commitment and its
+future native job. Due checkpoints take priority over queued batches, use current
+goal/conversation evidence, and require a final receipted update. Replacing a
+checkpoint cancels its obsolete future job without cancelling the reporting run.
+Goal completion or pause closes pending checkpoints. Promised updates are exempt
+from the unsolicited-message count cap, while delivery pauses and freshness checks
+remain in force. Partial deep-work outcomes stay internal; a completed goal retains
+its final-result obligation. Persona and shared guidance require a concise stage
+breakdown, a measured completion estimate or a timed checkpoint, substantial batches,
+an exact saved coverage cursor, and continued work without duplicate review schedules.
+
+The first follow-through harness attempt exposed a fixture error: it left work
+paused and provided neither sources nor an existing reviewer. That failed report
+was preserved. A corrected fixture supplies the existing source worker and enables
+work. Its two native turns demonstrated a saved checkpoint, fresh measured progress,
+a delivered update and the next checkpoint. A lexical oracle initially rejected
+“measure” as the inventory stage; it was corrected to accept that equivalent wording.
+These reports remain distinct from real-time production evidence.
+
+The final production-source snapshot passed 558 offline tests with one Linux-only
+skip. Focused job, delivery, scheduling, crash and architecture checks also passed. Ruff, strict Pyright, the build and an isolated
+installed-wheel check passed (128 modules, nine core/four controller migrations).
+The target activation record separately identifies the installed source and
+additional checks; this paragraph does not claim an unrun production soak.
+
+The autonomy regression created a real invoice plan, executed it, checked and
+registered the correct artifact, completed the goal, and delivered exactly one
+useful final message. Its old harness compared that delivered message to the now
+internal terminal note and reported a false delivery mismatch. The raw failure is
+preserved; the harness now grades the committed final-action text and records the
+terminal note separately. All underlying artifact, completion and receipt checks
+passed. Delegated calculation and delivery also passed.
+
+A later follow-through reply used a worker's allotted thirty-minute window as an
+ETA basis despite having no measured pace. That transcript is preserved. Shared
+guidance now explicitly separates queue deadlines from observed throughput, and
+the follow-through regression rejects that substitution.

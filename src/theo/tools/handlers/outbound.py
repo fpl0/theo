@@ -55,11 +55,11 @@ async def send(call: ToolCall, args: Json, *, operation: str) -> ToolResult:
         run_id=ctx.run_id,
         generation=ctx.generation,
         role=role,
-        autonomous=bool(job and job["lane"] == "background"),
+        autonomous=bool(job and job["lane"] == "background" and job["kind"] != "goal_checkin"),
         discretionary=bool(
             job
             and job["lane"] == "background"
-            and not (role == "final" and job["kind"] in ("delegated", "deep_work"))
+            and not (role == "final" and job["kind"] in ("delegated", "deep_work", "goal_checkin"))
         ),
         target=target,
         destination_id=destination_id,

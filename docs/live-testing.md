@@ -108,6 +108,14 @@ This batch verifies committed tool effects and reads the delivered replies. It
 does not exercise a production Telegram session or establish long-term companion
 quality. Review its transcripts separately from the automated pass count.
 
+The opt-in `--sections followthrough` batch uses two native turns to test a
+three-stage plan, a persisted fifteen-minute checkpoint, a fresh-context update
+without another input job, its delivery receipt, and ownership of the next update.
+It advances a controlled application clock and uses synthetic local delivery; it
+does not claim fifteen minutes of wall-clock operation or production Telegram
+evidence. The fixture supplies an existing future source worker and enabled work
+controls so a setup blocker cannot masquerade as a follow-through failure.
+
 The suite covers memory correction/revision preservation, archive/restore, an optimal resource schedule with a known answer, conflicting and malicious source evidence, unknown facts and unperformed actions, autonomous invoice reconciliation, a durable delegated calculation, relative and recurring reminders, cancellation, model pause, empathetic responses, listening without advice, a clearer second explanation, and canonical continuity between models. Reminder checks advance the application clock; they are not a real-time soak or Telegram delivery test. Native capabilities that bypass Theo's broker are disabled in the Codex adapter, just as the Claude adapter disables built-in tools.
 
 The raw report's `automated_pass` checks state and output oracles. It deliberately leaves `quality_review` unscored. A reviewer must inspect every native transcript against the fixed five-dimension rubric: correctness, evidence, completion, voice and judgment, each from 1 to 5. Acceptance requires every dimension to score at least 4, zero critical violations, and all automated checks to pass. These are subjective judgments about a small synthetic sample, not a general guarantee of model quality. Preserve failed reports and review notes when fixing a failure.

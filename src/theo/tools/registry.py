@@ -277,6 +277,12 @@ REGISTRY: dict[str, ToolDefinition] = {
         work.goal_inspect,
         "read",
     ),
+    "goal_checkpoint": ToolDefinition(
+        schemas.GoalCheckpointArgs,
+        "Commit a goal progress-update time with a durable future job before promising it. Optionally record a completion estimate with its evidence basis. Replaces the previous pending checkpoint, never the goal's work. Use goal_inspect to see existing checkpoints; don't schedule duplicate work. Completed or paused goals cancel pending checkpoints.",
+        work.goal_checkpoint,
+        "write",
+    ),
     "step_update": ToolDefinition(
         schemas.StepUpdateArgs,
         "Revise an unfinished plan step when new information makes its next action stale. Bind expected_next_action to the value from goal_inspect. Preserve completed work; use goal_update separately when a blocker clears.",

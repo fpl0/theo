@@ -545,6 +545,16 @@ class Delivery:
             "UPDATE actions SET status=?,error=?,updated_at=? WHERE id=?",
             (status, error[0] if error else None, self.db.clock(), action_id),
         )
+        if status == "succeeded" and action["role"] == "final":
+            checkpoint = db.execute(
+                "SELECT json_extract(payload,'$.commitment_id') FROM jobs WHERE id=? AND kind='goal_checkin'",
+                (action["job_id"],),
+            ).fetchone()
+            if checkpoint:
+                db.execute(
+                    "UPDATE commitments SET status='fulfilled',evidence=json_set(evidence,'$.delivered_action_id',?) WHERE id=? AND owner_id=? AND status IN ('active','goal_completed','superseded')",
+                    (action_id, checkpoint[0], self.owner),
+                )
         if (
             status == "succeeded"
             and action["role"] == "final"

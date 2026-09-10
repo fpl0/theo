@@ -222,6 +222,12 @@ class StepUpdateArgs(IdArgs):
     next_action: str = Field(min_length=1, max_length=10000)
 
 
+class GoalCheckpointArgs(IdArgs):
+    next_update_at: float = Field(allow_inf_nan=False)
+    estimated_completion_at: float | None = Field(default=None, allow_inf_nan=False)
+    estimate_basis: str | None = Field(default=None, max_length=2000)
+
+
 class FactArgs(StrictModel):
     subject: str
     predicate: str

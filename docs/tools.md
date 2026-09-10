@@ -2,7 +2,7 @@
 
 All handlers pass through owner/run/generation grants in `tools/broker.py` and lease/privacy checks in `tools/authorization.py`. `tools/registry.py` binds each strict schema to a capability handler and an explicit read/write/outbound receipt policy. Implementations live in `tools/handlers/`; they receive an authorized invocation rather than the broker.
 
-The current catalogue contains **63 tools: 33 baseline tools and 30 additions**. Schema JSON is generated from the Pydantic catalog in [tool-schemas.json](tool-schemas.json). Run `uv run --no-sync python scripts/export_tool_schemas.py` after intentionally changing a tool contract; the architecture tests detect stale documentation. All 33 baseline handlers are exercised by the contract fixture; live channel/provider operation remains a separate gate.
+The current catalogue contains **64 tools: 33 baseline tools and 31 additions**. Schema JSON is generated from the Pydantic catalog in [tool-schemas.json](tool-schemas.json). Run `uv run --no-sync python scripts/export_tool_schemas.py` after intentionally changing a tool contract; the architecture tests detect stale documentation. All 33 baseline handlers are exercised by the contract fixture; live channel/provider operation remains a separate gate.
 
 | Tool | Baseline | Behaviour |
 |---|---|---|
@@ -59,6 +59,7 @@ The current catalogue contains **63 tools: 33 baseline tools and 30 additions**.
 | `goal_create` | Additional | Create a structured outcome and executable plan. |
 | `goal_inspect` | Additional | Read the goal, full plan, next actions, step IDs and actual progress. |
 | `step_update` | Additional | Revise an unfinished step using the expected current next action; preserve completion and dependencies. |
+| `goal_checkpoint` | Additional | Atomically persist a promised progress update and its future model job. A completion estimate requires an evidence basis; replacing the checkpoint cancels its obsolete pending job. |
 | `goal_update` | Additional | Transition a goal with evidence and dependency checks. |
 | `step_complete` | Additional | Complete one plan step with outcome evidence. |
 | `fact_propose` | Additional | Propose a fact revision for explicit owner review. |

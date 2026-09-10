@@ -1978,6 +1978,55 @@
     }
   },
   {
+    "name": "goal_checkpoint",
+    "baseline": false,
+    "description": "Commit a goal progress-update time with a durable future job before promising it. Optionally record a completion estimate with its evidence basis. Replaces the previous pending checkpoint, never the goal's work. Use goal_inspect to see existing checkpoints; don't schedule duplicate work. Completed or paused goals cancel pending checkpoints.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "next_update_at": {
+          "title": "Next Update At",
+          "type": "number"
+        },
+        "estimated_completion_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Completion At"
+        },
+        "estimate_basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimate Basis"
+        }
+      },
+      "required": [
+        "id",
+        "next_update_at"
+      ],
+      "title": "GoalCheckpointArgs",
+      "type": "object"
+    }
+  },
+  {
     "name": "step_update",
     "baseline": false,
     "description": "Revise an unfinished plan step when new information makes its next action stale. Bind expected_next_action to the value from goal_inspect. Preserve completed work; use goal_update separately when a blocker clears.",

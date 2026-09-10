@@ -142,6 +142,7 @@ async def goal_update(call: ToolCall, args: Json) -> ToolResult:
         args["status"],
         evidence=args.get("evidence"),
         blocker=args.get("blocker"),
+        current_job=call.context.job_id,
     )
     return ToolResult(status="committed")
 
@@ -150,6 +151,23 @@ async def goal_inspect(call: ToolCall, args: Json) -> ToolResult:
     return ToolResult(
         status="ok", data=await Goals(call.db, call.context.owner_id).inspect(args["id"])
     )
+
+
+async def goal_checkpoint(call: ToolCall, args: Json) -> ToolResult:
+    result = await Goals(call.db, call.context.owner_id).checkpoint(
+        args["id"],
+        args["next_update_at"],
+        parent_job=call.context.job_id,
+        estimated_completion=args.get("estimated_completion_at"),
+        estimate_basis=args.get("estimate_basis"),
+    )
+    zone = ZoneInfo(call.settings.timezone)
+    result["next_update_local"] = datetime.fromtimestamp(result["next_update_at"], zone).isoformat()
+    if result["estimated_completion_at"] is not None:
+        result["estimated_completion_local"] = datetime.fromtimestamp(
+            result["estimated_completion_at"], zone
+        ).isoformat()
+    return ToolResult(status="committed", data=result)
 
 
 async def step_update(call: ToolCall, args: Json) -> ToolResult:

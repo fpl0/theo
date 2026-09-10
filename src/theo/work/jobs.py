@@ -261,7 +261,7 @@ class Jobs:
             ):
                 return None
             row = db.execute(
-                "SELECT j.* FROM jobs j WHERE j.owner_id=? AND j.lane=? AND j.status IN ('queued','interrupted') AND j.available_at<=? AND (?=0 OR j.kind='reminder') AND (?=0 OR j.kind='maintenance_canary') AND (j.kind='reminder' OR (j.origin='requested' AND ?=1) OR (j.origin IN ('autonomous','system') AND ?=1)) AND NOT EXISTS(SELECT 1 FROM jobs x WHERE x.conversation_id=j.conversation_id AND x.status='running') AND NOT EXISTS(SELECT 1 FROM job_dependencies d JOIN jobs p ON p.id=d.depends_on WHERE d.job_id=j.id AND p.status<>'completed') ORDER BY j.created_at LIMIT 1",
+                "SELECT j.* FROM jobs j WHERE j.owner_id=? AND j.lane=? AND j.status IN ('queued','interrupted') AND j.available_at<=? AND (?=0 OR j.kind='reminder') AND (?=0 OR j.kind='maintenance_canary') AND (j.kind='reminder' OR (j.origin='requested' AND ?=1) OR (j.origin IN ('autonomous','system') AND ?=1)) AND NOT EXISTS(SELECT 1 FROM jobs x WHERE x.conversation_id=j.conversation_id AND x.status='running') AND NOT EXISTS(SELECT 1 FROM job_dependencies d JOIN jobs p ON p.id=d.depends_on WHERE d.job_id=j.id AND p.status<>'completed') ORDER BY CASE WHEN j.kind='goal_checkin' THEN 0 ELSE 1 END,j.created_at LIMIT 1",
                 (
                     self.owner,
                     lane,

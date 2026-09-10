@@ -37,7 +37,16 @@ from theo.work.autonomy import CADENCES, Autonomy
 from theo.work.jobs import Jobs
 from theo.work.scheduling import Scheduler
 
-SECTIONS = ("memory", "reasoning", "autonomy", "scheduling", "personality", "handoff", "companion")
+SECTIONS = (
+    "memory",
+    "reasoning",
+    "autonomy",
+    "scheduling",
+    "personality",
+    "handoff",
+    "companion",
+    "followthrough",
+)
 SAFE_TOOLS = frozenset(
     {
         "remember",
@@ -54,6 +63,8 @@ SAFE_TOOLS = frozenset(
         "goal_create",
         "goal_update",
         "goal_inspect",
+        "goal_checkpoint",
+        "get_status",
         "step_update",
         "step_complete",
         "file_read",
@@ -241,6 +252,10 @@ class Harness:
         actions = await self.db.read(
             "SELECT id,status,scope FROM actions WHERE job_id=?", (job_id,)
         )
+        final = await self.db.one(
+            "SELECT request FROM actions WHERE semantic_key=?", (f"final:{job_id}",)
+        )
+        answer = json.loads(final["request"]).get("text", "") if final else result["output"] or ""
         receipts = await self.db.read(
             "SELECT o.attempts,o.status FROM outbox o JOIN actions a ON a.id=o.action_id JOIN delivery_receipts r ON r.delivery_id=o.id WHERE a.job_id=?",
             (job_id,),
@@ -258,7 +273,8 @@ class Harness:
                     if event["kind"] == "runtime_metadata"
                 ],
                 "error": result["error"],
-                "output": result["output"] or "",
+                "output": answer,
+                "internal_output": result["output"] or "",
                 "seconds": round(time.monotonic() - started, 2),
                 "deliveries": sent,
                 "tools": [call for call in self.broker.observed if call["run_id"] == result["id"]],
@@ -272,8 +288,7 @@ class Harness:
                         row["attempts"] == 1 and row["status"] == "succeeded" for row in receipts
                     ),
                     "delivered_answer": bool(sent)
-                    and "".join(item["payload"].get("text", "") for item in sent)
-                    == (result["output"] or "").strip(),
+                    and "".join(item["payload"].get("text", "") for item in sent) == answer.strip(),
                 },
             }
         )
@@ -784,6 +799,91 @@ async def companion_cases(h):
     )
 
 
+async def followthrough_cases(h):
+    """A real promise must survive the first turn and trigger its own delivered update."""
+    from theo.work.goals import Goals
+
+    conversation = await h.conversation("followthrough")
+    await h.db.set_control("owner", "background_paused", "false")
+    goals = Goals(h.db, "owner")
+    goal = await goals.create(
+        "Review the pending archive",
+        "Deliver a checked synthesis with source coverage",
+        conversation,
+        [
+            {
+                "title": "Inventory",
+                "next_action": "Measure the sources and establish a realistic completion estimate",
+            },
+            {
+                "title": "Review",
+                "next_action": "Review and reconcile substantial source batches with a coverage cursor",
+            },
+            {"title": "Verify", "next_action": "Check coverage and deliver the final synthesis"},
+        ],
+    )
+    # The source worker already owns execution. Keep it future-due so the real
+    # checkpoint claim below tests the update, rather than racing another job.
+    worker = await h.jobs.enqueue(
+        conversation,
+        "deep_work",
+        {
+            "text": "Review the synthetic archive after its measured inventory arrives",
+            "evidence": [{"goal_id": goal}],
+        },
+        "followthrough-source-worker",
+        available=h.instant + 1800,
+        deadline=h.instant + 3600,
+    )
+    case = await h.turn(
+        "followthrough_owns_plan_and_update",
+        f"Goal {goal} will take several batches and the volume is still unmeasured. The source-review worker {worker} is already queued for thirty minutes from now; it will receive the source inventory then. For this turn, own the plan and progress checkpoint without duplicating that worker. I don't want another 'not finished yet' that makes me chase you. Check back within fifteen minutes. Keep this reply under 150 words.",
+        conversation=conversation,
+    )
+    checkpoints = (await goals.inspect(goal))["checkpoints"]
+    h.finish(
+        case,
+        {
+            "durable_checkpoint": len(checkpoints) == 1 and bool(used(case, "goal_checkpoint")),
+            "due_within_fifteen_minutes": bool(checkpoints)
+            and h.instant < checkpoints[0]["due_at"] <= h.instant + 900,
+            "no_invented_completion_estimate": bool(checkpoints)
+            and json.loads(checkpoints[0]["evidence"])["estimated_completion_at"] is None,
+            "plan_stages": any(word in case["output"].lower() for word in ("inventory", "measure"))
+            and all(word in case["output"].lower() for word in ("review", "verif")),
+            "brief_but_concrete": len(case["output"].split()) <= 150,
+        },
+    )
+    if not checkpoints:
+        raise RuntimeError("No durable update was created")
+    checkpoint = checkpoints[0]
+    await h.db.message(
+        "owner",
+        conversation,
+        "user",
+        "The inventory is now measured: 24 short synthetic notes; six have been checked. No review-duration sample has been measured yet. Continue without waiting for me.",
+    )
+    h.instant = checkpoint["due_at"]
+    job = await h.jobs.claim("background", "followthrough-checkpoint")
+    if not job or job["kind"] != "goal_checkin":
+        raise RuntimeError("The promised update did not become executable")
+    case = await h.turn("followthrough_returns_without_prompt", job=job)
+    completed = await h.db.one("SELECT status FROM commitments WHERE id=?", (checkpoint["id"],))
+    pending = (await goals.inspect(goal))["checkpoints"]
+    h.finish(
+        case,
+        {
+            "promised_update_delivered": completed["status"] == "fulfilled"
+            and bool(case["deliveries"]),
+            "current_progress_used": "24" in case["output"]
+            and any(word in case["output"].lower() for word in ("six", "6", "18", "eighteen")),
+            "next_update_owned": len(pending) == 1 and pending[0]["due_at"] > h.instant,
+            "deadline_not_mistaken_for_throughput": bool(pending)
+            and json.loads(pending[0]["evidence"])["estimated_completion_at"] is None,
+        },
+    )
+
+
 async def handoff_cases(h):
     # Switch the actual autonomous artifact conversation between real runtimes.
     # Its prior tool messages and output were produced by the primary model.
@@ -917,7 +1017,7 @@ def main():
     parser.add_argument(
         "--peer-model", help="Other backend's subscription model for the handoff tests"
     )
-    parser.add_argument("--sections", choices=SECTIONS, nargs="+", default=list(SECTIONS[:-1]))
+    parser.add_argument("--sections", choices=SECTIONS, nargs="+", default=list(SECTIONS[:6]))
     parser.add_argument("--timeout", type=float, default=240)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()

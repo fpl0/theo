@@ -32,7 +32,7 @@ INSTRUCTIONS = {
     "insight_consolidation": "Reassess related insights against evidence; propose one attributable synthesis without replacing sources.",
     "feedback_consolidation": "Distinguish explicit preference from weak engagement signals. Propose a preference adjustment supported by repeated evidence.",
     "skill_extraction": "Extract a narrow reusable procedure from repeated demonstrated successes. Include triggers, least grants, test cases and rollback criteria. Submit a proposed skill; do not activate it.",
-    "deep_work": "Advance the next executable goal step. Produce a registered artifact or observable change, record evidence and next action. Size alone is not a blocker.",
+    "deep_work": "Own the goal through completion. Inspect the current plan and promised checkpoints. Work through a substantial bounded batch of related material, not one tiny file per run. Produce actual saved results or artifacts. If unfinished, revise the next action with an exact coverage cursor and concrete remaining work; the goal runner admits that continuation automatically, so do not also schedule a duplicate work job. Persist a goal_checkpoint before promising a progress-update time. Give a completion estimate only with a measured scope and pace; otherwise establish one at the checkpoint. Keep per-batch notes internal. Send meaningful milestones, promised updates and the finished result without waiting for the owner to ask. A partial result is not goal completion. Size alone is not a blocker.",
 }
 
 

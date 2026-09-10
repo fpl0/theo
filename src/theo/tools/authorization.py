@@ -67,6 +67,7 @@ async def authorize(db: Database, ctx: ToolContext, name: str, args: Json) -> st
             "delete_task",
             "goal_update",
             "goal_inspect",
+            "goal_checkpoint",
             "step_complete",
             "step_update",
         ):
@@ -75,6 +76,7 @@ async def authorize(db: Database, ctx: ToolContext, name: str, args: Json) -> st
                 "delete_task": "schedules",
                 "goal_update": "goals",
                 "goal_inspect": "goals",
+                "goal_checkpoint": "goals",
                 "step_complete": "plan_steps",
                 "step_update": "plan_steps",
             }[name]

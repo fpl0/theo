@@ -232,9 +232,7 @@ class Coordinator:
                 )
                 token = self.broker.grant(tool_context)
                 instructions = context.get("instructions", "")
-                if job["kind"] == "scheduled_work" or (
-                    job["kind"] in CADENCES and job["kind"] != "deep_work"
-                ):
+                if job["kind"] == "scheduled_work" or job["kind"] in CADENCES:
                     instructions += "\n" + BACKGROUND_INSTRUCTIONS
                 request = ExecutionRequest(
                     run_id=run_id,
@@ -366,7 +364,22 @@ class Coordinator:
             ).fetchone()
             status = outcome.status
             text = outcome.text.strip()
-            final_required = job["kind"] in ("conversation", "delegated", "reminder", "deep_work")
+            final_required = job["kind"] in (
+                "conversation",
+                "delegated",
+                "reminder",
+                "goal_checkin",
+            )
+            if job["kind"] == "deep_work":
+                evidence = json.loads(job["payload"]).get("evidence", [])
+                goal_id = evidence[0].get("goal_id") if evidence else None
+                final_required = bool(
+                    goal_id
+                    and db.execute(
+                        "SELECT 1 FROM goals WHERE id=? AND owner_id=? AND status='completed'",
+                        (goal_id, self.owner),
+                    ).fetchone()
+                )
             if status == Outcome.COMPLETED and not text and not existing and final_required:
                 status = Outcome.FAILED
                 text = "Theo finished this attempt without a useful result. The job remains visible for inspection."
@@ -399,7 +412,7 @@ class Coordinator:
                     job_id=job["id"],
                     run_id=run_id,
                     generation=job["generation"],
-                    autonomous=job["lane"] == "background",
+                    autonomous=job["lane"] == "background" and job["kind"] != "goal_checkin",
                     role="final" if status in (Outcome.COMPLETED, Outcome.FAILED) else "progress",
                     freshness=freshness,
                     durable_obligation=job["kind"] == "reminder",
