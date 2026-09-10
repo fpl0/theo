@@ -9,18 +9,31 @@ import asyncio
 import json
 import os
 import plistlib
+import pwd
 import sys
 from pathlib import Path
 
 from theo.config import load_settings
 from theo.domain import Denied, Json
-from theo.maintenance.configuration import ControllerConfig, read_protected
+from theo.maintenance.configuration import (
+    ControllerConfig,
+    read_operator_file,
+    read_protected,
+    require_root_parents,
+)
 from theo.maintenance.host import HostConfig
 from theo.maintenance.policy import load_policy
 from theo.maintenance.rpc import Client
 
 
-def service_definition(module: str, executable: Path, config: Path, logs: Path) -> bytes:
+def service_definition(
+    module: str,
+    executable: Path,
+    config: Path,
+    logs: Path,
+    *,
+    service_uid: int | None = None,
+) -> bytes:
     if (
         module not in ("controller", "host")
         or not executable.is_absolute()
@@ -28,11 +41,15 @@ def service_definition(module: str, executable: Path, config: Path, logs: Path) 
     ):
         raise Denied("Service definitions require pinned absolute installation paths")
     label = "local.theo.maintenance." + module
+    account = pwd.getpwuid(os.geteuid() if service_uid is None else service_uid)
     return plistlib.dumps(
         {
             "Label": label,
+            "UserName": account.pw_name,
             "ProgramArguments": [
                 str(executable),
+                "-I",
+                "-B",
                 "-m",
                 "theo.maintenance." + module,
                 "--config",
@@ -50,8 +67,34 @@ def service_definition(module: str, executable: Path, config: Path, logs: Path) 
 
 
 async def check(config: ControllerConfig, host: HostConfig) -> Json:
-    policy = load_policy(config.policy)
+    if config.policy_uid != 0:
+        raise Denied("Installation policy ownership must be pinned to root")
+    read_operator_file(config.policy)
+    policy = load_policy(config.policy, expected_uid=0)
     core = load_settings(host.root)
+    if (host.core_uid, host.core_gid) != (config.core_uid, config.core_gid):
+        raise Denied("Controller and supervisor must agree on the core service identity")
+    if not host.core_uid or not host.core_gid or host.selection is None:
+        raise Denied("Install a non-root core and an independently protected runtime selection")
+    if not host.selection.is_absolute() or any(
+        host.selection.resolve().is_relative_to(path.resolve())
+        or host.selection.parent.resolve().is_relative_to(path.resolve())
+        or host.state_root.resolve().is_relative_to(path.resolve())
+        for path in (host.root, config.root, config.workspaces)
+    ):
+        raise Denied("Recovery authority must remain outside core, controller and job storage")
+    for path in (host.state_root, host.selection.parent):
+        require_root_parents(path)
+        if path.is_symlink() or path.stat().st_uid != 0 or path.stat().st_mode & 0o022:
+            raise Denied("Supervisor state and selection directories must be root-owned")
+    if host.state_root.stat().st_mode & 0o077:
+        raise Denied("Supervisor process records must be private to its root service")
+    if host.telegram_token_file and (
+        host.telegram_token_file.is_symlink()
+        or host.telegram_token_file.stat().st_uid != 0
+        or host.telegram_token_file.stat().st_mode & 0o077
+    ):
+        raise Denied("The supervisor's Telegram credential must be root-private")
     if not config.package_checks or not config.vm:
         raise Denied("An installation requires VM isolation and installed-package verification")
     if not config.bundle_root:
@@ -66,6 +109,7 @@ async def check(config: ControllerConfig, host: HostConfig) -> Json:
     if (
         config.root.stat().st_uid != host.controller_uid
         or host.controller_uid in (0, config.core_uid)
+        or pwd.getpwuid(host.controller_uid).pw_gid in (0, config.core_gid)
         or host.root.stat().st_uid != config.core_uid
         or config.root.stat().st_mode & 0o077
     ):
@@ -118,13 +162,19 @@ def main() -> None:
     retry.add_argument("change_id")
     retry.add_argument("--reason", required=True)
     args = parser.parse_args()
-    config = ControllerConfig.model_validate_json(read_protected(args.controller_config))
-    host = HostConfig.model_validate_json(read_protected(args.host_config))
+    config = ControllerConfig.model_validate_json(read_operator_file(args.controller_config))
+    host = HostConfig.model_validate_json(read_operator_file(args.host_config))
     if args.operation == "services":
         args.destination.mkdir(parents=True, exist_ok=True)
         for module, path in (("controller", args.controller_config), ("host", args.host_config)):
             (args.destination / ("local.theo.maintenance." + module + ".plist")).write_bytes(
-                service_definition(module, args.python, path.resolve(), args.destination)
+                service_definition(
+                    module,
+                    args.python,
+                    path.resolve(),
+                    args.destination,
+                    service_uid=host.controller_uid if module == "controller" else 0,
+                )
             )
         print(json.dumps({"generated": str(args.destination), "loaded": False}))
     elif args.operation == "retry":

@@ -10,23 +10,25 @@ import contextlib
 import fcntl
 import json
 import os
+import pwd
 import signal
 import sys
 from pathlib import Path
+from typing import cast
 
 import psutil
-from pydantic import Field
+from pydantic import Field, model_validator
 
-from theo.config import load_settings
+from theo.backends.process import stop_process
+from theo.config import Settings, load_settings
 from theo.domain import Conflict, Denied, Json, StrictModel, encode
 from theo.execution.processes import terminate_tree
 from theo.maintenance.bundles import atomic_select, verify
-from theo.maintenance.configuration import read_protected
+from theo.maintenance.configuration import read_operator_file, require_root_parents
+from theo.maintenance.core_access import operation as core_operation
 from theo.maintenance.policy import load_policy
 from theo.maintenance.rpc import serve
-from theo.operations.backups import backup_create
 from theo.storage import Database
-from theo.work.jobs import Jobs
 
 
 class CanaryUnavailable(Conflict):
@@ -35,8 +37,12 @@ class CanaryUnavailable(Conflict):
 
 class HostConfig(StrictModel):
     controller_uid: int = Field(default_factory=os.geteuid, ge=0)
+    core_uid: int = Field(default_factory=os.geteuid, ge=0)
+    core_gid: int = Field(default_factory=os.getegid, ge=0)
     root: Path
     state_root: Path
+    selection: Path | None = None
+    telegram_token_file: Path | None = None
     bundles: Path
     socket: Path
     token_file: Path
@@ -44,6 +50,25 @@ class HostConfig(StrictModel):
     drain_seconds: int = Field(default=120, ge=10, le=600)
     startup_seconds: int = Field(default=120, ge=10, le=600)
     probation_seconds: int = Field(default=600, ge=60, le=3600)
+
+    @model_validator(mode="after")
+    def paths(self) -> HostConfig:
+        if any(
+            not path.is_absolute()
+            for path in (
+                self.root,
+                self.state_root,
+                self.bundles,
+                self.socket,
+                self.token_file,
+                self.policy,
+                self.selection,
+                self.telegram_token_file,
+            )
+            if path is not None
+        ):
+            raise ValueError("Supervisor installation paths must be absolute")
+        return self
 
 
 class Host:
@@ -54,9 +79,72 @@ class Host:
             json.loads(self.path.read_text()) if self.path.exists() else {"stage": "idle"}
         )
         self.db = Database(config.root)
-        self.settings = load_settings(config.root)
+        self.settings = (
+            Settings(owner_id=load_policy(config.policy, expected_uid=0).owner_id)
+            if os.geteuid() == 0 and config.policy
+            else load_settings(config.root)
+        )
         self.child: asyncio.subprocess.Process | None = None
         self.mutex = asyncio.Lock()
+
+    async def core(self, name: str, body: Json | None = None) -> Json:
+        """Access mutable core storage with the core UID, never root authority."""
+        if os.geteuid() != 0:
+            # In-process fixtures retain their injected clock and real SQLite.
+            # Production run() requires the privileged, separated supervisor.
+            return await core_operation(self.db, self.settings, name, body or {})
+        environment = {
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "THEO_TEST_OFFLINE": os.environ.get("THEO_TEST_OFFLINE", "0"),
+        }
+        process = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-I",
+            "-B",
+            "-m",
+            "theo.maintenance.core_access",
+            "--root",
+            str(self.config.root),
+            "--owner",
+            self.settings.owner_id,
+            name,
+            user=self.config.core_uid,
+            group=self.config.core_gid,
+            extra_groups=[],
+            env=environment,
+            cwd="/",
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        assert process.stdin and process.stdout
+        try:
+            async with asyncio.timeout(900 if name == "backup" else 30):
+                process.stdin.write(encode(body or {}).encode())
+                await process.stdin.drain()
+                process.stdin.close()
+                output = bytearray()
+                while chunk := await process.stdout.read(65536):
+                    output.extend(chunk)
+                    if len(output) > 65536:
+                        raise Denied("Core database helper response exceeded its bound")
+                await process.wait()
+            if process.returncode:
+                raise Denied("Core database helper failed under its restricted service identity")
+            response = json.loads(output)
+            if not isinstance(response, dict):
+                raise Denied("Invalid core database response")
+            return cast(Json, response)
+        finally:
+            await stop_process(process)
+
+    async def control(self, key: str) -> str | None:
+        return (await self.core("control", {"key": key}))["value"]
+
+    async def draining(self, paused: bool) -> None:
+        await self.core("draining", {"paused": paused})
 
     def save(self, **values: object) -> None:
         self.state.update(values)
@@ -75,12 +163,15 @@ class Host:
 
     @property
     def pointer(self) -> Path:
-        return self.config.root / "releases/current"
+        return self.config.selection or self.config.root / "releases/current"
 
     def active(self) -> Path:
         if not self.pointer.is_symlink():
             raise Denied("Install a recoverable baseline bundle before enabling self-deployment")
-        return self.pointer.resolve(strict=True)
+        selected = self.pointer.resolve(strict=True)
+        if selected.parent != self.config.bundles.resolve(strict=True):
+            raise Denied("The selected runtime must be an accepted installation bundle")
+        return selected
 
     def process(self) -> psutil.Process | None:
         recorded = self.config.state_root / "core-process.json"
@@ -108,18 +199,37 @@ class Host:
             return
         selected = self.active()
         bundle = verify(selected)
+        account = pwd.getpwuid(self.config.core_uid)
         env = {
-            **os.environ,
+            "HOME": account.pw_dir,
+            "USER": account.pw_name,
+            "LOGNAME": account.pw_name,
+            "LANG": "en_US.UTF-8",
             "PYTHONDONTWRITEBYTECODE": "1",
             "THEO_BUNDLE_ID": bundle.bundle_id,
-            "PATH": str(selected / "native/bin") + ":" + os.environ.get("PATH", "/usr/bin:/bin"),
+            "THEO_SELECTED_BUNDLE": str(selected),
+            "PATH": str(selected / "native/bin")
+            + ":/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
         }
-        # Installation credentials are not forwarded to the application.
-        for key in tuple(env):
-            if key.startswith(("GITHUB_", "GH_", "THEO_GITHUB_", "THEO_MAINTENANCE_")):
-                del env[key]
+        # Explicit application settings may cross the supervisor boundary;
+        # control credentials and interpreter startup customization cannot.
+        for key in (
+            "THEO_TELEMETRY_ENABLED",
+            "THEO_OTLP_ENDPOINT",
+            "THEO_ENVIRONMENT",
+            "THEO_TRACE_SAMPLE_RATIO",
+            "THEO_TEST_OFFLINE",
+        ):
+            if key in os.environ:
+                env[key] = os.environ[key]
+        if self.config.telegram_token_file:
+            env["THEO_TELEGRAM_TOKEN"] = read_operator_file(
+                self.config.telegram_token_file, private=True
+            ).strip()
         self.child = await asyncio.create_subprocess_exec(
             sys.executable,
+            "-I",
+            "-B",
             "-m",
             "theo.maintenance.launcher",
             "--state-root",
@@ -128,6 +238,10 @@ class Host:
             str(self.config.root),
             "--python",
             str(selected / bundle.core_python),
+            "--uid",
+            str(self.config.core_uid),
+            "--gid",
+            str(self.config.core_gid),
             env=env,
             start_new_session=True,
         )
@@ -141,19 +255,14 @@ class Host:
         if self.child:
             await self.child.wait()
             self.child = None
-        with (self.config.root / "daemon.lock").open("a") as lock:
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                raise Conflict(
-                    "Core daemon lock is still held; activation cannot proceed"
-                ) from None
+        if (await self.core("daemon_stopped"))["stopped"] is not True:
+            raise Conflict("Core daemon lock is still held; activation cannot proceed")
         self.save(core_pid=None, core_birth=None)
 
     def deployment_allowed(self) -> None:
         if self.config.policy is None:
             raise Denied("Configure protected deployment policy for the host service")
-        policy = load_policy(self.config.policy)
+        policy = load_policy(self.config.policy, expected_uid=0)
         if (
             not policy.enabled
             or not policy.allow_deploy
@@ -184,11 +293,11 @@ class Host:
                 if self.state.get("circuit_open"):
                     raise Denied("Recovery circuit is open; operator repair is required")
                 if (
-                    await self.db.control(self.settings.owner_id, "deployments_paused") == "true"
-                    or await self.db.control(self.settings.owner_id, "quarantined") == "true"
+                    await self.control("deployments_paused") == "true"
+                    or await self.control("quarantined") == "true"
                 ):
                     raise Denied("Deployments are paused or installation is quarantined")
-                if await self.db.control(self.settings.owner_id, "models_paused") == "true":
+                if await self.control("models_paused") == "true":
                     raise Denied("Native activation canary requires models to be available")
                 if Path(body["bundle_id"]).name != body["bundle_id"]:
                     raise Denied("Invalid bundle identity")
@@ -197,10 +306,10 @@ class Host:
                 bundle = verify(target, body["fingerprint"])
                 previous = self.active()
                 old = verify(previous)
-                schema = await self.db.one("SELECT max(version) n FROM schema_migrations")
-                assert schema
+                schema = (await self.core("schema"))["version"]
                 if not (
-                    bundle.schema_min <= schema["n"] <= bundle.schema_max
+                    schema is not None
+                    and bundle.schema_min <= schema <= bundle.schema_max
                     and old.schema_min <= bundle.schema_max <= old.schema_max
                 ):
                     raise Denied(
@@ -219,7 +328,7 @@ class Host:
                     error=None,
                     canary_job=None,
                 )
-                await self.db.set_control(self.settings.owner_id, "maintenance_draining", "true")
+                await self.draining(True)
                 return await self.status()
             if operation == "cancel" and set(body) == {"change_id"}:
                 if self.state.get("change_id") != body["change_id"]:
@@ -244,13 +353,13 @@ class Host:
                 if self.state.get("change_id") != body["change_id"]:
                     raise Denied("Unknown activation")
                 if self.state.get("verification_blocker"):
-                    await self.db.execute(
-                        "UPDATE jobs SET status='queued',generation=generation+1,available_at=?,deadline=? WHERE id=? AND status IN ('waiting_for_auth','waiting_for_quota')",
-                        (
-                            self.db.clock(),
-                            self.db.clock() + self.config.startup_seconds,
-                            self.state.get("canary_job"),
-                        ),
+                    await self.core(
+                        "retry_canary",
+                        {
+                            "available_at": self.db.clock(),
+                            "deadline": self.db.clock() + self.config.startup_seconds,
+                            "job_id": self.state.get("canary_job"),
+                        },
                     )
                     self.save(
                         verification_blocker=None,
@@ -267,64 +376,47 @@ class Host:
         if not process:
             return False
         try:
-            heartbeat = json.loads((self.config.root / "heartbeat.json").read_text())
+            heartbeat = await self.core("heartbeat")
             age = self.db.clock() - heartbeat["timestamp"]
             return heartbeat["pid"] == process.pid and 0 <= age < 90
-        except OSError, ValueError, KeyError:
+        except OSError, ValueError, TypeError, KeyError:
             return False
 
     async def deterministic_health(self) -> bool:
         """Verify a running core and its canonical database without admitting inference."""
         if not await self.healthy():
             return False
-        integrity = await self.db.one("PRAGMA integrity_check")
-        if not integrity or list(integrity.values()) != ["ok"]:
+        if (await self.core("integrity"))["ok"] is not True:
             raise Denied("Canonical database integrity check failed")
         return True
 
     async def canary(self) -> bool:
         if not await self.deterministic_health():
             return False
-        if await self.db.control(self.settings.owner_id, "models_paused") == "true":
+        if await self.control("models_paused") == "true":
             raise CanaryUnavailable("models_paused")
         if not self.state.get("canary_job"):
-            conversation = await self.db.conversation(
-                self.settings.owner_id, "local", "maintenance-canary:" + self.state["change_id"]
-            )
-            job = await Jobs(self.db, self.settings.owner_id).enqueue(
-                conversation,
-                "maintenance_canary",
+            result = await self.core(
+                "canary_create",
                 {
-                    "text": "Synthetic deployment check. Call get_status exactly once and then say checked. Do not save memories or send messages."
+                    "change_id": self.state["change_id"],
+                    "bundle_id": self.active().name,
+                    "deadline": self.db.clock() + self.config.startup_seconds,
                 },
-                "activation-canary:" + self.state["change_id"] + ":" + self.active().name,
-                lane="interactive",
-                deadline=self.db.clock() + self.config.startup_seconds,
-                origin="system",
             )
-            self.save(canary_job=job)
+            self.save(canary_job=result["job_id"])
             return False
-        job = await self.db.one("SELECT status FROM jobs WHERE id=?", (self.state["canary_job"],))
-        receipt = await self.db.one(
-            "SELECT m.content FROM messages m JOIN runs r ON r.id=m.run_id JOIN jobs j ON j.id=r.job_id AND j.generation=r.generation WHERE r.job_id=? AND m.source='tool:get_status' ORDER BY m.created_at DESC LIMIT 1",
-            (self.state["canary_job"],),
-        )
-        if job and job["status"] in ("waiting_for_auth", "waiting_for_quota"):
-            raise CanaryUnavailable(job["status"])
-        if not job or job["status"] != "completed" or not receipt:
-            return False
-        result = json.loads(receipt["content"])["result"]
-        return (
-            result["status"] not in {"failed", "denied", "invalid", "uncertain"}
-            and result.get("data") is not None
-        )
+        result = await self.core("canary_status", {"job_id": self.state["canary_job"]})
+        if result["status"] in ("waiting_for_auth", "waiting_for_quota"):
+            raise CanaryUnavailable(result["status"])
+        return result["tool_succeeded"] is True
 
     async def tick(self) -> None:
         async with self.mutex:
             try:
                 await self.advance()
             except CanaryUnavailable as exc:
-                await self.db.set_control(self.settings.owner_id, "maintenance_draining", "false")
+                await self.draining(False)
                 self.save(verification_blocker=str(exc))
             except Exception as exc:
                 stage = self.state["stage"]
@@ -336,9 +428,7 @@ class Host:
                 elif stage in ("activating", "checking", "observing"):
                     self.save(stage="recovering", error=type(exc).__name__)
                 else:
-                    await self.db.set_control(
-                        self.settings.owner_id, "maintenance_draining", "false"
-                    )
+                    await self.draining(False)
                     self.save(stage="failed", error=type(exc).__name__)
 
     async def advance(self) -> None:
@@ -349,7 +439,7 @@ class Host:
                 self.save(stage="recovering", verification_blocker=None)
             return
         if stage in ("idle", "deployed", "rolled_back", "cancelled", "failed"):
-            if (self.config.root / "maintenance.pause").exists():
+            if (await self.core("paused"))["paused"] is True:
                 await self.stop()
                 return
             if (
@@ -368,23 +458,20 @@ class Host:
                     await self.start()
             return
         if self.state.get("cancellation") and stage == "draining":
-            await self.db.set_control(self.settings.owner_id, "maintenance_draining", "false")
+            await self.draining(False)
             self.save(stage="cancelled")
             return
         if stage == "draining":
             self.deployment_allowed()
             if timestamp > self.state["deadline"]:
                 raise Denied("Drain deadline expired")
-            if await self.db.control(self.settings.owner_id, "deployments_paused") == "true":
+            if await self.control("deployments_paused") == "true":
                 raise Denied("Owner paused deployment during drain")
-            pending = await self.db.one(
-                "SELECT (SELECT count(*) FROM jobs WHERE status='running')+(SELECT count(*) FROM outbox WHERE status='executing')+(SELECT count(*) FROM actions WHERE status='executing') n"
-            )
-            if pending and pending["n"]:
+            if (await self.core("quiescent"))["ready"] is not True:
                 return
             await self.stop()
-            snapshot = await backup_create(self.db, self.settings, release_snapshot=True)
-            self.save(stage="activating", snapshot=str(snapshot))
+            snapshot = await self.core("backup")
+            self.save(stage="activating", snapshot=snapshot["path"])
             return
         if stage == "activating":
             if self.active() == Path(self.state["previous"]):
@@ -404,7 +491,7 @@ class Host:
                 raise Denied("Startup or native tool canary deadline expired")
             if await self.canary():
                 # Draining is maintenance-owned; no owner pause is overwritten.
-                await self.db.set_control(self.settings.owner_id, "maintenance_draining", "false")
+                await self.draining(False)
                 self.save(stage="observing", deadline=timestamp + self.config.probation_seconds)
             return
         if stage == "observing":
@@ -415,12 +502,12 @@ class Host:
                 self.save(stage="deployed", completed_at=timestamp)
             return
         if stage == "recovering":
-            await self.db.set_control(self.settings.owner_id, "maintenance_draining", "true")
+            await self.draining(True)
             await self.stop()
             previous = Path(self.state["previous"])
             bundle = verify(previous, self.state["previous_fingerprint"])
-            schema = await self.db.one("SELECT max(version) n FROM schema_migrations")
-            if not schema or not bundle.schema_min <= schema["n"] <= bundle.schema_max:
+            schema = (await self.core("schema"))["version"]
+            if schema is None or not bundle.schema_min <= schema <= bundle.schema_max:
                 raise Denied("Previous bundle cannot read and write the current schema")
             active = self.active()
             if active != previous:
@@ -435,7 +522,7 @@ class Host:
             # Recovery selects the already verified previous bundle. Requiring
             # new inference here would strand an owner's explicit model pause.
             if await self.deterministic_health():
-                await self.db.set_control(self.settings.owner_id, "maintenance_draining", "false")
+                await self.draining(False)
                 self.save(
                     stage="rolled_back",
                     completed_at=timestamp,
@@ -444,7 +531,42 @@ class Host:
 
 
 async def run(config: HostConfig) -> None:
-    config.state_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if os.geteuid() != 0:
+        raise Denied("Install the independent supervisor as its protected root service")
+    if (
+        config.core_uid == 0
+        or config.core_gid == 0
+        or config.controller_uid in (0, config.core_uid)
+        or pwd.getpwuid(config.controller_uid).pw_gid in (0, config.core_gid)
+        or config.selection is None
+        or not config.policy
+    ):
+        raise Denied("A privileged supervisor requires a non-root core and protected selection")
+    read_operator_file(config.policy)
+    for path in (config.state_root, config.selection.parent, config.socket.parent):
+        require_root_parents(path)
+        if path.is_symlink() or path.stat().st_uid != 0 or path.stat().st_mode & 0o022:
+            raise Denied("Supervisor authority directories must be root-owned and protected")
+        if path.resolve().is_relative_to(config.root.resolve()):
+            raise Denied("Supervisor authority cannot be stored in the core's writable root")
+    if config.state_root.stat().st_mode & 0o077:
+        raise Denied("Supervisor process records must be private to root")
+    if config.telegram_token_file:
+        read_operator_file(config.telegram_token_file, private=True)
+    read_operator_file(config.token_file)
+    if (
+        config.token_file.stat().st_gid != pwd.getpwuid(config.controller_uid).pw_gid
+        or config.token_file.stat().st_mode & 0o007
+    ):
+        raise Denied("Host RPC credentials must be readable only by root and the controller")
+    require_root_parents(config.bundles)
+    if (
+        config.bundles.is_symlink()
+        or config.bundles.stat().st_uid != config.controller_uid
+        or config.bundles.stat().st_mode & 0o022
+    ):
+        raise Denied("Accepted bundles must be protected controller-owned storage")
+    os.umask(0o077)
     with (config.state_root / "host.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         host = Host(config)
@@ -454,6 +576,7 @@ async def run(config: HostConfig) -> None:
         server = await serve(
             config.socket, config.token_file, host.rpc, expected_uid=config.controller_uid
         )
+        os.chown(config.socket, -1, pwd.getpwuid(config.controller_uid).pw_gid)
         try:
             async with server:
                 while not stop.is_set():
@@ -470,7 +593,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, required=True)
     args = parser.parse_args()
-    asyncio.run(run(HostConfig.model_validate_json(read_protected(args.config))))
+    asyncio.run(run(HostConfig.model_validate_json(read_operator_file(args.config))))
 
 
 if __name__ == "__main__":

@@ -38,7 +38,8 @@ from theo.work.scheduling import Scheduler
 async def serve(db: Database, settings: Settings, token: str | None = None) -> None:
     from theo.maintenance.bundles import selected_configuration
 
-    selected = selected_configuration(db.root)
+    bundle = os.environ.get("THEO_SELECTED_BUNDLE")
+    selected = selected_configuration(db.root, selected=Path(bundle) if bundle else None)
     if selected:
         settings = settings.model_copy(update=selected)
     telemetry.configure(db.root)

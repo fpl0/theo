@@ -1,5 +1,6 @@
 """Real SQLite, Git, broker and Unix-socket maintenance boundary regressions."""
 
+import asyncio
 import json
 import os
 import shutil
@@ -10,6 +11,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from theo.backends.process import stop_process
 from theo.config import Settings
 from theo.domain import Conflict, Denied, Outcome, ToolContext, uid
 from theo.maintenance.bundles import Bundle, atomic_select, inventory, verify
@@ -304,6 +306,104 @@ def test_atomic_bundle_selection_requires_expected_previous(tmp_path):
     assert pointer.resolve() == old
     atomic_select(pointer, new, old)
     assert pointer.resolve() == new
+
+
+async def test_supervisor_selection_is_independent_of_the_core_release_projection(db, configured):
+    from theo.maintenance.bundles import selected_configuration
+
+    config, _ = configured
+    old, _ = create_bundle(config.root / "bundles", "old")
+    new, _ = create_bundle(config.root / "bundles", "new")
+    selection = db.root.parent / "protected-selection/current"
+    atomic_select(selection, old, None)
+    atomic_select(db.root / "releases/current", new, None)
+    host = Host(
+        HostConfig(
+            root=db.root,
+            state_root=db.root.parent / "host",
+            selection=selection,
+            bundles=config.root / "bundles",
+            socket=config.host_socket,
+            token_file=config.host_token_file,
+        )
+    )
+    try:
+        assert host.active() == old
+        settings = selected_configuration(db.root, selected=host.active())
+        assert settings["worker_python"] == old / "worker/bin/python"
+        selection.unlink()
+        selection.symlink_to(db.root)
+        with pytest.raises(Denied, match="accepted installation"):
+            host.active()
+        with pytest.raises(Denied, match="unavailable"):
+            selected_configuration(db.root, selected=db.root / "missing")
+    finally:
+        await host.db.close()
+
+
+@pytest.mark.skipif(
+    os.geteuid() == 0, reason="Root-to-service-UID launch needs a provisioned account"
+)
+async def test_supervisor_launches_selected_core_without_inheriting_control_credentials(
+    db, configured, monkeypatch
+):
+    config, _ = configured
+    target, descriptor = create_bundle(config.root / "bundles", "selected")
+    result = db.root / "launch-proof.json"
+    executable = target / "core/bin/python"
+    executable.write_text(
+        f"#!{sys.executable}\n"
+        "import json,os\n"
+        "from pathlib import Path\n"
+        f"Path({str(result)!r}).write_text(json.dumps(dict(os.environ),sort_keys=True))\n"
+    )
+    executable.chmod(0o755)
+    descriptor = descriptor.model_copy(update={"files": inventory(target)})
+    (target / "bundle.json").write_text(descriptor.model_dump_json())
+    selection = db.root.parent / "protected-selection/current"
+    atomic_select(selection, target, None)
+    credential = db.root.parent / "synthetic-telegram-token"
+    credential.write_text("synthetic-token")
+    credential.chmod(0o600)
+
+    def read_fixture(path, *, private=False):
+        assert path == credential and private
+        return path.read_text()
+
+    # Root-owned credential provisioning is tested separately; this real
+    # subprocess exercises only the selected executable and environment handoff.
+    monkeypatch.setattr("theo.maintenance.host.read_operator_file", read_fixture)
+    monkeypatch.setenv("GITHUB_TOKEN", "synthetic-controller-credential")
+    monkeypatch.setenv("UNRECOGNIZED_SECRET", "synthetic-private-value")
+    monkeypatch.setenv("PYTHONPATH", "/synthetic-untrusted-startup")
+    state = db.root.parent / "host"
+    state.mkdir()
+    host = Host(
+        HostConfig(
+            root=db.root,
+            state_root=state,
+            selection=selection,
+            bundles=config.root / "bundles",
+            socket=config.host_socket,
+            token_file=config.host_token_file,
+            telegram_token_file=credential,
+        )
+    )
+    try:
+        await host.start()
+        assert host.child is not None
+        assert await asyncio.wait_for(host.child.wait(), 10) == 0
+        environment = json.loads(result.read_text())
+        assert environment["THEO_SELECTED_BUNDLE"] == str(target)
+        assert environment["THEO_TELEGRAM_TOKEN"] == "synthetic-token"
+        assert not {"GITHUB_TOKEN", "UNRECOGNIZED_SECRET", "PYTHONPATH"} & environment.keys()
+        identity = json.loads((state / "core-process.json").read_text())
+        assert identity["python"] == str(executable)
+        assert identity["pid"] == host.child.pid
+    finally:
+        if host.child:
+            await stop_process(host.child)
+        await host.db.close()
 
 
 async def test_host_recovers_pointer_switch_without_controller(db, configured, monkeypatch, clock):

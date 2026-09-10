@@ -138,9 +138,11 @@ def selected_settings(root: Path) -> tuple[Path, Path] | None:
     return selected / bundle.core_python, selected / bundle.worker_python
 
 
-def selected_configuration(root: Path) -> dict[str, object]:
-    pointer = root / "releases/current"
+def selected_configuration(root: Path, *, selected: Path | None = None) -> dict[str, object]:
+    pointer = selected or root / "releases/current"
     if not (pointer / "bundle.json").exists():
+        if selected is not None:
+            raise Denied("The supervisor-selected runtime is unavailable")
         return {}
     selected = pointer.resolve(strict=True)
     bundle = verify(selected)

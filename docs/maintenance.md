@@ -63,6 +63,21 @@ An installation sets `bundle_root` to separate controller-owned storage, outside
 both the private controller root and coding workspaces. Its group permits core
 and runner reads and execution, without writes. This avoids granting traversal
 into the controller's credential and journal directory to load application code.
+Install the independent supervisor as root with a private state directory and an
+external, root-owned `selection` pointer. It drops to `core_uid`/`core_gid` before
+executing application code. The selected bundle is supplied directly to the core;
+a release projection inside writable core storage cannot choose what the
+supervisor runs. Root-owned ancestors protect both the process records and the
+selection. Installation may supply a root-private `telegram_token_file`; only the
+channel credential and explicit application settings cross into the core process.
+Generated launchd definitions name the separate controller account and root
+supervisor account and use isolated Python startup.
+The supervisor invokes its pinned `core_access` helper under the core UID with no
+supplementary groups before opening SQLite, heartbeat, pause or lock files. The
+helper accepts a bounded list of operations, not SQL or arbitrary paths. This also
+keeps database sidecars writable by the core after backups and drain changes.
+Controller and supervisor configuration and policy files require root-owned,
+non-writable ancestors, including the lexical path before symlink resolution.
 
 `ControllerConfig.vm` selects the disposable Mac verification driver. Its protected
 configuration pins the complete base image, Tart executable, standalone Python,

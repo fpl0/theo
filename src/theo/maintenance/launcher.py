@@ -18,7 +18,13 @@ def main() -> None:
     parser.add_argument("--state-root", type=Path, required=True)
     parser.add_argument("--data-root", type=Path, required=True)
     parser.add_argument("--python", type=Path, required=True)
+    parser.add_argument("--uid", type=int, required=True)
+    parser.add_argument("--gid", type=int, required=True)
     args = parser.parse_args()
+    if min(args.uid, args.gid) < 0 or (os.geteuid() == 0 and 0 in (args.uid, args.gid)):
+        raise ValueError("The core must run under a non-root service identity")
+    if os.geteuid() not in (0, args.uid) or (os.geteuid() != 0 and os.getegid() != args.gid):
+        raise PermissionError("The launcher cannot assume the requested core identity")
     descriptor = os.open(args.state_root / "core-process.lock", os.O_RDWR | os.O_CREAT, 0o600)
     fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
     os.set_inheritable(descriptor, True)
@@ -40,9 +46,13 @@ def main() -> None:
     parent = os.open(state.parent, os.O_RDONLY)
     os.fsync(parent)
     os.close(parent)
+    if os.geteuid() == 0:
+        os.setgroups([])
+        os.setgid(args.gid)
+        os.setuid(args.uid)
     os.execve(
         args.python,
-        [str(args.python), "-m", "theo", "--data-root", str(args.data_root), "serve"],
+        [str(args.python), "-I", "-B", "-m", "theo", "--data-root", str(args.data_root), "serve"],
         os.environ,
     )
 

@@ -17,7 +17,7 @@ from pathlib import Path
 
 from theo.domain import Conflict, Denied, Json, digest, encode, uid
 from theo.execution.processes import terminate_tree
-from theo.maintenance.configuration import ControllerConfig, read_protected
+from theo.maintenance.configuration import ControllerConfig, read_operator_file
 from theo.maintenance.contracts import (
     CandidateIdentity,
     ControllerLease,
@@ -43,7 +43,7 @@ class Controller:
         self.worker = uid()
 
     def policy(self):
-        return load_policy(self.config.policy)
+        return load_policy(self.config.policy, expected_uid=self.config.policy_uid)
 
     async def rpc(self, operation: str, body: Json) -> Json:
         if operation == "accept":
@@ -540,6 +540,9 @@ class Controller:
 async def run(config: ControllerConfig) -> None:
     if os.geteuid() in (0, config.core_uid):
         raise Denied("Install the controller under a separate non-root service identity")
+    if config.policy_uid != 0:
+        raise Denied("Controller policy must be pinned to the root installation owner")
+    read_operator_file(config.policy)
     # Prepared coding files must be editable by the core's shared workspace
     # group. Private controller directories themselves remain mode 0700.
     os.umask(0o007)
@@ -588,7 +591,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, required=True)
     args = parser.parse_args()
-    asyncio.run(run(ControllerConfig.model_validate_json(read_protected(args.config))))
+    asyncio.run(run(ControllerConfig.model_validate_json(read_operator_file(args.config))))
 
 
 if __name__ == "__main__":

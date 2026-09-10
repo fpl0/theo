@@ -28,6 +28,7 @@ class ControllerConfig(StrictModel):
     root: Path
     bundle_root: Path | None = None
     policy: Path
+    policy_uid: int = Field(default_factory=os.geteuid, ge=0)
     socket: Path
     token_file: Path
     host_socket: Path
@@ -129,11 +130,38 @@ class ControllerConfig(StrictModel):
         return self
 
 
-def read_protected(path: Path) -> str:
+def require_root_parents(path: Path) -> None:
+    """Reject mutable ancestors, including the lexical path before symlink resolution."""
+    if not path.is_absolute():
+        raise Denied("Operator paths must be absolute")
+    parents = set(path.parents) | set(path.resolve(strict=True).parents)
+    for parent in parents:
+        link = parent.lstat()
+        resolved = parent.stat()
+        if (
+            link.st_uid != 0
+            or resolved.st_uid != 0
+            or not stat.S_ISDIR(resolved.st_mode)
+            or resolved.st_mode & 0o022
+        ):
+            raise Denied("Operator authority has a writable or non-root ancestor")
+
+
+def read_operator_file(path: Path, *, private: bool = False) -> str:
+    require_root_parents(path)
+    return read_protected(path, expected_uid=0, private=private)
+
+
+def read_protected(path: Path, *, expected_uid: int | None = None, private: bool = False) -> str:
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     try:
         info = os.fstat(descriptor)
-        if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o022 or info.st_size > 65536:
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_mode & (0o077 if private else 0o022)
+            or info.st_size > 65536
+            or (expected_uid is not None and info.st_uid != expected_uid)
+        ):
             raise Denied("Configuration must be a protected bounded regular file")
         with os.fdopen(descriptor, closefd=False) as stream:
             return stream.read(65536)
