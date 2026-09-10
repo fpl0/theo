@@ -201,7 +201,18 @@ class VmVerifier:
         for name, argv in (
             (
                 "minimum-ruff",
-                (MINIMUM_PYTHON, "-I", "-B", "-m", "ruff", "check", "src", "tests", "scripts"),
+                (
+                    MINIMUM_PYTHON,
+                    "-I",
+                    "-B",
+                    "-m",
+                    "ruff",
+                    "check",
+                    "--no-cache",
+                    "src",
+                    "tests",
+                    "scripts",
+                ),
             ),
             (
                 "minimum-format",
@@ -213,6 +224,7 @@ class VmVerifier:
                     "ruff",
                     "format",
                     "--check",
+                    "--no-cache",
                     "src",
                     "tests",
                     "scripts",
