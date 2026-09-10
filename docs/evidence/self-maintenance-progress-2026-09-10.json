@@ -48,7 +48,7 @@
     "Deterministic rollback verification preserves model pauses and does not create inference; activation canaries park when models are paused"
   ],
   "remaining_requirements": [
-    "Integrate the proven disposable Mac builder with the controller verifier; preserve the full real sandbox canaries and host-only guest-agent admission",
+    "Complete relocatable VM bundle packaging, development workspace preparation, and preservation of the installed minimum verification gates",
     "Complete independent VM ownership/recovery and enforce temporary/cache/workspace/retained-image budgets; guest descendant and complete VM termination canaries have passed",
     "Validate real packaging, trusted output handling and independent old/new schema read/write compatibility canaries",
     "Finish independent health probes, circuit alerts, cancellation recovery and controller/supervisor handover; preserve all operating controls",
@@ -137,5 +137,14 @@
     "strict_pyright_errors": 0,
     "controller_integration_complete": false,
     "production_deployed": false
+  },
+  "vm_driver_checkpoint": {
+    "evidence": "self-maintenance-vm-integration-2026-09-10.json",
+    "vm_full_recipe": "472 passed, 2 expected skips; distributions and installed-wheel smoke passed",
+    "wheel_matches_independent_local_build": true,
+    "controller_death_reconciliation": "passed",
+    "peak_host_memory_bytes": 7094091776,
+    "relocatable_runtime_prototype": "local complete-prefix relocation passed; bundle integration pending",
+    "deployment_complete": false
   }
 }

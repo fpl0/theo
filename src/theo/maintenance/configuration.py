@@ -13,6 +13,7 @@ from pydantic import Field, model_validator
 
 from theo.domain import Denied, StrictModel
 from theo.maintenance.contracts import Commit
+from theo.maintenance.vm_config import VmSettings
 
 
 class CheckRecipe(StrictModel):
@@ -35,6 +36,7 @@ class ControllerConfig(StrictModel):
     builder_python: Path
     uv: Path
     node: Path | None = None
+    vm: VmSettings | None = None
     runtime_reads: tuple[Path, ...]
     checks: tuple[CheckRecipe, ...] = Field(min_length=1)
     package_checks: bool = True
@@ -97,6 +99,11 @@ class ControllerConfig(StrictModel):
             raise ValueError("Check names must be unique")
         if any(Path(name).is_absolute() or ".." in Path(name).parts for name in self.native_files):
             raise ValueError("Native bundle destinations must be relative")
+        if self.vm and any(
+            self.workspaces.is_relative_to(path) or path.is_relative_to(self.workspaces)
+            for path in (self.vm.root, self.vm.tart_home)
+        ):
+            raise ValueError("VM state must be disjoint from writable coding workspaces")
         return self
 
 

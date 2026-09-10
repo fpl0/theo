@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field
 
-from theo.domain import StrictModel, WorkOrigin
+from theo.domain import Denied, Json, StrictModel, WorkOrigin
 
 type Identity = Annotated[str, Field(pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$")]
 type Commit = Annotated[str, Field(pattern=r"^[a-f0-9]{40}(?:[a-f0-9]{24})?$")]
@@ -34,6 +34,14 @@ type Stage = Literal[
 type ControllerStatus = Literal[
     "queued", "working", "waiting", "blocked", "auth_wait", "quota_wait", "uncertain", "terminal"
 ]
+
+
+class VerificationFailed(Denied):
+    """A completed candidate command failed; retain its evidence for repair."""
+
+    def __init__(self, receipt: Json):
+        self.receipt = receipt
+        super().__init__("Verification failed: " + str(receipt["name"]))
 
 
 class MaintenanceRequest(StrictModel):

@@ -541,6 +541,10 @@ async def run(config: ControllerConfig) -> None:
     config.root.mkdir(parents=True, exist_ok=True, mode=0o700)
     with (config.root / "controller.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if config.vm:
+            from theo.maintenance.vm_driver import reconcile
+
+            await reconcile(config.vm)
         registry = config.root / "builder-process.json"
         if registry.exists():
             process = json.loads(registry.read_text())

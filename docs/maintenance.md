@@ -60,11 +60,15 @@ The controller, builder and host service must have the documented OS ownership
 boundaries. The GitHub App key must remain controller-private. Native runners and
 candidate commands must not acquire controller, core or root-launcher authority.
 
-The disposable macOS builder proof now completes Ruff, formatting, Pyright, the
-offline suite, distribution builds and the installed-wheel check under a separate
-guest identity. The installed wheel matches the independent local build. This
-proves the recorded [builder snapshot](evidence/self-maintenance-builder-2026-09-10.json);
-the production verifier still needs its VM lifecycle and transport integration.
+`ControllerConfig.vm` selects the disposable Mac verification driver. Its protected
+configuration pins the complete base image, Tart executable, standalone Python,
+UV and host-only guest agent. The driver hashes these inputs before cloning, copies
+the accepted source and locked wheels over the guest stream, and runs the configured
+checks plus fixed distribution and installed-wheel checks. Candidate commands run
+as guest UID 622. The installed-wheel canary is supplied by the controller and runs
+outside the candidate checkout. See the original
+[builder proof](evidence/self-maintenance-builder-2026-09-10.json) and subsequent
+[driver integration evidence](evidence/self-maintenance-vm-integration-2026-09-10.json).
 
 The proof VM has no host directory shares, clipboard, audio or routed network.
 `packet_sink.py` discards its virtual Ethernet traffic without elevated host
@@ -74,16 +78,29 @@ connections and cannot be used unchanged for this boundary. Build that guest
 component with `scripts/build_vm_agent.py`; its manifest records the upstream
 commit, patch, compiler and binary hashes. Building it alone does not qualify it.
 
-The root-owned `vm_guest.py` runner executes recipes as a guest account without
-sudo. It stops that identity's detached descendants and limits time and output.
+Before candidate admission, the root guest bootstrap disables the image's published
+login accounts and requires the directory service's disabled-account authentication
+result. It also verifies that the build identity cannot use sudo or authenticate
+with the published administrator credentials. The root-owned `vm_guest.py` runner
+stops that identity's detached descendants and limits time and output.
 Completed operations retain exact receipts and private logs; changed requests
 cannot reuse an operation ID, and interrupted uncommitted results remain uncertain.
 Read logs in bounded chunks and verify their hashes. Direct large command responses
-failed during the proof. The independent VM watchdog also terminated the VM while
-a detached guest process was running. Whole-builder resource accounting and
-controller recovery remain integration requirements.
+failed during the proof. The independent watchdog bounds VM lifetime, host memory
+growth, driver output and free disk space. It signals the owned Tart process;
+unrelated virtualization services are observed for accounting, never killed.
+An exclusive installation lock and process birth records fence recovery. Controller
+startup reconciles those records before resuming its journal. Successful checks
+stop and delete their VM; failed admitted candidates retain stopped images and
+private logs. Virtual disk capacity is bounded before another VM is admitted.
 
-Remaining acceptance work includes VM integration, bounded storage, old/new schema compatibility
+This is verification integration, not a completed deployment installation. The VM
+path currently refuses release packaging until a relocatable standalone runtime is
+bundled and canaried on the physical host. Development workspace preparation,
+minimum-gate preservation, all retained staging/cache budgets, and separate host
+service identities still need final integration and qualification.
+
+Remaining acceptance work includes relocatable packaging, bounded storage, old/new schema compatibility
 canaries, independent health and alert coverage, controller handover, GitHub App
 provisioning, and live activation/probation/rollback. Local tests use real SQLite,
 Git and Unix sockets, with synthetic GitHub and model outcomes where stated;

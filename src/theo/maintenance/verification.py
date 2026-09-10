@@ -18,6 +18,7 @@ from theo.backends.process import stop_process
 from theo.domain import Denied, Json, digest
 from theo.maintenance.configuration import CheckRecipe, ControllerConfig
 from theo.maintenance.contracts import CandidateIdentity
+from theo.maintenance.contracts import VerificationFailed as VerificationFailed
 from theo.maintenance.source import read_source, source_digest, write_source
 
 
@@ -77,14 +78,6 @@ def sandbox(workspace: Path, reads: tuple[Path, ...], temporary: Path | None = N
     profile += '(deny process-exec (literal "/bin/launchctl") (literal "/usr/bin/security") (literal "/usr/bin/sudo") (literal "/usr/bin/su") (literal "/bin/su"))'
 
     return profile
-
-
-class VerificationFailed(Denied):
-    """A completed candidate command failed; preserve its bounded evidence for repair."""
-
-    def __init__(self, receipt: Json):
-        self.receipt = receipt
-        super().__init__("Verification failed: " + str(receipt["name"]))
 
 
 class Verifier:
@@ -271,6 +264,10 @@ class Verifier:
     async def check(
         self, candidate: CandidateIdentity, source: Path, *, suffix: str = "verify"
     ) -> Json:
+        if self.config.vm:
+            from theo.maintenance.vm_verification import VmVerifier
+
+            return await VmVerifier(self.config).check(candidate, source)
         if source_digest(source) != candidate.snapshot_sha256:
             raise Denied("Candidate source identity changed")
         workspace = self.config.workspaces / (candidate.change_id + "-" + suffix)
@@ -411,6 +408,8 @@ class Verifier:
     async def package(self, candidate: CandidateIdentity, source: Path, verification: Json) -> Json:
         from theo.maintenance.bundles import Bundle, inventory, verify
 
+        if self.config.vm:
+            raise Denied("VM bundle packaging requires a qualified relocatable runtime")
         workspace = self.config.workspaces / (candidate.change_id + "-package")
         if workspace.exists():
             shutil.rmtree(workspace)
