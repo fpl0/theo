@@ -60,8 +60,30 @@ The controller, builder and host service must have the documented OS ownership
 boundaries. The GitHub App key must remain controller-private. Native runners and
 candidate commands must not acquire controller, core or root-launcher authority.
 
-Remaining acceptance work includes complete isolated recipe execution on macOS,
-descendant-process containment, bounded storage, old/new schema compatibility
+The disposable macOS builder proof now completes Ruff, formatting, Pyright, the
+offline suite, distribution builds and the installed-wheel check under a separate
+guest identity. The installed wheel matches the independent local build. This
+proves the recorded [builder snapshot](evidence/self-maintenance-builder-2026-09-10.json);
+the production verifier still needs its VM lifecycle and transport integration.
+
+The proof VM has no host directory shares, clipboard, audio or routed network.
+`packet_sink.py` discards its virtual Ethernet traffic without elevated host
+permissions. A pinned guest-agent patch admits only the hypervisor host's peer
+identity: the upstream administrative endpoint also accepted guest-origin
+connections and cannot be used unchanged for this boundary. Build that guest
+component with `scripts/build_vm_agent.py`; its manifest records the upstream
+commit, patch, compiler and binary hashes. Building it alone does not qualify it.
+
+The root-owned `vm_guest.py` runner executes recipes as a guest account without
+sudo. It stops that identity's detached descendants and limits time and output.
+Completed operations retain exact receipts and private logs; changed requests
+cannot reuse an operation ID, and interrupted uncommitted results remain uncertain.
+Read logs in bounded chunks and verify their hashes. Direct large command responses
+failed during the proof. The independent VM watchdog also terminated the VM while
+a detached guest process was running. Whole-builder resource accounting and
+controller recovery remain integration requirements.
+
+Remaining acceptance work includes VM integration, bounded storage, old/new schema compatibility
 canaries, independent health and alert coverage, controller handover, GitHub App
 provisioning, and live activation/probation/rollback. Local tests use real SQLite,
 Git and Unix sockets, with synthetic GitHub and model outcomes where stated;

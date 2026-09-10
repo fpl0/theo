@@ -1,0 +1,295 @@
+{
+  "date": "2026-09-10",
+  "status": "isolated_builder_components_verified; controller integration remains incomplete",
+  "production_deployed": false,
+  "proactive_maintenance_enabled": false,
+  "full_recipe_snapshot": {
+    "base_commit": "590eed4cdaaacc4f14d2db9d445772e07ad1ea9c",
+    "includes_uncommitted_builder_and_lock_changes": true,
+    "archive_sha256": "960c90883ff026dd2d8b3303cd8e89dcfb2999c7b14b6edeb232661bcb1e2867",
+    "source_sha256": "989c313bc904beab95419886dd432feb7403a42433136290591672d6fa6822ec",
+    "guest_runner_sha256": "a3666bb21618c726317f6498a067656e10c3f4185e811d223c5f7cf96f973456",
+    "python": "3.14.6",
+    "platform": "macOS 15 arm64 guest on fpl0.local",
+    "pytest": {
+      "passed": 449,
+      "skipped": 2,
+      "skip_reasons": [
+        "No Codex binary in the disposable guest; native startup is not proven",
+        "Linux root-only dedicated-UID canary on macOS"
+      ]
+    },
+    "installed_wheel": {
+      "imported_modules": 111,
+      "core_migrations": 8,
+      "controller_migrations": 4,
+      "sha256": "3487fe41648e766092969a055247e4c8a3e8a1b09d201dc8da72b9868f7e535f",
+      "matches_independent_local_build": true
+    },
+    "checks": [
+      {
+        "check": "boundary",
+        "exit": 0,
+        "limit": null,
+        "elapsed": 0.064,
+        "descendants_stopped": true,
+        "log_sha256": "6428d0c7fc2ea1a7c6e2296398a97154c6c2c6eab74c7cd9161e85e90d2ce57b"
+      },
+      {
+        "check": "export",
+        "exit": 0,
+        "limit": null,
+        "elapsed": 0.129,
+        "descendants_stopped": true,
+        "log_sha256": "4bc89d00868298be28395a8fdb42b286e2f970e7fb203dee7a25a9af5acb97e3"
+      },
+      {
+        "check": "environment",
+        "exit": 0,
+        "limit": null,
+        "elapsed": 0.05,
+        "descendants_stopped": true,
+        "log_sha256": "fc512e7bdb918470a5b18cda371916e5d5ad3231715873e938f855275b463e3b"
+      },
+      {
+        "check": "dependencies",
+        "exit": 0,
+        "limit": null,
+        "elapsed": 6.971,
+        "descendants_stopped": true,
+        "log_sha256": "672a368a5a11abb7f32ee049f3a1907b26ff3fcce24f632c9c286239ccc168d1"
+      },
+      {
+        "check": "project",
+        "exit": 0,
+        "limit": null,
+        "elapsed": 0.373,
+        "descendants_stopped": true,
+        "log_sha256": "c1b13fd81092338adca3bf114d5ae5d8c8bb2a5ca78ce2a6e6a0b07a9314ebff"
+      },
+      {
+        "check": "ruff",
+        "exit": 0,
+        "limit": null,
+        "elapsed": 0.139,
+        "descendants_stopped": true,
+        "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+      },
+      {
+        "check": "format",
+        "exit": 0,
+        "limit": null,
+        "elapsed": 0.092,
+        "descendants_stopped": true,
+        "log_sha256": "be05eba385c4aa3cfc2f02c3191dfad1969b9e462fadc2cbb394fe03f409ff03"
+      },
+      {
+        "check": "pyright",
+        "exit": 0,
+        "limit": null,
+        "elapsed": 4.34,
+        "descendants_stopped": true,
+        "log_sha256": "6d88a1b220adb7a3d62092b6e38431f0b3fe8babe9864fab90e5849766260332"
+      },
+      {
+        "check": "pytest",
+        "exit": 0,
+        "limit": null,
+        "elapsed": 103.739,
+        "descendants_stopped": true,
+        "log_sha256": "2710bca069b10e0b5ffd644e4538b43ddcbfaa7611b1c957fb2afe3ba3d50e00"
+      },
+      {
+        "check": "distributions",
+        "exit": 0,
+        "limit": null,
+        "elapsed": 0.834,
+        "descendants_stopped": true,
+        "log_sha256": "0ff5fd144521d366971d0ccb3802c85da886ec8a9a79161767bd30cb542f2a80"
+      },
+      {
+        "check": "production-lock",
+        "exit": 0,
+        "limit": null,
+        "elapsed": 0.109,
+        "descendants_stopped": true,
+        "log_sha256": "e04c99d33c15356168428c731aaf1d30776236765ebfa8eb0b10ac0c1bd0ff0c"
+      },
+      {
+        "check": "installed-environment",
+        "exit": 0,
+        "limit": null,
+        "elapsed": 0.051,
+        "descendants_stopped": true,
+        "log_sha256": "84e325be2781897fe5c1c5393a52e02865c0f79e73ac24a4d5962cc514210232"
+      },
+      {
+        "check": "installed-dependencies",
+        "exit": 0,
+        "limit": null,
+        "elapsed": 0.307,
+        "descendants_stopped": true,
+        "log_sha256": "e44b8d5adbbf95918f548267bf825d753d63fc5ef05dd04467966321ebe58be2"
+      },
+      {
+        "check": "installed-wheel",
+        "exit": 0,
+        "limit": null,
+        "elapsed": 0.102,
+        "descendants_stopped": true,
+        "log_sha256": "a5af5779b38723ac1b934645b198929157b58855c79ea8a8096098dd84b9303e"
+      },
+      {
+        "check": "installed-smoke",
+        "exit": 0,
+        "limit": null,
+        "elapsed": 4.6,
+        "descendants_stopped": true,
+        "log_sha256": "0413a0c759317253bde5b42667d02fbc5be1ac75c5945ee5226ddbeb898b1983"
+      },
+      {
+        "passed": true,
+        "wheel_sha256": "3487fe41648e766092969a055247e4c8a3e8a1b09d201dc8da72b9868f7e535f"
+      }
+    ]
+  },
+  "pinned_inputs": {
+    "tart_version": "2.32.1",
+    "tart_archive_sha256": "8554ab4f7fc12afe52f9b7e3093a935673cbac737a83973d2db7a0683c814529",
+    "image": "ghcr.io/cirruslabs/macos-sequoia-base@sha256:4947ac5ab1b2fdc46ab856132d2ba958f8e45b5f85192c66370dafc028c514dd",
+    "python_archive_sha256": "1200ad1d2a3656f90c774edfcd2006d3af9ec8a63441c2fb5de9a4a05ccf8d96",
+    "uv_version": "0.11.33",
+    "uv_executable_sha256": "bb71e6004d716bc7fd93573453261abbf8bfb63d83dc9ffcacb566d5077b201b",
+    "lock_sha256": "6c408ba9f6318d155aa2d6afc2767434b4b55076ab622f2ec15392210570cc32",
+    "locked_wheels": 120,
+    "guest_agent": {
+      "upstream_commit": "0540136b95fcafac66f2c9a507178ae62502919b",
+      "archive_sha256": "1aba7eeaa44b00cc7cd61995c434b190815903d148e32aed55b80912168e2a01",
+      "patch_sha256": "0ee00408802c0dde73a2849ca97a7285c131673fe246091a7be69c5889f39183",
+      "go_version": "go version go1.27.1 darwin/arm64",
+      "go_sha256": "132b69336a1f809932a8a20b0201dbbb980e86e3a323ae32e893639d83d71598",
+      "go_sum_sha256": "c3f5f23f4ea77d856630e749528019082cd4a43817b4104edf77b73e27ab6e6b",
+      "binary_sha256": "2e16ebd8570cbdbb76832b863417acd9953cc63f63625533ad6c51173ca0d74f",
+      "guest_acceptance": "Host commands accepted; guest-origin RPC rejected; host CID spoof denied",
+      "committed_patch_sha256": "f55d684eb7808b1be1a3792b4124b03c221073111f994ebb8cbc413a9ebdc37a",
+      "committed_patch_note": "Zero-context patch produces byte-identical source to the built and live-verified agent; application verified independently"
+    }
+  },
+  "boundaries": {
+    "guest_uid": 622,
+    "guest_account_has_sudo": false,
+    "host_shares": 0,
+    "clipboard": false,
+    "audio": false,
+    "network": "Unix datagram packet sink; no host network interface or routes",
+    "network_helper_suid": false,
+    "guest_ipv4_and_ipv6_connections_denied": true,
+    "guest_cannot_read_physical_host_user_directory": true,
+    "guest_cannot_write_root_owned_tools_inputs_or_results": true,
+    "guest_agent_rejects_guest_peer": true,
+    "guest_cannot_bind_host_cid": true,
+    "host_agent_connection_remains_usable": true,
+    "vcpus": 4,
+    "configured_guest_memory_bytes": 4294967296,
+    "virtual_disk_bytes_per_clone": 50000000000,
+    "memory_caveat": "Guest memory setting does not include host Virtualization Framework overhead; production whole-builder accounting remains required"
+  },
+  "recorded_result_followup": {
+    "runner_sha256": "3d84e531dd7749122b6cccc5510080e26906071364545307ac2e5a0c7eb84dbc",
+    "scope": "Added after the full VM recipe snapshot; verified with live bounded-output and replay canaries and focused offline tests",
+    "output_limit_receipt": {
+      "exit_code": -9,
+      "limit": "output",
+      "elapsed_seconds": 0.044,
+      "guest_uid": 622,
+      "descendants_stopped": true,
+      "operation_id": "output-limit-recorded-1",
+      "request_sha256": "38aecd8aefef3a3bf6caf598564e6550efe2ef3acb8e694be1514e2b1ea3d371",
+      "output_bytes": 4194304,
+      "output_sha256": "baa7a6d36ffa957552df230235c2d51d735f28d49c58a5f3438a3a973a25a37d"
+    },
+    "chunk_and_replay_proof": {
+      "all_log_chunks_verified": 128,
+      "output_sha256": "baa7a6d36ffa957552df230235c2d51d735f28d49c58a5f3438a3a973a25a37d",
+      "receipt_replayed_without_execution": true,
+      "changed_request_rejected": true,
+      "counter": 1
+    },
+    "private_logs": true,
+    "maximum_log_bytes": 4194304,
+    "maximum_read_chunk_bytes": 32768
+  },
+  "process_cleanup": {
+    "watchdog_and_driver_exited": true,
+    "before_backend_identities": [
+      [
+        30304,
+        1788994614.086822
+      ],
+      [
+        34034,
+        1789001620.771959
+      ]
+    ],
+    "after_backend_identities": [
+      [
+        30304,
+        1788994614.086822
+      ]
+    ],
+    "escaped_guest_process_started": 2228,
+    "stopped_by": "verified watchdog SIGTERM and its independent child cleanup",
+    "no_direct_backend_signals": true
+  },
+  "preserved_failures": [
+    {
+      "stage": "Tart 2.37.0 startup",
+      "observed": "Swift compatibility library could not be loaded on macOS 15.7.9; pinned working 2.32.1 used instead"
+    },
+    {
+      "stage": "Initial helper upload over interactive SSH",
+      "observed": "Corrupted helper rejected; verified SCP transfer replaced this path"
+    },
+    {
+      "stage": "Reuse of an interrupted two-CPU VM",
+      "observed": "Guest agent failed to reconnect; proof proceeded on a fresh four-CPU clone with no host directory shares"
+    },
+    {
+      "stage": "Guest wheel directory permissions",
+      "observed": "Root-owned archive mode prevented build-UID reads; readable non-writable tooling modes corrected"
+    },
+    {
+      "stage": "Offline editable install",
+      "observed": "Missing editables build dependency; added to the dependency lock"
+    },
+    {
+      "stage": "Unmodified guest agent",
+      "observed": "Guest-origin connection to the administrative RPC port succeeded; peer-CID restriction added and verified before trusted candidate execution"
+    },
+    {
+      "stage": "Large direct log response",
+      "observed": "Direct multi-megabyte command output failed/corrupted; replaced by protected results and bounded hash-verified reads; underlying vendor transport cause not established"
+    }
+  ],
+  "remaining": [
+    "Integrate disposable VM lifecycle, pinned inputs and result transport into Verifier.check and Verifier.package",
+    "Enforce whole-builder host memory, disk, cache and retained-failure budgets in the independent watchdog",
+    "Provision the controller identity and protected VM/runtime storage",
+    "Complete relocatable bundle packaging and old/new schema read/write canaries",
+    "Complete independent deployment health, controller handover and end-to-end conversational GitHub/deploy/rollback qualification"
+  ],
+  "production_after_proof": {
+    "active_release": "20260909-ffdb217",
+    "supervisor_pid": 17239,
+    "observer_pid": 30960,
+    "builder_vms_running": 0,
+    "available_disk_bytes": 299818553344,
+    "retained_vm_virtual_disk_bytes": 200000000000,
+    "retained_disk_note": "Four sparse/COW images; summed virtual sizes are not physical disk allocation"
+  },
+  "references": [
+    "https://github.com/openai/tart/blob/2.32.1/Sources/tart/Network/Softnet.swift",
+    "https://github.com/openai/tart-guest-agent/tree/0540136b95fcafac66f2c9a507178ae62502919b",
+    "https://github.com/openai/tart/blob/main/Sources/tart/VM.swift"
+  ]
+}

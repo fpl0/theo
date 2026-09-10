@@ -2,41 +2,7 @@
   "status": "implementation_in_progress",
   "date": "2026-09-10",
   "base_commit": "5957c3635232296b9b9f76bc97d3361187aabd43",
-  "code_snapshot_sha256": "a8be52c1e37a63aab30c0700bdaf8396512d16123a47c1576edf16fb76d4c9d4",
   "source_scope": "Locally verified implementation checkpoint; not deployed or production-qualified",
-  "current_checks": {
-    "offline_suite": {
-      "passed": 444,
-      "skipped": 1,
-      "skip_reason": "Linux root-only dedicated-UID boundary canary on macOS"
-    },
-    "focused_tests": 64,
-    "focused_command": "uv run --no-sync pytest -q tests/test_maintenance_journal.py tests/test_maintenance_pipeline.py tests/test_architecture.py",
-    "ruff": "passed",
-    "format": "passed",
-    "strict_pyright_errors": 0,
-    "diff_check": "passed",
-    "uv_build": "passed",
-    "installed_wheel": {
-      "passed": true,
-      "outside_checkout": true,
-      "imported_modules": 109,
-      "core_migrations": 8,
-      "controller_migrations": 4,
-      "wheel_sha256": "fbed2e175535d34aa619350f3d5300f641b5e38e1f0b7c8682ed930fb248bbc6"
-    },
-    "installed_upgrade": {
-      "passed": true,
-      "core": "7 -> 8",
-      "controller": "3 -> 4",
-      "reopened_before_upgrade": true,
-      "existing_jobs_submission_and_review_preserved": true
-    },
-    "publication_source_scan": {
-      "passed": true,
-      "source_files": 286
-    }
-  },
   "earlier_checks": [
     {
       "scope": "Earlier working-tree snapshot in this implementation session",
@@ -82,8 +48,8 @@
     "Deterministic rollback verification preserves model pauses and does not create inference; activation canaries park when models are paused"
   ],
   "remaining_requirements": [
-    "Finish full controller verification under enforceable OS isolation: nested sandbox canaries cannot run inside another Mac sandbox; do not skip them or broaden access to controller credentials",
-    "Finish builder process containment and orphan cleanup, including descendants that create new sessions, and bound all temporary/cache/workspace storage",
+    "Integrate the proven disposable Mac builder with the controller verifier; preserve the full real sandbox canaries and host-only guest-agent admission",
+    "Complete independent VM ownership/recovery and enforce temporary/cache/workspace/retained-image budgets; guest descendant and complete VM termination canaries have passed",
     "Validate real packaging, trusted output handling and independent old/new schema read/write compatibility canaries",
     "Finish independent health probes, circuit alerts, cancellation recovery and controller/supervisor handover; preserve all operating controls",
     "Provision separate controller and build identities, protected policy/credentials and privileged host launcher with real boundary canaries",
@@ -112,19 +78,64 @@
   },
   "builder_isolation_investigation": {
     "candidate": "Disposable macOS VM for trusted build recipes; Theo core remains native",
-    "status": "Investigating; no VM software or images installed",
+    "status": "Full disposable Mac recipe and installed wheel passed; controller VM integration remains incomplete",
     "reason": "An outer macOS sandbox prevents the full suite from applying its nested isolation canaries",
     "host_resources": "16 GiB RAM and 318 GiB available disk observed",
     "required_proof": [
-      "Pinned image/runtime provenance",
-      "No network or protected host directory access",
-      "Bounded disk/RAM and complete VM process cleanup",
-      "Full real Mac recipe and installed-package checks"
+      "Integrate VM lifecycle and pinned-input verification with the production verifier",
+      "Enforce host memory and all retained storage budgets",
+      "Complete physical-host relocatable bundle and old/new schema compatibility checks"
     ],
     "references": [
       "https://tart.run/quick-start/",
       "https://tart.run/faq/",
       "https://github.com/openai/tart/blob/main/Sources/tart/Commands/Run.swift"
-    ]
+    ],
+    "evidence": "self-maintenance-builder-2026-09-10.json"
+  },
+  "implementation_checkpoint_checks": {
+    "offline_suite": {
+      "passed": 444,
+      "skipped": 1,
+      "skip_reason": "Linux root-only dedicated-UID boundary canary on macOS"
+    },
+    "focused_tests": 64,
+    "focused_command": "uv run --no-sync pytest -q tests/test_maintenance_journal.py tests/test_maintenance_pipeline.py tests/test_architecture.py",
+    "ruff": "passed",
+    "format": "passed",
+    "strict_pyright_errors": 0,
+    "diff_check": "passed",
+    "uv_build": "passed",
+    "installed_wheel": {
+      "passed": true,
+      "outside_checkout": true,
+      "imported_modules": 109,
+      "core_migrations": 8,
+      "controller_migrations": 4,
+      "wheel_sha256": "fbed2e175535d34aa619350f3d5300f641b5e38e1f0b7c8682ed930fb248bbc6"
+    },
+    "installed_upgrade": {
+      "passed": true,
+      "core": "7 -> 8",
+      "controller": "3 -> 4",
+      "reopened_before_upgrade": true,
+      "existing_jobs_submission_and_review_preserved": true
+    },
+    "publication_source_scan": {
+      "passed": true,
+      "source_files": 286
+    }
+  },
+  "implementation_checkpoint_code_snapshot_sha256": "a8be52c1e37a63aab30c0700bdaf8396512d16123a47c1576edf16fb76d4c9d4",
+  "builder_checkpoint": {
+    "evidence": "self-maintenance-builder-2026-09-10.json",
+    "full_vm_recipe": "449 passed, 2 expected skips; distributions and installed-wheel smoke passed",
+    "local_full_suite": "450 passed, 1 expected skip before adding two further receipt regressions",
+    "latest_focused_vm_tests": 8,
+    "ruff": "passed",
+    "format": "passed",
+    "strict_pyright_errors": 0,
+    "controller_integration_complete": false,
+    "production_deployed": false
   }
 }
