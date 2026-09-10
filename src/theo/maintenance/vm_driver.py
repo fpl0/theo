@@ -332,12 +332,26 @@ class VmDriver:
             await asyncio.sleep(2)
         raise Denied("The guest agent did not become ready before its deadline")
 
-    async def prepare(self, source: Path, wheels: Path) -> None:
+    async def prepare(
+        self,
+        source: Path,
+        wheels: Path,
+        *,
+        minimum: dict[str, tuple[bytes, int]] | None = None,
+    ) -> None:
         inputs = self.directory / "inputs"
         inputs.mkdir()
         files = await asyncio.to_thread(read_source, source)
         await asyncio.to_thread(archive_files, inputs / "source.tar", files)
         expected_wheels = wheel_requests(files["uv.lock"][0])
+        if minimum is not None:
+            await asyncio.to_thread(archive_files, inputs / "minimum.tar", minimum)
+            merged = {item["name"]: item for item in expected_wheels}
+            for item in wheel_requests(minimum["uv.lock"][0]):
+                if item["name"] in merged and merged[item["name"]] != item:
+                    raise Denied("Candidate and minimum locks disagree about the same wheel")
+                merged[item["name"]] = item
+            expected_wheels = list(merged.values())
         with tarfile.open(inputs / "wheels.tar", "w") as archive:
             for wheel in expected_wheels:
                 path = wheels / wheel["name"]
@@ -357,6 +371,7 @@ class VmDriver:
             ("vm_bootstrap.py", Path(__file__).with_name("vm_bootstrap.py")),
             ("vm_bundle.py", Path(__file__).with_name("vm_bundle.py")),
             ("vm_exports.py", Path(__file__).with_name("vm_exports.py")),
+            ("vm_minimum.py", Path(__file__).with_name("vm_minimum.py")),
             ("installed_check.py", Path(__file__).with_name("installed_check.txt")),
         ):
             shutil.copyfile(path, inputs / name)
@@ -367,6 +382,11 @@ class VmDriver:
                 {
                     "source_sha256": files_digest(files),
                     "source_ignored": sorted(IGNORED),
+                    "minimum_sha256": files_digest(minimum) if minimum is not None else None,
+                    "minimum_files": {
+                        name: [hashlib.sha256(body).hexdigest(), mode]
+                        for name, (body, mode) in (minimum or {}).items()
+                    },
                     "source_files": {
                         name: [hashlib.sha256(body).hexdigest(), mode]
                         for name, (body, mode) in files.items()

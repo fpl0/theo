@@ -98,6 +98,19 @@ outside the candidate checkout. See the original
 The subsequent [bundle and development proof](evidence/self-maintenance-bundles-2026-09-10.json)
 records the successful combined component pipeline and the failures that preceded it.
 
+An installation also pins `minimum_source` and `minimum_source_sha256` to a
+root-owned source tree outside writable service storage. The verifier combines
+the candidate implementation with that baseline's tests, check configuration and
+tooling lock. In the guest it installs and seals a separate minimum environment
+before candidate packaging hooks run, then executes the pinned Ruff, format,
+Pyright and pytest checks. Candidate checks and installed-package checks follow
+in their own environment. Both locks' wheels are staged with their recorded hashes.
+The receipt binds the baseline and combined tree; packaging requires that receipt.
+Deleting a candidate test or relaxing its config therefore cannot remove the
+baseline check. Baseline changes are protected control-layer changes and need
+review against the existing recipe; they are not a model tool argument. The new
+minimum-gate path still requires its target-VM acceptance evidence.
+
 The proof VM has no host directory shares, clipboard, audio or routed network.
 `packet_sink.py` discards its virtual Ethernet traffic without elevated host
 permissions. A pinned guest-agent patch admits only the hypervisor host's peer

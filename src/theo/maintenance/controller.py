@@ -27,6 +27,7 @@ from theo.maintenance.contracts import (
 from theo.maintenance.dependencies import stage as stage_dependencies
 from theo.maintenance.github import BaseAdvanced, CheckFailed, GitHub, NoEffect, Uncertain
 from theo.maintenance.journal import Journal
+from theo.maintenance.minimum import acceptance_files
 from theo.maintenance.policy import load_policy
 from theo.maintenance.rpc import Client, serve
 from theo.maintenance.source import Source, git, read_source, write_source
@@ -297,6 +298,15 @@ class Controller:
         branch = "theo/change-" + lease.change_id
         if stage == "verifying":
             await self.source.evidence(candidate)
+            if self.config.minimum_source and self.config.minimum_source_sha256:
+                minimum_lock = self.config.minimum_source / "uv.lock"
+                acceptance_files(self.config.minimum_source, self.config.minimum_source_sha256, {})
+                await self.effect(
+                    lease,
+                    effect_name("minimum_dependencies"),
+                    {"baseline": self.config.minimum_source_sha256},
+                    lambda: stage_dependencies(minimum_lock, self.config.dependency_wheels),
+                )
             changed = (
                 await git(source, "diff", "--name-only", candidate.base_commit, candidate.commit)
             ).splitlines()
@@ -559,6 +569,9 @@ async def run(config: ControllerConfig) -> None:
     if config.policy_uid != 0:
         raise Denied("Controller policy must be pinned to the root installation owner")
     read_operator_file(config.policy)
+    if not config.minimum_source or not config.minimum_source_sha256:
+        raise Denied("Install the protected minimum verification source before maintenance")
+    acceptance_files(config.minimum_source, config.minimum_source_sha256, {})
     # Prepared coding files must be editable by the core's shared workspace
     # group. Private controller directories themselves remain mode 0700.
     os.umask(0o007)

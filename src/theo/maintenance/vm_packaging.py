@@ -39,6 +39,19 @@ class VmPackager(VmVerifier):
     ) -> None:
         if verification is None and not development:
             raise Denied("A release prefix requires independent candidate verification")
+        if (
+            verification is not None
+            and self.config.minimum_source_sha256
+            and (
+                verification.get("minimum_baseline_sha256") != self.config.minimum_source_sha256
+                or not any(
+                    receipt.get("name") == "minimum-protected-source"
+                    and receipt.get("sealed") is True
+                    for receipt in verification.get("checks", [])
+                )
+            )
+        ):
+            raise Denied("The release is missing its protected minimum verification receipt")
         await self.prepare(vm)
         await self.installed_checks(vm)
         assert self.wheel

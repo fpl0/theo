@@ -68,7 +68,9 @@ def request(raw: bytes) -> Request:
     arguments = tuple(cast(list[str], argv))
     identity = operation_id(data["operation_id"])
     directory = Path(cwd)
-    if not directory.is_absolute() or not directory.resolve().is_relative_to(WORK):
+    if not directory.is_absolute() or not any(
+        directory.resolve().is_relative_to(parent) for parent in (WORK, ROOT / "minimum-source")
+    ):
         raise ValueError("VM recipe directory must stay in guest work storage")
     if not Path(arguments[0]).is_absolute():
         raise ValueError("VM recipe executable must be absolute")
@@ -98,6 +100,7 @@ def environment(command: Request) -> dict[str, str]:
         "PYTHONDONTWRITEBYTECODE": "1",
         "PYTHONNOUSERSITE": "1",
         "PYRIGHT_PYTHON_GLOBAL_NODE": "on",
+        "HYPOTHESIS_STORAGE_DIRECTORY": str(WORK / "cache/hypothesis"),
     }
     if command.source_imports:
         result["PYTHONPATH"] = str(command.cwd / "src")

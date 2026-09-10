@@ -22,6 +22,7 @@ from theo.maintenance.configuration import (
     require_root_parents,
 )
 from theo.maintenance.host import HostConfig
+from theo.maintenance.minimum import acceptance_files
 from theo.maintenance.policy import load_policy
 from theo.maintenance.rpc import Client
 
@@ -70,6 +71,9 @@ async def check(config: ControllerConfig, host: HostConfig) -> Json:
     if config.policy_uid != 0:
         raise Denied("Installation policy ownership must be pinned to root")
     read_operator_file(config.policy)
+    if not config.minimum_source or not config.minimum_source_sha256:
+        raise Denied("An installation requires its protected minimum verification source")
+    acceptance_files(config.minimum_source, config.minimum_source_sha256, {})
     policy = load_policy(config.policy, expected_uid=0)
     core = load_settings(host.root)
     if (host.core_uid, host.core_gid) != (config.core_uid, config.core_gid):

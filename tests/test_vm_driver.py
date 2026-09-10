@@ -278,6 +278,8 @@ async def test_failing_vm_check_stops_the_guest_before_returning_its_failure(
     config = SimpleNamespace(
         vm=vm_settings,
         dependency_wheels=Path("/synthetic/wheels"),
+        minimum_source=None,
+        minimum_source_sha256=None,
         checks=(CheckRecipe(name="behavior", argv=("/usr/bin/false",)),),
     )
     with pytest.raises(VerificationFailed) as failure:

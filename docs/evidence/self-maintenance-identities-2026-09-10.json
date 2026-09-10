@@ -96,5 +96,54 @@
       "issue": "The probe requested only supplementary GID 620 before changing primary GID to 621. On this Mac the primary group replaced the first list entry. Requesting [621,620] exercised the intended controller credential."
     }
   ],
-  "remaining": "Production wiring, native sandbox and privileged-host canaries, protected minimum gates, bounded retained storage, schema-pair checks, control handover, GitHub App, and conversational deployment/probation/rollback."
+  "remaining": "Production wiring, protected minimum gates, bounded retained storage, schema-pair checks, control handover, GitHub App, native subscription conversation and deployment/probation/rollback.",
+  "native_boundary_canary": {
+    "source_commit": "2e09d4ee3d05e6d620e7b0b887e48ba54235d09e",
+    "platform": "darwin",
+    "core_uid": 620,
+    "isolation": {
+      "verified": true,
+      "test": "real process denied protected read and write",
+      "platform": "darwin"
+    },
+    "generated_command": {
+      "protected_reads_denied": true,
+      "private_scratch_writable": true,
+      "workspace_writable": true,
+      "workspace_unix_ipc": true,
+      "ipv4_ipv6_denied": true,
+      "sudo_exec_denied": true
+    },
+    "full_vm_development_prefix": true,
+    "production_modified": false,
+    "native_subscription_inference_exercised": false
+  },
+  "privileged_host_transport": {
+    "source_commit": "2e09d4ee3d05e6d620e7b0b887e48ba54235d09e",
+    "wrapper": "/private/var/theo/bin/host-command",
+    "wrapper_sha256": "d81888b93ef4da3f19472001e3f67c7fc769c70d2b6e932108cb0e227c4c9b10",
+    "caller_uid": 620,
+    "privileged_uid": 0,
+    "no_argument_rule": true,
+    "other_commands_denied": true,
+    "controller_identity_denied": true,
+    "exact_host_transport_exercised": true,
+    "approval_source": "Operator-authorized synthetic installation canary; conversation ledger tested separately",
+    "production_settings_changed": false,
+    "production_services_loaded": false
+  },
+  "root_transport_worker_boundaries": {
+    "source_commit": "2e09d4ee3d05e6d620e7b0b887e48ba54235d09e",
+    "core_uid": 620,
+    "actual_sudo_rule_installed": true,
+    "native_worker_root_transport_denied": true,
+    "generated_worker_root_transport_denied": true,
+    "production_modified": false
+  },
+  "workspace_source_commit": "2e09d4ee3d05e6d620e7b0b887e48ba54235d09e",
+  "workspace_ci": {
+    "run": 34440515946,
+    "ubuntu-24.04": "success",
+    "macos-14": "success"
+  }
 }

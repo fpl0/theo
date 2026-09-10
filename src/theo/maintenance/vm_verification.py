@@ -13,7 +13,8 @@ from typing import cast
 from theo.domain import Denied, Json, digest
 from theo.maintenance.configuration import CheckRecipe, ControllerConfig
 from theo.maintenance.contracts import CandidateIdentity, VerificationFailed
-from theo.maintenance.source import source_digest
+from theo.maintenance.minimum import acceptance_files
+from theo.maintenance.source import files_digest, read_source, source_digest
 from theo.maintenance.vm_driver import GUEST_PYTHON, GUEST_ROOT, GUEST_SOURCE, VmDriver
 
 UV = GUEST_ROOT + "/tools/uv"
@@ -22,6 +23,9 @@ WORK = GUEST_ROOT + "/work"
 SCRATCH = WORK + "/verification"
 PYTHON = SCRATCH + "/environment/bin/python"
 INSTALLED = WORK + "/installed"
+MINIMUM = GUEST_ROOT + "/minimum-source"
+MINIMUM_ENV = GUEST_ROOT + "/minimum-environment"
+MINIMUM_PYTHON = MINIMUM_ENV + "/bin/python"
 
 
 class VmVerifier:
@@ -122,6 +126,118 @@ class VmVerifier:
             ),
         ):
             await self.command(vm, CheckRecipe(name=name, argv=argv))
+
+    async def minimum_checks(self, vm: VmDriver, expected: str) -> None:
+        """Run the previous acceptance recipe before admitting candidate packaging hooks."""
+        for name, argv in (
+            (
+                "minimum-export",
+                (
+                    UV,
+                    "export",
+                    "--locked",
+                    "--all-groups",
+                    "--all-extras",
+                    "--no-emit-project",
+                    "--format",
+                    "requirements-txt",
+                    "--output-file",
+                    WORK + "/minimum-requirements.txt",
+                ),
+            ),
+            (
+                "minimum-environment",
+                (UV, "venv", "--allow-existing", "--python", GUEST_PYTHON, MINIMUM_ENV),
+            ),
+            (
+                "minimum-install",
+                (
+                    UV,
+                    "pip",
+                    "install",
+                    "--python",
+                    MINIMUM_PYTHON,
+                    "--offline",
+                    "--no-index",
+                    "--find-links",
+                    WHEELS,
+                    "--require-hashes",
+                    "--link-mode",
+                    "copy",
+                    "-r",
+                    WORK + "/minimum-requirements.txt",
+                ),
+            ),
+        ):
+            await self.command(vm, CheckRecipe(name=name, argv=argv), cwd=MINIMUM)
+        helper = [GUEST_PYTHON, "-I", "-B", GUEST_ROOT + "/tools/vm_minimum.py"]
+        await vm.guest([*helper, "seal"], timeout=120)
+        permission_canary = (
+            "from pathlib import Path; import sys,theo\n"
+            f"assert Path(theo.__file__).resolve()==Path({MINIMUM + '/src/theo/__init__.py'!r})\n"
+            "for name in sys.argv[1:]:\n"
+            " try: Path(name).open('ab').close()\n"
+            " except PermissionError: pass\n"
+            " else: raise AssertionError('Candidate can write minimum acceptance files')\n"
+            "print('Minimum tests, configuration and tools are read-only to the build UID')"
+        )
+        await self.command(
+            vm,
+            CheckRecipe(
+                name="minimum-permission-canary",
+                argv=(
+                    MINIMUM_PYTHON,
+                    "-I",
+                    "-B",
+                    "-c",
+                    permission_canary,
+                    MINIMUM + "/tests/conftest.py",
+                    MINIMUM + "/pyproject.toml",
+                    MINIMUM_ENV + "/lib/python3.14/site-packages/pytest/__init__.py",
+                ),
+            ),
+            cwd=MINIMUM,
+        )
+        for name, argv in (
+            (
+                "minimum-ruff",
+                (MINIMUM_PYTHON, "-I", "-B", "-m", "ruff", "check", "src", "tests", "scripts"),
+            ),
+            (
+                "minimum-format",
+                (
+                    MINIMUM_PYTHON,
+                    "-I",
+                    "-B",
+                    "-m",
+                    "ruff",
+                    "format",
+                    "--check",
+                    "src",
+                    "tests",
+                    "scripts",
+                ),
+            ),
+            ("minimum-pyright", (MINIMUM_PYTHON, "-I", "-B", "-m", "pyright")),
+            (
+                "minimum-pytest",
+                (
+                    MINIMUM_PYTHON,
+                    "-I",
+                    "-B",
+                    "-m",
+                    "pytest",
+                    "-q",
+                    "-o",
+                    "cache_dir=" + WORK + "/cache/minimum-pytest",
+                ),
+            ),
+        ):
+            await self.command(vm, CheckRecipe(name=name, argv=argv), cwd=MINIMUM)
+        receipt = json.loads(await vm.guest([*helper, "check"], timeout=60))
+        if receipt != {"minimum_sha256": expected, "sealed": True}:
+            raise Denied("Minimum verification source or tooling lost its protection")
+        self.receipts.append({"name": "minimum-protected-source", "exit_code": 0, **receipt})
 
     async def installed_checks(self, vm: VmDriver) -> None:
         await self.command(
@@ -248,8 +364,17 @@ class VmVerifier:
     async def check(self, candidate: CandidateIdentity, source: Path) -> Json:
         if source_digest(source) != candidate.snapshot_sha256:
             raise Denied("Candidate source identity changed")
+        minimum = None
+        if self.config.minimum_source and self.config.minimum_source_sha256:
+            minimum = acceptance_files(
+                self.config.minimum_source, self.config.minimum_source_sha256, read_source(source)
+            )
         async with VmDriver(self.vm_settings) as vm:
-            await vm.prepare(source, self.config.dependency_wheels)
+            if minimum is not None:
+                await vm.prepare(source, self.config.dependency_wheels, minimum=minimum)
+                await self.minimum_checks(vm, files_digest(minimum))
+            else:
+                await vm.prepare(source, self.config.dependency_wheels)
             await self.prepare(vm)
             for recipe in self.config.checks:
                 await self.command(vm, recipe)
@@ -267,6 +392,8 @@ class VmVerifier:
             "interpreter_archive_sha256": self.vm_settings.python_sha256,
             "agent_sha256": self.vm_settings.agent_sha256,
             "vm_stopped": True,
+            "minimum_baseline_sha256": self.config.minimum_source_sha256,
+            "minimum_acceptance_sha256": files_digest(minimum) if minimum is not None else None,
         }
         (directory / "verification.json").write_text(json.dumps(result, indent=2))
         return result

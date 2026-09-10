@@ -65,6 +65,7 @@ def install_agent() -> None:
         "vm_bootstrap.py",
         "vm_bundle.py",
         "vm_exports.py",
+        "vm_minimum.py",
     ):
         shutil.copyfile(INPUTS / name, TOOLS / name)
         (TOOLS / name).chmod(0o755 if name in ("tart-guest-agent", "uv") else 0o644)
@@ -194,6 +195,7 @@ def prepare() -> dict[str, object]:
     )
     if checked_source.returncode:
         raise RuntimeError("Candidate source extraction failed in the build identity")
+    checked(str(TOOLS / "python/bin/python3"), "-I", "-B", str(TOOLS / "vm_minimum.py"), "prepare")
     receipt = {
         "ready": True,
         "guest_uid": UID,

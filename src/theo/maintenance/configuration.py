@@ -50,6 +50,8 @@ class ControllerConfig(StrictModel):
     github_installation_id: int | None = Field(default=None, gt=0)
     github_key_file: Path | None = None
     dependency_wheels: Path
+    minimum_source: Path | None = None
+    minimum_source_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     native_files: dict[str, Path] = Field(default_factory=dict)
     native_executables: dict[Literal["codex", "claude", "cursor", "grok"], str] = Field(
         default_factory=lambda: {"codex": "bin/codex"}
@@ -87,6 +89,7 @@ class ControllerConfig(StrictModel):
                 self.github_cli_config,
                 self.node,
                 self.bundle_root,
+                self.minimum_source,
             )
             if path is not None
         )
@@ -100,6 +103,8 @@ class ControllerConfig(StrictModel):
             )
         if any(not path.is_absolute() for path in (*paths, *credentials)):
             raise ValueError("Installation paths must be absolute")
+        if (self.minimum_source is None) != (self.minimum_source_sha256 is None):
+            raise ValueError("Minimum verification needs both protected source and its digest")
         if self.root.is_relative_to(self.workspaces) or self.workspaces.is_relative_to(self.root):
             raise ValueError("Controller and worker directories must be disjoint")
         if self.bundle_root and any(
