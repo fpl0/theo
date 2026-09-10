@@ -1,0 +1,100 @@
+{
+  "recorded_date": "2026-09-10",
+  "status": "component-proofs-passed; installation incomplete",
+  "production_qualified": false,
+  "production_deployed": false,
+  "supervisor_source_commit": "d2fbd49a9c76bc3a3242796ac94aafbc92347d58",
+  "supervisor_wheel_sha256": "a051079dcaf28a7eabef6bcc2603dcb7e809a84bb62b852d9bc78fa323ac57f4",
+  "supervisor_ci": {
+    "run": 34439227330,
+    "ubuntu-24.04": "success",
+    "macos-14": "success"
+  },
+  "service_identity_canary": {
+    "source_commit": "d2fbd49a9c76bc3a3242796ac94aafbc92347d58",
+    "platform": "darwin",
+    "core_uid": 620,
+    "controller_uid": 621,
+    "supervisor_uid": 0,
+    "launched": {
+      "uid": 620,
+      "gid": 620,
+      "groups": [
+        620
+      ],
+      "directory_groups": [
+        620,
+        12,
+        61,
+        701,
+        100
+      ],
+      "selected": "/private/var/theo/proof-d2fbd49-r3/bundles/baseline"
+    },
+    "core_database_and_backups_owned_by_core": true,
+    "root_supervisor_database_connection_opened": false,
+    "core_symlink_cannot_redirect_root_file_access": true,
+    "boundaries": {
+      "core_cannot_read_controller_key": true,
+      "core_cannot_write_selection": true,
+      "core_cannot_read_process_record": true,
+      "controller_cannot_read_core_database": true,
+      "core_cannot_modify_pinned_code": true
+    },
+    "production_modified": false,
+    "full_native_sandbox_proof": false,
+    "filevault_enabled": false,
+    "synthetic_unencrypted_backup_exception": true,
+    "production_storage_qualified": false
+  },
+  "workspace_handoff_canary": {
+    "handoff_module_sha256": "ba93f096235372bd1c1308bff4efe013630b9fc68968cc63ce152abf5600e562",
+    "platform": "darwin",
+    "controller_uid": 621,
+    "controller_primary_gid": 621,
+    "core_uid": 620,
+    "shared_gid": 620,
+    "workspace": "/private/var/tw/identity-development-r2",
+    "entries": 35710,
+    "complete_vm_built_environment": true,
+    "successive_core_edit_imports": [
+      7,
+      8
+    ],
+    "review_group_write_denied": true,
+    "all_workspace_entries_share_core_gid": true,
+    "production_modified": false,
+    "native_sandbox_exercised": false,
+    "controller_process_groups_requested": [
+      621,
+      620
+    ]
+  },
+  "observed_host_prerequisite": {
+    "command": "/usr/bin/fdesetup status",
+    "result": "FileVault is Off.",
+    "production_encrypted_storage_verified": false,
+    "owner_notified": true
+  },
+  "synthetic_fixture_exception": "Only the fresh synthetic core root enabled allow_unencrypted_release_backup. Production settings and data were not changed.",
+  "probe_corrections": [
+    {
+      "stage": "account setup",
+      "issue": "Initial membership command used /usr/sbin/dsmemberutil; corrected to /usr/bin/dsmemberutil and verified the created identities."
+    },
+    {
+      "stage": "backup",
+      "issue": "Fresh synthetic settings correctly rejected backups without encryption evidence. The next synthetic run explicitly enabled the unencrypted release-backup exception."
+    },
+    {
+      "stage": "group observation",
+      "issue": "On macOS Python os.getgroups reports directory membership. The corrected probe calls libc getgroups and observed only kernel primary GID 620.",
+      "source": "https://docs.python.org/3.14/library/os.html#os.getgroups"
+    },
+    {
+      "stage": "workspace handoff probe",
+      "issue": "The probe requested only supplementary GID 620 before changing primary GID to 621. On this Mac the primary group replaced the first list entry. Requesting [621,620] exercised the intended controller credential."
+    }
+  ],
+  "remaining": "Production wiring, native sandbox and privileged-host canaries, protected minimum gates, bounded retained storage, schema-pair checks, control handover, GitHub App, and conversational deployment/probation/rollback."
+}

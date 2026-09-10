@@ -31,6 +31,7 @@ from theo.maintenance.policy import load_policy
 from theo.maintenance.rpc import Client, serve
 from theo.maintenance.source import Source, git, read_source, write_source
 from theo.maintenance.verification import VerificationFailed, Verifier
+from theo.maintenance.workspace_access import handoff
 
 
 class Controller:
@@ -247,6 +248,7 @@ class Controller:
                     python = await self.verifier.prepare_environment(destination)
                     prepared["test_python"] = str(python)
                     prepared["test_environment"] = "offline, matching the selected source lock"
+                await asyncio.to_thread(handoff, destination, self.config.core_gid, writable=True)
                 return prepared
 
             prepared = await self.effect(lease, effect_name("prepare"), {"base": base}, prepare)
@@ -335,11 +337,25 @@ class Controller:
                 if not iteration["review_job_id"]:
                     raise Denied("Independent review job is missing")
                 destination = self.config.workspaces / iteration["review_job_id"]
-                if not destination.exists():
+
+                async def prepare_review() -> Json:
+                    if destination.exists():
+                        await asyncio.to_thread(shutil.rmtree, destination)
                     await asyncio.to_thread(write_source, destination, read_source(source))
                     (destination / "MAINTENANCE_DIFF.txt").write_text(
                         await git(source, "diff", candidate.base_commit, candidate.commit)
                     )
+                    await asyncio.to_thread(
+                        handoff, destination, self.config.core_gid, writable=False
+                    )
+                    return {"workspace": str(destination), "candidate": candidate.commit}
+
+                await self.effect(
+                    lease,
+                    effect_name("review_workspace"),
+                    candidate.model_dump(mode="json"),
+                    prepare_review,
+                )
                 await self.journal.transition(
                     lease,
                     stage,

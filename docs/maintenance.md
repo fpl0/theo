@@ -78,6 +78,13 @@ helper accepts a bounded list of operations, not SQL or arbitrary paths. This al
 keeps database sidecars writable by the core after backups and drain changes.
 Controller and supervisor configuration and policy files require root-owned,
 non-writable ancestors, including the lexical path before symlink resolution.
+The controller has a private primary group and supplementary membership in the
+core's workspace group. Before job admission, it explicitly assigns prepared
+trees to that group: coding trees permit group writes, while review trees permit
+only reads and traversal. This includes the complete development environment and
+Git metadata. A durable preparation receipt prevents repeating the handoff while
+a job is active. Tree validation rejects foreign owners, external links, hard
+links and special files before changing permissions.
 
 `ControllerConfig.vm` selects the disposable Mac verification driver. Its protected
 configuration pins the complete base image, Tart executable, standalone Python,
@@ -156,10 +163,18 @@ includes the job's development environment. Unix sockets within that workspace
 support offline broker and protocol tests; external Unix endpoints, IPv4 and IPv6
 remain denied. Native account files stay outside command access. Use a short
 workspace root at installation because macOS limits Unix socket path length.
+An operator-provisioned `worker_home/workspaces` symlink can point at a shorter
+workspace root. The sandbox resolves that root and grants writes only to the
+issued job alongside the native home; other job directories remain denied.
 
 This remains an incomplete deployment installation. Minimum-gate preservation,
-all retained staging/cache budgets, separate host service identities and the live
+all retained staging/cache budgets, final service wiring and the live
 acceptance campaign below still need final integration and qualification.
+The [service identity evidence](evidence/self-maintenance-identities-2026-09-10.json)
+records physical Mac checks of the protected supervisor, core-only database
+helper, controller-private files, full development environment group handoff and
+read-only review tree. These use synthetic state. The host reports FileVault off;
+production encrypted-storage qualification remains outstanding.
 
 Remaining acceptance work includes final bundle qualification, bounded storage, old/new schema compatibility
 canaries, independent health and alert coverage, controller handover, GitHub App

@@ -94,7 +94,7 @@ def sandbox_profile(
         f"(deny file-read* (require-all (subpath {quote(Path.home())}) (require-not (subpath {quote(runner)})) (require-not (subpath {quote(Path(sys.prefix))})) (require-not (subpath {quote(Path(sys.base_prefix))})) (require-not (subpath {quote(Path(__file__).resolve().parents[2])})){runtime_exception}{worker_exception}))"
         f"(allow file-read-metadata (literal {quote(Path.home())}))"
         f"(deny file-read* file-write* (require-all (subpath {quote(runner / 'workspaces')}) (require-not (subpath {quote(work)}))))"
-        f'(deny file-write* (require-all (require-not (subpath {quote(runner)})) (require-not (literal "/dev/null"))))'
+        f'(deny file-write* (require-all (require-not (subpath {quote(runner)})) (require-not (subpath {quote(work)})) (require-not (literal "/dev/null"))))'
         '(deny process-exec (literal "/bin/launchctl") (literal "/bin/launchd") (literal "/usr/bin/security") (literal "/usr/bin/sudo") (literal "/usr/bin/su") (literal "/bin/su"))'
         "(deny mach-priv*)(deny process-info* (require-not (target self)))(deny signal)"
     )

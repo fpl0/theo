@@ -85,6 +85,31 @@ async def test_scratch_symlink_cannot_redirect_core_writes(tmp_path):
     assert not (core / "tmp").exists()
 
 
+async def test_command_supports_a_host_provisioned_short_workspace_root(tmp_path):
+    settings, core, _ = await command_settings(tmp_path)
+    issued = settings.worker_home / "workspaces"
+    short = tmp_path / "w"
+    issued.rename(short)
+    issued.symlink_to(short, target_is_directory=True)
+    workspace = short / "job"
+    result = await execute_scoped(
+        settings,
+        core,
+        workspace,
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            "from pathlib import Path; import os; "
+            "Path('source.py').write_text('answer = 7\\n'); "
+            "Path(os.environ['TMPDIR'],'probe').write_text('scratch'); print('written')",
+        ],
+    )
+    assert result["exit_code"] == 0, result
+    assert (workspace / "source.py").read_text() == "answer = 7\n"
+    assert (workspace / ".theo/command/tmp/probe").read_text() == "scratch"
+
+
 async def test_command_unix_ipc_is_confined_to_its_own_workspace(tmp_path):
     settings, core, workspace = await command_settings(tmp_path)
     with tempfile.TemporaryDirectory(prefix="theo-ipc-", dir="/tmp") as temporary:
