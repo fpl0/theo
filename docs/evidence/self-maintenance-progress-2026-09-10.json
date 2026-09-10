@@ -88,9 +88,9 @@
     "Finish independent health probes, circuit alerts, cancellation recovery and controller/supervisor handover; preserve all operating controls",
     "Provision separate controller and build identities, protected policy/credentials and privileged host launcher with real boundary canaries",
     "Connect a repository-scoped GitHub App (browser sign-in requested); host GitHub CLI authentication is invalid",
-    "Configure strict required checks, reconcile the deployment branch into main, and prove branch/PR/merge and revised-candidate checks on a dedicated test repository",
+    "Reconcile the draft deployment branch into protected main, and prove branch/PR/merge and revised-candidate checks on a dedicated test repository",
     "Run complete acceptance audit, full checks and installed-package verification on the final committed snapshot",
-    "Commit and push all intended changes, then deploy to fpl0.local and verify native tools, Telegram receipt, probation and controlled rollback",
+    "Keep final changes committed and pushed, then deploy to fpl0.local and verify native tools, Telegram receipt, probation and controlled rollback",
     "Enable proactive maintenance only after the design end-to-end proof and owner policy are recorded"
   ],
   "live_read_only_findings": {
@@ -98,8 +98,33 @@
     "ssh": "verified",
     "active_application_release": "20260909-ffdb217",
     "supervisor_and_monitoring_services": "running",
-    "github_main_strict_rules": "absent",
+    "github_main_strict_rules": "Enabled after this checkpoint: required Linux/macOS checks, no bypass actors, deletion and non-fast-forward protections",
     "github_app": "not provisioned"
   },
-  "github_checkpoint": "Commit and push this locally verified snapshot on codex/deploy-fpl0; the goal remains active for the remaining implementation and deployment gates"
+  "github_checkpoint": {
+    "commit": "4aa49a3030c9734ef91fb26b0651330ac301436c",
+    "branch": "codex/deploy-fpl0",
+    "pushed": true,
+    "pull_request": "https://github.com/fpl0/theo/pull/4",
+    "draft": true,
+    "ci": "Both Linux and macOS jobs passed",
+    "ruleset_id": 22703239
+  },
+  "builder_isolation_investigation": {
+    "candidate": "Disposable macOS VM for trusted build recipes; Theo core remains native",
+    "status": "Investigating; no VM software or images installed",
+    "reason": "An outer macOS sandbox prevents the full suite from applying its nested isolation canaries",
+    "host_resources": "16 GiB RAM and 318 GiB available disk observed",
+    "required_proof": [
+      "Pinned image/runtime provenance",
+      "No network or protected host directory access",
+      "Bounded disk/RAM and complete VM process cleanup",
+      "Full real Mac recipe and installed-package checks"
+    ],
+    "references": [
+      "https://tart.run/quick-start/",
+      "https://tart.run/faq/",
+      "https://github.com/openai/tart/blob/main/Sources/tart/Commands/Run.swift"
+    ]
+  }
 }

@@ -1,0 +1,62 @@
+{
+  "source_commit": "4aa49a3030c9734ef91fb26b0651330ac301436c",
+  "pull_request": "https://github.com/fpl0/theo/pull/4",
+  "draft": true,
+  "workflow_run": {
+    "databaseId": 34420005799,
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/fpl0/theo/actions/runs/34420005799"
+  },
+  "checks": [
+    {
+      "name": "check (macos-14)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/fpl0/theo/actions/runs/34420005799/job/102693143069"
+    },
+    {
+      "name": "check (ubuntu-24.04)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/fpl0/theo/actions/runs/34420005799/job/102693143752"
+    }
+  ],
+  "main_rules": [
+    {
+      "type": "deletion",
+      "ruleset_source_type": "Repository",
+      "ruleset_source": "fpl0/theo",
+      "ruleset_id": 22703239
+    },
+    {
+      "type": "non_fast_forward",
+      "ruleset_source_type": "Repository",
+      "ruleset_source": "fpl0/theo",
+      "ruleset_id": 22703239
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "check (ubuntu-24.04)",
+            "integration_id": 15368
+          },
+          {
+            "context": "check (macos-14)",
+            "integration_id": 15368
+          }
+        ]
+      },
+      "ruleset_source_type": "Repository",
+      "ruleset_source": "fpl0/theo",
+      "ruleset_id": 22703239
+    }
+  ],
+  "deployed": false,
+  "github_app_provisioned": false,
+  "qualification_scope": "Real GitHub Actions on the implementation checkpoint; no live self-deployment or GitHub App execution proof"
+}
