@@ -6,7 +6,7 @@ services; all invocations have already passed broker authorization.
 
 import asyncio
 
-from theo.content.artifacts import Artifacts, scoped_path
+from theo.content.artifacts import Artifacts
 from theo.content.web import browse as browse_public
 from theo.content.web import render_public_page
 from theo.domain import (
@@ -39,19 +39,21 @@ async def artifact_register(call: ToolCall, args: Json) -> ToolResult:
 
 
 async def file_read(call: ToolCall, args: Json) -> ToolResult:
+    from theo.execution.workspace_io import read_text
+
     ctx = call.context
-    path = scoped_path(ctx.workspace, args["path"])
-    if path.stat().st_size > 1024 * 1024:
-        raise ValueError("File exceeds text read limit")
-    data = {"path": args["path"], "content": await asyncio.to_thread(path.read_text)}
+    data = {
+        "path": args["path"],
+        "content": await asyncio.to_thread(read_text, ctx.workspace, args["path"]),
+    }
     return ToolResult(status="ok", data=data)
 
 
 async def file_write(call: ToolCall, args: Json) -> ToolResult:
+    from theo.execution.workspace_io import write_text
+
     ctx = call.context
-    path = scoped_path(ctx.workspace, args["path"])
-    path.parent.mkdir(parents=True, exist_ok=True)
-    await asyncio.to_thread(path.write_text, args["content"])
+    await asyncio.to_thread(write_text, ctx.workspace, args["path"], args["content"])
     data = {"path": args["path"], "bytes": len(args["content"].encode())}
     return ToolResult(status="committed", data=data)
 

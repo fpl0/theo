@@ -85,6 +85,10 @@ only reads and traversal. This includes the complete development environment and
 Git metadata. A durable preparation receipt prevents repeating the handoff while
 a job is active. Tree validation rejects foreign owners, external links, hard
 links and special files before changing permissions.
+The core's file tool preserves group access for new files and directories in a
+shared job tree even under its private service umask. Text reads and writes use
+directory descriptors and reject replacement symlinks, hard links and special
+files, so a concurrent path change cannot redirect the broker outside the job.
 
 `ControllerConfig.vm` selects the disposable Mac verification driver. Its protected
 configuration pins the complete base image, Tart executable, standalone Python,
@@ -108,8 +112,9 @@ in their own environment. Both locks' wheels are staged with their recorded hash
 The receipt binds the baseline and combined tree; packaging requires that receipt.
 Deleting a candidate test or relaxing its config therefore cannot remove the
 baseline check. Baseline changes are protected control-layer changes and need
-review against the existing recipe; they are not a model tool argument. The new
-minimum-gate path still requires its target-VM acceptance evidence.
+review against the existing recipe; they are not a model tool argument. The [minimum-gate evidence](evidence/self-maintenance-minimum-2026-09-10.json)
+records a fresh positive VM run and rejection of a candidate that removed host
+approvals, deleted its tests and relaxed its check configuration.
 
 The proof VM has no host directory shares, clipboard, audio or routed network.
 `packet_sink.py` discards its virtual Ethernet traffic without elevated host
@@ -180,8 +185,8 @@ An operator-provisioned `worker_home/workspaces` symlink can point at a shorter
 workspace root. The sandbox resolves that root and grants writes only to the
 issued job alongside the native home; other job directories remain denied.
 
-This remains an incomplete deployment installation. Minimum-gate preservation,
-all retained staging/cache budgets, final service wiring and the live
+This remains an incomplete deployment installation.
+All retained staging/cache budgets, final service wiring and the live
 acceptance campaign below still need final integration and qualification.
 The [service identity evidence](evidence/self-maintenance-identities-2026-09-10.json)
 records physical Mac checks of the protected supervisor, core-only database

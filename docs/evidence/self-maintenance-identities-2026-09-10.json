@@ -145,5 +145,19 @@
     "run": 34440515946,
     "ubuntu-24.04": "success",
     "macos-14": "success"
+  },
+  "new_workspace_file_access": {
+    "helper_sha256": "ac17b913b09e8c0d70ae22ead1a909d17cf7137d410b7a8231c0d9cbfecbbf05",
+    "core_uid": 620,
+    "controller_uid": 621,
+    "core_umask": "077",
+    "controller_read_source": true,
+    "source_files": 1,
+    "file_mode": "0o660",
+    "directory_mode": "0o770",
+    "file_uid": 620,
+    "file_gid": 620,
+    "production_modified": false,
+    "model_inference": false
   }
 }

@@ -129,6 +129,38 @@ async def broker_context(db, settings, conversation, workspace, kind="conversati
     return broker, broker.grant(context), context
 
 
+async def test_broker_file_writes_preserve_shared_access_and_durable_receipts(
+    db, conversation, tmp_path
+):
+    workspace = tmp_path / "shared-job"
+    workspace.mkdir()
+    workspace.chmod(0o770)
+    broker, token, context = await broker_context(db, Settings(), conversation, workspace)
+    try:
+        arguments = {"path": "new/package.py", "content": "answer = 7\n"}
+        previous = os.umask(0o077)
+        try:
+            result = await broker.call(token, "file_write", arguments)
+            assert result.status == "committed"
+            assert await broker.call(token, "file_write", arguments) == result
+        finally:
+            os.umask(previous)
+        assert (workspace / "new").stat().st_mode & 0o777 == 0o770
+        assert (workspace / "new/package.py").stat().st_mode & 0o777 == 0o660
+        receipt = await db.one(
+            "SELECT count(*) n FROM tool_receipts WHERE job_id=?", (context.job_id,)
+        )
+        assert receipt["n"] == 1
+        read = await broker.call(token, "file_read", {"path": arguments["path"]})
+        assert read.status == "ok" and read.data["content"] == arguments["content"]
+        private = db.root / "private-fixture"
+        private.write_text("synthetic private data")
+        (workspace / "redirect").symlink_to(private)
+        assert (await broker.call(token, "file_read", {"path": "redirect"})).status == "denied"
+    finally:
+        await broker.close()
+
+
 async def test_broker_to_real_source_submit_and_durable_projection(
     db, conversation, configured, repository, monkeypatch
 ):

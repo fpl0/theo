@@ -1,0 +1,632 @@
+{
+  "date": "2026-09-10",
+  "scope": "Fresh disposable Mac VM checks on fpl0.local; synthetic candidate identities; no production activation",
+  "source_commit": "a1240e8a5ff52a1f488a1159e6ce30e3b17422ae",
+  "source_tree": "7b4b7953a73795fa88511516239feb080e37cd7c",
+  "minimum_baseline_commit": "3e30d069513815a707b04bf1a253d80cbd9004bc",
+  "minimum_baseline_sha256": "7da8088e8559b21674639d643b9c2a8bfa1cf3b86b649a8bbd299bd0020aaf44",
+  "positive": {
+    "candidate": {
+      "change_id": "minimum-positive",
+      "revision": 1,
+      "base_commit": "032418c2096f32661f3d86f154db744a208dffbd",
+      "commit": "9e1f42b5150f22640370874ec0d928b4b5da56ec",
+      "tree": "7b4b7953a73795fa88511516239feb080e37cd7c",
+      "snapshot_sha256": "aff7e034e0bfd0e13ac8f68320e75665e89661768a4884a28a47f75fdc8f6210",
+      "lock_sha256": "6c408ba9f6318d155aa2d6afc2767434b4b55076ab622f2ec15392210570cc32"
+    },
+    "checks": [
+      {
+        "name": "minimum-export",
+        "recipe_hash": "07f043343711a332f7c8f480241176f2e2aa196cf93157385ec059cf696c099e",
+        "argv": [
+          "/private/var/theo-builder/tools/uv",
+          "export",
+          "--locked",
+          "--all-groups",
+          "--all-extras",
+          "--no-emit-project",
+          "--format",
+          "requirements-txt",
+          "--output-file",
+          "/private/var/theo-builder/work/minimum-requirements.txt"
+        ],
+        "cwd": "/private/var/theo-builder/minimum-source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "a4ae678c0ad4d0d1d5f395a6d0ceacdbef4590320f841c6878a7b840e03a2fc8",
+        "request_sha256": "7cffe1278c4fd9a51c1108bd1230ca07f0c963e543496d87e74a99f730744d59",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "minimum-environment",
+        "recipe_hash": "88c287811a7c17beb6db566412e76d882dcacb428d77ac5b4727e96fd102c198",
+        "argv": [
+          "/private/var/theo-builder/tools/uv",
+          "venv",
+          "--allow-existing",
+          "--python",
+          "/private/var/theo-builder/tools/python/bin/python3",
+          "/private/var/theo-builder/minimum-environment"
+        ],
+        "cwd": "/private/var/theo-builder/minimum-source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "23797d0ebc76a0024234df62f6dc10763f704770aeb0ae5f58b628197d730787",
+        "request_sha256": "69b97d429cef2c4478c8f8663fd9bed0d3afb8b1224ba47342df97cccf9f29d4",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "minimum-install",
+        "recipe_hash": "74a1423ff00c1237738822d48ac28822f2a80e0fba2aa51509f5d10a03cfac04",
+        "argv": [
+          "/private/var/theo-builder/tools/uv",
+          "pip",
+          "install",
+          "--python",
+          "/private/var/theo-builder/minimum-environment/bin/python",
+          "--offline",
+          "--no-index",
+          "--find-links",
+          "/private/var/theo-builder/tools/wheels",
+          "--require-hashes",
+          "--link-mode",
+          "copy",
+          "-r",
+          "/private/var/theo-builder/work/minimum-requirements.txt"
+        ],
+        "cwd": "/private/var/theo-builder/minimum-source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "b71abedda043d602d78cb1f737e790f09647b969dd318103d0b76f4a8eda778e",
+        "request_sha256": "963e4f646c1c781035f297453bba534ae330c09424c4b3569f0b1e9297978e8b",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "minimum-permission-canary",
+        "recipe_hash": "6114ccd51ace9f846c65fb40e25b2f5f7415f806aadaaedaa01f066b327cffe1",
+        "argv": [
+          "/private/var/theo-builder/minimum-environment/bin/python",
+          "-I",
+          "-B",
+          "-c",
+          "from pathlib import Path; import sys,theo\nassert Path(theo.__file__).resolve()==Path('/private/var/theo-builder/minimum-source/src/theo/__init__.py')\nfor name in sys.argv[1:]:\n try: Path(name).open('ab').close()\n except PermissionError: pass\n else: raise AssertionError('Candidate can write minimum acceptance files')\nprint('Minimum tests, configuration and tools are read-only to the build UID')",
+          "/private/var/theo-builder/minimum-source/tests/conftest.py",
+          "/private/var/theo-builder/minimum-source/pyproject.toml",
+          "/private/var/theo-builder/minimum-environment/lib/python3.14/site-packages/pytest/__init__.py"
+        ],
+        "cwd": "/private/var/theo-builder/minimum-source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "14d7dfe7b93b5473e048b5f44d299b3232cba66571b8df0b925b7f1dbd8c09d3",
+        "request_sha256": "3650c15166916fdac6f9d7219725b7e3430a50ba34e33e3f5f297933f5c6678f",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "minimum-ruff",
+        "recipe_hash": "d30468f5e6f165b2591ef9fe17d94aee7041018bf086a7cd95923cf8d7110cad",
+        "argv": [
+          "/private/var/theo-builder/minimum-environment/bin/python",
+          "-I",
+          "-B",
+          "-m",
+          "ruff",
+          "check",
+          "--no-cache",
+          "src",
+          "tests",
+          "scripts"
+        ],
+        "cwd": "/private/var/theo-builder/minimum-source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+        "request_sha256": "135961dd424f1bc1d5def49fd0037b6f50972ce6b3150b399135c42a04c0db3e",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "minimum-format",
+        "recipe_hash": "7531d22c64a7d94d3fa8c360fd5a94d8488fc3dda89edc7ff46335536da300bb",
+        "argv": [
+          "/private/var/theo-builder/minimum-environment/bin/python",
+          "-I",
+          "-B",
+          "-m",
+          "ruff",
+          "format",
+          "--check",
+          "--no-cache",
+          "src",
+          "tests",
+          "scripts"
+        ],
+        "cwd": "/private/var/theo-builder/minimum-source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "692aa17a66e5a48293d97156d9c8b2690bef0a98514251662ef4832003fb0463",
+        "request_sha256": "3e567e7db65aee5ea463ebecc5bb0954c7386d74d40c72e5d35d42c64eb0fa3e",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "minimum-pyright",
+        "recipe_hash": "8b8da350f73b83e338f07fcceee1a576cb9defa97b7582dd59b044eb9ec2cfcd",
+        "argv": [
+          "/private/var/theo-builder/minimum-environment/bin/python",
+          "-I",
+          "-B",
+          "-m",
+          "pyright"
+        ],
+        "cwd": "/private/var/theo-builder/minimum-source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "6d88a1b220adb7a3d62092b6e38431f0b3fe8babe9864fab90e5849766260332",
+        "request_sha256": "b87b8d743b1f8ae56afe48d6189227037ef76a7c0ef5074038c893ca3fb5642b",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "minimum-pytest",
+        "recipe_hash": "880dc71653256344e6518cc2be5ca9dcec37cdf41f54ee37e6eeab0e7a26ef67",
+        "argv": [
+          "/private/var/theo-builder/minimum-environment/bin/python",
+          "-I",
+          "-B",
+          "-m",
+          "pytest",
+          "-q",
+          "-o",
+          "cache_dir=/private/var/theo-builder/work/cache/minimum-pytest"
+        ],
+        "cwd": "/private/var/theo-builder/minimum-source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "cd5e626c660f02a72e759d151bf21336b35d437b5c593e5a10527461198a0b84",
+        "request_sha256": "53aeb4c9f6c007027cae82f71ebad1329a6afa07049a274114072893c8406155",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "minimum-protected-source",
+        "exit_code": 0,
+        "minimum_sha256": "aff7e034e0bfd0e13ac8f68320e75665e89661768a4884a28a47f75fdc8f6210",
+        "sealed": true
+      },
+      {
+        "name": "development-scratch",
+        "recipe_hash": "1f692a1a1d0b32edf774c1543c4378ee0ba07ab9d26a075341b50cdc8923c12a",
+        "argv": [
+          "/private/var/theo-builder/tools/python/bin/python3",
+          "-I",
+          "-c",
+          "from pathlib import Path; Path('/private/var/theo-builder/work/verification').mkdir(); Path('.venv').symlink_to('../verification/environment',target_is_directory=True)"
+        ],
+        "cwd": "/private/var/theo-builder/work/source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "request_sha256": "b3ca9ad99aaa1ac05a9c7fd1174eb7eb1071addbebb6631f31c53574f45977df",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "development-export",
+        "recipe_hash": "65dd1a0588d10984861cb59f3e597864c4e83d33a109b391d7379b16f13f378e",
+        "argv": [
+          "/private/var/theo-builder/tools/uv",
+          "export",
+          "--locked",
+          "--all-groups",
+          "--all-extras",
+          "--no-emit-project",
+          "--format",
+          "requirements-txt",
+          "--output-file",
+          "/private/var/theo-builder/work/verification/development.txt"
+        ],
+        "cwd": "/private/var/theo-builder/work/source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "5a4245a1e312cf1dd75c62b24ce8e8ff86d69d2508936de46aeb64830bb68ff1",
+        "request_sha256": "91634b1af7938e5b785f4c5786268244121055d8a0ae2b44402dc86b8c2033ca",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "development-environment",
+        "recipe_hash": "f906b54bf065f0142a94ac3621b96b5c692f22fe796f2d5c12804f1719130428",
+        "argv": [
+          "/private/var/theo-builder/tools/uv",
+          "venv",
+          "--python",
+          "/private/var/theo-builder/tools/python/bin/python3",
+          "/private/var/theo-builder/work/verification/environment"
+        ],
+        "cwd": "/private/var/theo-builder/work/source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "9c39b77d5ee5149bc1603c8db1480d1ec9f28f4579b89eeeff7416f83de859d0",
+        "request_sha256": "42f97b837ef5aa77499cda8da171e667f9aecbd9a7e41474d8ee872a9f10dcda",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "development-install",
+        "recipe_hash": "83e1b278f34c87f57e0b5bf319ccb870566b97428a67dab35a0085ab1e4a08de",
+        "argv": [
+          "/private/var/theo-builder/tools/uv",
+          "pip",
+          "install",
+          "--python",
+          "/private/var/theo-builder/work/verification/environment/bin/python",
+          "--offline",
+          "--no-index",
+          "--find-links",
+          "/private/var/theo-builder/tools/wheels",
+          "--require-hashes",
+          "-r",
+          "/private/var/theo-builder/work/verification/development.txt"
+        ],
+        "cwd": "/private/var/theo-builder/work/source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "09b1ab0424f7f60178c18fce56710546223fca52bcdd1e6396f78957fa2249ef",
+        "request_sha256": "15f69b476acc4836d99bbbf692cea157d6dde0ed09eacc8ec09d510ddd9d5bc3",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "editable-project",
+        "recipe_hash": "58468873f2ea387d1c8f8ce57c47e0da197948943843cba0462d3dad6e2f9986",
+        "argv": [
+          "/private/var/theo-builder/tools/uv",
+          "pip",
+          "install",
+          "--python",
+          "/private/var/theo-builder/work/verification/environment/bin/python",
+          "--offline",
+          "--no-deps",
+          "--no-build-isolation",
+          "-e",
+          "."
+        ],
+        "cwd": "/private/var/theo-builder/work/source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "3dce6ee4b041acd0f333497be81ede7af045e6cb6e4d0b48eb63cfac10c7bac3",
+        "request_sha256": "82551083e2608afc04c5a15f5f8deec7a8e06bb8f892f111684fa190fb86fe4f",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "ruff",
+        "recipe_hash": "32a3b03fd87d507ad48bb70da4fbe7bab380dd195225ba31dc2068f350c12e9f",
+        "argv": [
+          "/private/var/theo-builder/work/verification/environment/bin/python",
+          "-m",
+          "ruff",
+          "check",
+          "src",
+          "tests",
+          "scripts"
+        ],
+        "cwd": "/private/var/theo-builder/work/source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+        "request_sha256": "f11bfead4fff7c0b5588b7695565137d13ebe3273651f0add69d7c1c8c20f2dc",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "format",
+        "recipe_hash": "c97bd3b71577438f839cca0441bc2f9aa2878a710c0c7347c170000655b0e309",
+        "argv": [
+          "/private/var/theo-builder/work/verification/environment/bin/python",
+          "-m",
+          "ruff",
+          "format",
+          "--check",
+          "src",
+          "tests",
+          "scripts"
+        ],
+        "cwd": "/private/var/theo-builder/work/source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "692aa17a66e5a48293d97156d9c8b2690bef0a98514251662ef4832003fb0463",
+        "request_sha256": "fac748d318afc57919633606c0f9d8a39355858ffbf3b5f518f3cd977be00005",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "pyright",
+        "recipe_hash": "c65ccf22d82b589c0376a012824795c983c994f20e4dcc3e9b947dcfdd44479b",
+        "argv": [
+          "/private/var/theo-builder/work/verification/environment/bin/python",
+          "-m",
+          "pyright"
+        ],
+        "cwd": "/private/var/theo-builder/work/source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "6d88a1b220adb7a3d62092b6e38431f0b3fe8babe9864fab90e5849766260332",
+        "request_sha256": "3dd383332df209ab1fbacf7c281520adb38d9c744a7b1a993d8f13dbc44bb1ce",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "offline",
+        "recipe_hash": "2403d386062a45593cb83d93f997492677ec87127638ef9bec1661b2d10a0211",
+        "argv": [
+          "/private/var/theo-builder/work/verification/environment/bin/python",
+          "-m",
+          "pytest",
+          "-q"
+        ],
+        "cwd": "/private/var/theo-builder/work/source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "5810a40d30827443086e1b58629ee1bd5f20074668603cc6d0b888d283dedc84",
+        "request_sha256": "e3421b3aef2957254d39ea9eb4da67a5454ccbb898d8fa3640750cb7f9044767",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "source-environment-unlink",
+        "recipe_hash": "6eb768998b645dc6cff8ce85ba419477001874c394bf6098e35dd9283667bd18",
+        "argv": [
+          "/private/var/theo-builder/tools/python/bin/python3",
+          "-I",
+          "-c",
+          "from pathlib import Path; Path('.venv').unlink()"
+        ],
+        "cwd": "/private/var/theo-builder/work/source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "request_sha256": "8f17c61d5dc7b5cebf7ae1fcfb30639b178da8cd5116804949d5632ab5e19e19",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "distributions",
+        "recipe_hash": "c8bc347c9d1dd58de7301d9e0915f7fa2b028ca0ea8167592ea6d50d74ca6c5f",
+        "argv": [
+          "/private/var/theo-builder/tools/uv",
+          "build",
+          "--offline",
+          "--no-build-isolation",
+          "--python",
+          "/private/var/theo-builder/work/verification/environment/bin/python",
+          "--out-dir",
+          "/private/var/theo-builder/work/verification/dist"
+        ],
+        "cwd": "/private/var/theo-builder/work/source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "288f09b91f80d3c477e7fb3391b3023cac6c5458730b63b953507bc90726f19b",
+        "request_sha256": "0a5442434c6e9f5b4a187cf56cad95225befacd13c97bbe4a96f1e8c12e76ddb",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "production-lock",
+        "recipe_hash": "b791488c4469f24a5f0c10f563691054f5227fee7d21e69e162f62b77098aadd",
+        "argv": [
+          "/private/var/theo-builder/tools/uv",
+          "export",
+          "--locked",
+          "--no-dev",
+          "--no-emit-project",
+          "--format",
+          "requirements-txt",
+          "--output-file",
+          "/private/var/theo-builder/work/verification/requirements.txt"
+        ],
+        "cwd": "/private/var/theo-builder/work/source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "3dc9c11eabd67cecad41276fb8e203d71f9e8b293e6d418810f172e29e4e4e66",
+        "request_sha256": "87b0f6ec0ba1ef8526cfe4d9167008ad550ba1a185cb900f1ce5b92d167bbeda",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "installed-copy",
+        "recipe_hash": "7452c10dbd1902e26d8b32686f4b82111d71bc675c63c9f81e3361ac754b9df8",
+        "argv": [
+          "/private/var/theo-builder/tools/python/bin/python3",
+          "-I",
+          "-c",
+          "from pathlib import Path; import shutil; p=Path('/private/var/theo-builder/work/installed'); p.mkdir(); shutil.copyfile('/private/var/theo-builder/work/verification/dist/theo_assistant-0.1.0-py3-none-any.whl',p/'theo_assistant-0.1.0-py3-none-any.whl'); shutil.copyfile('/private/var/theo-builder/work/verification/requirements.txt',p/'requirements.txt')"
+        ],
+        "cwd": "/private/var/theo-builder/work/source",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "request_sha256": "8b8123fb419588c1568f2d82e053ea929104b0afb539ec3b2d6e62dc6827eb0e",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "installed-environment",
+        "recipe_hash": "5ae63b51ea138041739212b7bad0a224b4aef9ee070879c93c7f64a2655ecfa8",
+        "argv": [
+          "/private/var/theo-builder/tools/uv",
+          "venv",
+          "--python",
+          "/private/var/theo-builder/tools/python/bin/python3",
+          "environment"
+        ],
+        "cwd": "/private/var/theo-builder/work/installed",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "3cd79f8429113d2bd22535924957d4113eba8ee8b4f5e9e303fd86729d918524",
+        "request_sha256": "860b45c610a2868e7b4d3422dbbd00c296f11b049925ec531c3fb81c0b5008b9",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "installed-dependencies",
+        "recipe_hash": "48579c18a8d6e19f8841fe1c3fb3cf07a553e68d53014e31b587f5e5ab34de0f",
+        "argv": [
+          "/private/var/theo-builder/tools/uv",
+          "pip",
+          "install",
+          "--python",
+          "environment/bin/python",
+          "--offline",
+          "--no-index",
+          "--find-links",
+          "/private/var/theo-builder/tools/wheels",
+          "--require-hashes",
+          "-r",
+          "requirements.txt"
+        ],
+        "cwd": "/private/var/theo-builder/work/installed",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "f8579b12c81ef58cd30c9cd97942764075e121cab08129dee512e83c84a3d229",
+        "request_sha256": "59bba88254d4ff181e4e448ae0be0ba64b359b7acd491469794ddfc1885f3a0c",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "installed-wheel",
+        "recipe_hash": "c28955dd5f297ec0702b4eaba36bde4a7fbe528a75c319f6ab7a2b84304e7e78",
+        "argv": [
+          "/private/var/theo-builder/tools/uv",
+          "pip",
+          "install",
+          "--python",
+          "environment/bin/python",
+          "--offline",
+          "--no-deps",
+          "theo_assistant-0.1.0-py3-none-any.whl"
+        ],
+        "cwd": "/private/var/theo-builder/work/installed",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "2df9c75c254279efa0f1a50eeb8c441c1762b3537ec367930442bd78261eef1d",
+        "request_sha256": "ce839e69a814508fb08591840f6c15ed78d97965832d797343ac492f0155fb8b",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "installed-smoke",
+        "recipe_hash": "20c084048c15f57d0a87b2875c3904405a12ca4d3e6e144ae8156ac4d751fd13",
+        "argv": [
+          "/private/var/theo-builder/work/installed/environment/bin/python",
+          "-I",
+          "/private/var/theo-builder/inputs/installed_check.py"
+        ],
+        "cwd": "/private/var/theo-builder/work/installed",
+        "exit_code": 0,
+        "limit": null,
+        "log_sha256": "a9c3c981075371b7c6f563805847ebacd6e94b003f181fbc04d48384e89b6411",
+        "request_sha256": "66edf1ba46641d1e2a1930f1b5d07f00327983c989c44b3dab95d4d2761ac89c",
+        "guest_uid": 622,
+        "descendants_stopped": true
+      },
+      {
+        "name": "installed-artifacts",
+        "exit_code": 0,
+        "wheel_sha256": "07e0c810dea52af99e4cc6c86fb89f0b5fa6e42326bc33b324fffe0327b43db0",
+        "trusted_smoke_sha256": "a638d20da9f903cc7a0fdda43fcbef56b53256d5074eb939854ae30613cc746b"
+      }
+    ],
+    "recipe_hash": "86b05f1faa2d38d026ded45d66757b19764903b85ef1a3ab1ed2b9cd0e8c49f5",
+    "platform": "darwin-arm64-vm",
+    "image_digest": "sha256:4947ac5ab1b2fdc46ab856132d2ba958f8e45b5f85192c66370dafc028c514dd",
+    "interpreter_archive_sha256": "1200ad1d2a3656f90c774edfcd2006d3af9ec8a63441c2fb5de9a4a05ccf8d96",
+    "agent_sha256": "2e16ebd8570cbdbb76832b863417acd9953cc63f63625533ad6c51173ca0d74f",
+    "vm_stopped": true,
+    "minimum_baseline_sha256": "7da8088e8559b21674639d643b9c2a8bfa1cf3b86b649a8bbd299bd0020aaf44",
+    "minimum_acceptance_sha256": "aff7e034e0bfd0e13ac8f68320e75665e89661768a4884a28a47f75fdc8f6210"
+  },
+  "positive_test_counts": {
+    "minimum": {
+      "passed": 518,
+      "skipped": 2
+    },
+    "candidate": {
+      "passed": 518,
+      "skipped": 2
+    },
+    "skips": [
+      "Native Codex is absent in the isolated builder",
+      "Linux root-only identity canary is not Mac evidence"
+    ]
+  },
+  "negative": {
+    "source_commit": "a1240e8a5ff52a1f488a1159e6ce30e3b17422ae",
+    "mode": "negative",
+    "candidate": {
+      "change_id": "minimum-negative",
+      "revision": 1,
+      "base_commit": "032418c2096f32661f3d86f154db744a208dffbd",
+      "commit": "c13a5d4185389c4c123a6719e2ce3fc86445c62e",
+      "tree": "77aa95c18ea7e0d7c6309a35939a0a8e684b7e93",
+      "snapshot_sha256": "cf213a683baf6536394d2c8703770ef60a59903a262e8b89f89a5fe0cb2ad2b6",
+      "lock_sha256": "6c408ba9f6318d155aa2d6afc2767434b4b55076ab622f2ec15392210570cc32"
+    },
+    "rejected_by_protected_tests": true,
+    "failure": {
+      "name": "minimum-pytest",
+      "recipe_hash": "880dc71653256344e6518cc2be5ca9dcec37cdf41f54ee37e6eeab0e7a26ef67",
+      "argv": [
+        "/private/var/theo-builder/minimum-environment/bin/python",
+        "-I",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-o",
+        "cache_dir=/private/var/theo-builder/work/cache/minimum-pytest"
+      ],
+      "cwd": "/private/var/theo-builder/minimum-source",
+      "exit_code": 1,
+      "limit": null,
+      "log_sha256": "a95eb1f198cae4079c7293143d3cf5344e74da782aafc55e2fca88146c53053c",
+      "request_sha256": "53aeb4c9f6c007027cae82f71ebad1329a6afa07049a274114072893c8406155",
+      "guest_uid": 622,
+      "descendants_stopped": true
+    },
+    "minimum_baseline_sha256": "7da8088e8559b21674639d643b9c2a8bfa1cf3b86b649a8bbd299bd0020aaf44",
+    "production_modified": false
+  },
+  "negative_mutations": [
+    "Removed general host-command approval requirement",
+    "Deleted candidate tests and replaced them with one always-passing test",
+    "Relaxed candidate pytest selection, Ruff rules and Pyright mode"
+  ],
+  "negative_test_counts": {
+    "failed": 7,
+    "passed": 511,
+    "skipped": 2
+  },
+  "negative_failures": [
+    "Five cases denying command self-classification as routine",
+    "Exact host approval and one-time execution",
+    "Dispatch-time host authority and approval recheck"
+  ],
+  "earlier_failure": {
+    "source_commit": "3e30d069513815a707b04bf1a253d80cbd9004bc",
+    "stage": "minimum-ruff",
+    "cause": "Ruff tried to create a cache in the sealed source tree",
+    "log_sha256": "b5c28f493772b2af567ff3a321db9c154c1be944d84fffb09d11f4215480e6f7",
+    "resolution": "Pinned Ruff commands use --no-cache; fresh positive and negative VMs followed"
+  },
+  "limits": [
+    "VM harness used operator bootstrap identity; actual controller service VM launch remains outstanding",
+    "These receipts do not prove GitHub publication, schema rollback compatibility, native subscription inference or deployment",
+    "Failed VMs and hashed private logs retained; successful VM stopped and deleted"
+  ]
+}
