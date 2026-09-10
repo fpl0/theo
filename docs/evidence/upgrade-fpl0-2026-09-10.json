@@ -1,0 +1,105 @@
+{
+  "host": "fpl0.local",
+  "checked_at": 1789031389.534529,
+  "source_commit": "1cad16290c346d9dc2eae8ea3880cf0e414c2187",
+  "release": "20260910-1cad162-r2",
+  "python": "3.14.7",
+  "tools": 60,
+  "schema": 8,
+  "database_integrity": [
+    {
+      "integrity_check": "ok"
+    }
+  ],
+  "foreign_key_violations": [],
+  "core_healthy": true,
+  "uncertain_actions": 0,
+  "controls": {
+    "background_paused": "false",
+    "notifications_paused": "false",
+    "quarantined": "false",
+    "models_paused": "false",
+    "maintenance_draining": "false",
+    "autonomy_paused": "false",
+    "requested_work_paused": "false",
+    "deployments_paused": "false"
+  },
+  "operating_mode": "owner_authorized",
+  "host_access_enabled": true,
+  "privileged_host_launcher_configured": true,
+  "quiet_hours_disabled": true,
+  "maintenance_proactive": false,
+  "maintenance_connected": false,
+  "scheduled_backups_enabled": false,
+  "encrypted_storage_verified": false,
+  "production_qualified": false,
+  "canary": {
+    "job": {
+      "id": "0c26dba7-d44e-438f-b262-f08b84a79191",
+      "status": "completed"
+    },
+    "runs": [
+      {
+        "id": "8397a0b6-205a-4dd1-b5d3-118947d4bb8a",
+        "backend": "codex",
+        "model": "gpt-6-astra",
+        "status": "completed",
+        "started_at": 1789031104.718478,
+        "ended_at": 1789031134.091417
+      }
+    ],
+    "actions": [
+      {
+        "id": "7a659e26-509e-439b-8c0d-8251f851d103",
+        "operation": "host_command",
+        "status": "succeeded",
+        "error": null
+      },
+      {
+        "id": "8d5eee07-c1f1-462d-8269-450c0f062dbf",
+        "operation": "send_message",
+        "status": "succeeded",
+        "error": null
+      }
+    ],
+    "delivery_receipt_count": 2,
+    "telegram_receipt_verified": true
+  },
+  "assets": {
+    "embeddings": {
+      "dimensions": 768,
+      "finite": true
+    },
+    "public_web": {
+      "passed": true,
+      "result_keys": [
+        "mime",
+        "text",
+        "truncated",
+        "untrusted",
+        "url"
+      ]
+    },
+    "browser": {
+      "png_bytes": 16579,
+      "passed": true
+    },
+    "speech": {
+      "voice_created": true,
+      "transcription": " Theo upgrade verification.",
+      "passed": true
+    }
+  },
+  "isolation": {
+    "verified": true,
+    "test": "real process denied protected read and write",
+    "platform": "darwin",
+    "worker_imports": "worker imports succeeded",
+    "native_pair_checksums_verified": true
+  },
+  "privileged_host": {
+    "privileged_host_command": true,
+    "native_worker_denied": true,
+    "generated_worker_denied": true
+  }
+}

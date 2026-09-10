@@ -1,7 +1,9 @@
 # Theo on fpl0.local
 
-The [9 September deployment record](deployment-fpl0-2026-09-09.md) documents the
-installed release, observed recovery drills and remaining activation steps.
+The [10 September upgrade record](deployment-fpl0-2026-09-10.md) documents release
+`20260910-1cad162-r2`, its schema migration, live canary and owner-authorized
+activation. The [9 September record](deployment-fpl0-2026-09-09.md) retains the
+earlier deployment and recovery evidence.
 The [10 September monitoring record](evidence/observability-fpl0-2026-09-10.json)
 covers the 4 GB resource envelope and alert corrections deployed independently
 of that core release, including a recovered launchd replacement failure.
@@ -19,17 +21,22 @@ record these choices. The last setting permits only mandatory local snapshots
 before code switching; ordinary backups still require verified encryption. There
 is no machine-loss recovery or backup RPO claim.
 
-Strict `production_qualified` remains separate from `deployment_ready` under this
-policy. Both require real evidence, and policy changes invalidate deployment
-evidence. Background autonomy remains paused until native, Mac, behaviour,
-capacity/restore, deterministic and genuine seven-day soak gates pass. A running
-bot or successful greeting does not establish those gates.
+Strict `production_qualified` remains separate from operating permission. On
+10 September the owner requested feature activation, so the installation uses
+`operating_mode="owner_authorized"`, with background, autonomy, requested work,
+models, deployments and notifications unpaused. Quiet hours are disabled. Native
+account and isolation checks still apply to each attempt; no qualification
+evidence or seven-day soak was fabricated. Host access is enabled, including the
+separately installed privileged launcher; general and privileged commands retain
+exact owner approvals. The owner deferred GitHub authentication and self-maintenance
+activation. Routine backups remain deferred pending the disk-encryption decision.
 
 ## Layout and service startup
 
 - State: `~/Library/Application Support/Theo`, owner-only.
 - Runner home: `~/.theo-runner`; each job has a scoped workspace.
-- Worker and supervisor: `/opt/theo/worker` and `/opt/theo/supervisor`, installed
+- Worker and supervisor: `/opt/theo/worker-1cad162-r2` and
+  `/opt/theo/supervisor-1cad162-r2`, installed
   from the same lock, outside protected state and the runner's writable paths.
 - Native runtime: `/opt/theo/native/codex` and its sibling
   `codex-code-mode-host`, copied together from the same pinned distribution.
@@ -64,6 +71,11 @@ rollback. This operation does not pause the core or change its database.
 Build clean committed source with `scripts/build_release.py`, including the
 selected extras. Stage and verify the hashed release before a maintenance window.
 Keep the last known working release and its matching worker environment.
+The current host uses the system Python 3.14.7 with
+`UV_PYTHON_PREFERENCE=only-system` during the build. A prior attempt selected a
+managed interpreter below the user's home and failed to import `encodings` inside
+the sandbox despite passing an ordinary init/doctor check. Verify an actual
+sandboxed interpreter and worker import before every cutover.
 
 Set `maintenance_draining=true` through the operator database API, wait until
 running jobs and executing deliveries finish, then `theo service pause`. Confirm
