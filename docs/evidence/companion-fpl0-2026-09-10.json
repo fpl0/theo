@@ -1,0 +1,128 @@
+{
+  "recorded_at_utc": "2026-09-10T22:41:12.967480+00:00",
+  "source_commit": "a16826867fff28317f5f13ae4222c77a44bcf48b",
+  "release": "20260910-a168268",
+  "schema": 9,
+  "first_activation": {
+    "source_commit": "cf5bb105fdfbdf9452144e2a4a7ad188f8b30683",
+    "release": "20260910-cf5bb10",
+    "schema": 9,
+    "backend": "codex",
+    "model": "gpt-6-astra",
+    "native_canary": "completed",
+    "privileged_command": {
+      "status": "succeeded",
+      "exit_code": 0,
+      "uid": 0,
+      "approvals": 0
+    },
+    "host_read": "ok",
+    "telegram_final_chunks": [
+      {
+        "status": "succeeded",
+        "attempts": 1
+      }
+    ],
+    "native_terminal_events": 1,
+    "telegram_previews": 0,
+    "host_policy": "standing",
+    "host_read_roots": [
+      "/"
+    ],
+    "goal_blocker_cleared": true,
+    "operating_controls": {
+      "background_paused": "false",
+      "notifications_paused": "false",
+      "quarantined": "false",
+      "models_paused": "false",
+      "maintenance_draining": "false",
+      "autonomy_paused": "false",
+      "requested_work_paused": "false",
+      "deployments_paused": "false"
+    },
+    "background_jobs": [
+      {
+        "kind": "proactive_scan",
+        "status": "completed"
+      },
+      {
+        "kind": "deep_work",
+        "status": "running"
+      }
+    ],
+    "recorded_at_utc": "2026-09-10T22:07:37Z"
+  },
+  "installed_checks": {
+    "environments": [
+      "core",
+      "worker",
+      "supervisor"
+    ],
+    "module_imports": 128,
+    "core_migrations": 9,
+    "controller_migrations": 4,
+    "outside_checkout": true,
+    "real_sandbox_denied_read_write": true,
+    "sandboxed_worker_imports": true
+  },
+  "backup": {
+    "verified": true,
+    "database_integrity": "ok",
+    "external_blobs": 0,
+    "created_at": 1789079780.211644
+  },
+  "compatible_previous_release": "20260910-cf5bb10",
+  "host_policy": "standing",
+  "host_read_roots": [
+    "/"
+  ],
+  "persona_version": 3,
+  "operating_controls": {
+    "background_paused": "false",
+    "notifications_paused": "false",
+    "quarantined": "false",
+    "models_paused": "false",
+    "maintenance_draining": "false",
+    "autonomy_paused": "false",
+    "requested_work_paused": "false",
+    "deployments_paused": "false"
+  },
+  "native_goal_batch": {
+    "backend": "codex",
+    "model": "gpt-6-astra",
+    "status": "completed",
+    "final_message_count": 0,
+    "registered_artifacts": 2
+  },
+  "native_accounts": [
+    {
+      "backend": "codex",
+      "status": "verified"
+    }
+  ],
+  "promised_update_recovery": {
+    "initial_blocker": "critic_unchecked",
+    "correction": "exact unattempted owner-requested update made non-discretionary; no resend",
+    "chunks": [
+      {
+        "status": "succeeded",
+        "attempts": 1
+      }
+    ]
+  },
+  "next_checkpoint": {
+    "status": "queued",
+    "commitment_status": "active",
+    "due_local": "2026-09-11T00:03:00+01:00",
+    "previous_schedule_active": 0,
+    "execution_observed": false
+  },
+  "database_quick_check": "ok",
+  "heartbeat_age_seconds": 11.6,
+  "limits": [
+    "Archive goal remains active; not all Luke history reviewed",
+    "No seven-day soak",
+    "No new Telegram user-client campaign",
+    "No new FileVault or machine-loss recovery qualification"
+  ]
+}

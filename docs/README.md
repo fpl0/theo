@@ -31,6 +31,7 @@ The [project README](../README.md) introduces Theo and the local setup. These gu
 ## Dated design and evaluation records
 
 - [Self-maintenance design](self-maintenance-design.md): proposed source editing, GitHub publication, independent deployment, and automatic recovery under standing owner permission.
+- [10 September companion review and follow-through activation](companion-baseline-2026-09-10.md).
 - [8 September code review](review-2026-09-08.md) and [9 September complex evaluation](complex-evaluation-2026-09-09.md).
 - [Telegram implementation plan](telegram-integration-plan.md), retained as the original design and completion criteria.
 - [9 September dashboard review](evidence/dashboard-design-2026-09-09.md).

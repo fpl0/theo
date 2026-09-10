@@ -75,11 +75,11 @@ target-host installation and real Telegram client observations.
 
 ## Release considerations
 
-The saved private memories and persona are immediately usable by the existing
-service. The scheduler, host policy and Telegram changes require a code release
-and daemon restart. Build core, worker and supervisor from the same committed
-source, verify the installed wheel, test the schema upgrade on a private copy,
-and take a verified pre-migration snapshot before changing production state.
+The saved private memories and persona became usable by the existing service
+before the code cutover. The scheduler, host policy and Telegram changes were then
+activated through a release and daemon restart. Core, worker and supervisor must
+share the committed source; installed-wheel checks, a private migration rehearsal
+and verified pre-migration snapshot were performed before activation.
 
 Schema 8 application code cannot be advertised as a schema 9 rollback: it lacks
 work schedules and uses positional schedule inserts. Preserve the old release and
@@ -131,3 +131,50 @@ A later follow-through reply used a worker's allotted thirty-minute window as an
 ETA basis despite having no measured pace. That transcript is preserved. Shared
 guidance now explicitly separates queue deadlines from observed throughput, and
 the follow-through regression rejects that substitution.
+
+## Target activation
+
+Release `20260910-cf5bb10` first activated the schema-9 companion changes. Its real
+Codex `gpt-6-astra` canary read Luke guidance and executed a privileged command with
+exit code 0 and uid 0, without an approval row. One stable Telegram final chunk had
+one successful attempt and no draft previews. Existing completed work was retained
+and the archive goal was reactivated.
+
+The follow-through release is **`20260910-a168268`**, source
+`a16826867fff28317f5f13ae4222c77a44bcf48b`. Core, independent worker and supervisor
+were built from that clean commit with the same locked browser, embedding and
+speech dependencies. All three installed environments passed the outside-checkout
+smoke check. A real Mac sandbox denied protected reads/writes, and the sandboxed
+worker imported `encodings`, Theo and MCP successfully. A verified snapshot preceded
+the switch; `cf5bb10` remains a schema-compatible application rollback. A cutover
+assertion initially compared a tuple of host paths with a list; it stopped before
+the switch, was corrected, and activation completed. No schema gate was bypassed.
+
+The final two-turn native follow-through batch passed both automated cases with
+receipted local delivery and the next checkpoint committed. Transcript review still
+found an unnecessary mention of an inaccessible internal skill in the first reply;
+this small sample is not a claim of perfect naturalness or full Luke equivalence.
+
+The real 23:33 Dublin checkpoint exposed the old scheduled-work notification gate:
+its progress message was held with `critic_unchecked`. The exact unattempted
+owner-requested message was reclassified as a promised update, then delivered once.
+No ambiguous or successful chunk was resent. The already-promised **00:03 Dublin,
+11 September** update was moved to a durable `goal_checkin`; its old schedule was
+disabled after the replacement existed. The new path is non-discretionary, exempt
+from unsolicited-message caps, and requires a receipted final before fulfillment.
+The final checkpoint state and production checks are recorded separately in the
+[activation evidence](evidence/companion-fpl0-2026-09-10.json).
+
+All background, autonomy, requested-work, model, notification and deployment pauses
+were cleared after cutover. The live account refreshed its own Codex eligibility.
+The saved persona is version 3 and the standing host policy and `/` read grant remain
+active. The personal-history archive goal continues with preserved coverage; it is
+not falsely marked complete. Full archive reading and a general companion-quality
+score are not claimed. No new Telegram user-client campaign, seven-day soak,
+FileVault verification or machine-loss recovery qualification was performed.
+
+The first goal batch after the final cutover completed through Codex `gpt-6-astra`,
+registered two coverage/report artifacts, saved supported memories and advanced the
+next action. It created **zero owner-message actions**, leaving its partial-work
+note internal. This directly verifies the quieter batch behavior on the target;
+the next promised checkpoint was still future-queued when evidence was captured.

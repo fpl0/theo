@@ -1,8 +1,10 @@
 # Theo on fpl0.local
 
-The [10 September upgrade record](deployment-fpl0-2026-09-10.md) documents release
-`20260910-1cad162-r2`, its schema migration, live canary and owner-authorized
-activation. The [9 September record](deployment-fpl0-2026-09-09.md) retains the
+The [10 September companion record](companion-baseline-2026-09-10.md) documents
+release `20260910-a168268`: stable Telegram replies, standing full-host authority,
+Luke-derived behavioral preferences, continued goal work and promised progress
+checkpoints. The earlier [10 September upgrade record](deployment-fpl0-2026-09-10.md)
+retains the `20260910-1cad162-r2` schema migration, canary and activation evidence. The [9 September record](deployment-fpl0-2026-09-09.md) retains the
 earlier deployment and recovery evidence.
 The [10 September monitoring record](evidence/observability-fpl0-2026-09-10.json)
 covers the 4 GB resource envelope and alert corrections deployed independently
@@ -27,8 +29,9 @@ Strict `production_qualified` remains separate from operating permission. On
 models, deployments and notifications unpaused. Quiet hours are disabled. Native
 account and isolation checks still apply to each attempt; no qualification
 evidence or seven-day soak was fabricated. Host access is enabled, including the
-separately installed privileged launcher; general and privileged commands retain
-exact owner approvals. The owner deferred GitHub authentication and self-maintenance
+separately installed privileged launcher. The later standing-owner grant permits
+general and privileged host commands without repeated approval, with reads rooted
+at `/`; durable receipts and revocation checks remain. The owner deferred GitHub authentication and self-maintenance
 activation. Routine backups remain deferred pending the disk-encryption decision.
 
 ## Layout and service startup

@@ -64,3 +64,13 @@ python scripts/capture_terminal.py capture.ansi capture.png
 `mcp-shim-claude.json` and `mcp-shim-codex.json` are a different artifact from the terminal capture above, recorded 2026-09-07 while migrating `theo.mcp_shim` to the `mcp` 2.x server API. Each is one run of `scripts/mcp_shim_probe.py`: a real Claude Code or Codex process spawned the shim, discovered the granted tools over MCP and invoked them, and the run's unique marker was committed to SQLite. Both report `mcp` 2.1.1 and a zero exit.
 
 Unlike the host that produced the terminal evidence, this host permits Unix server sockets, so the broker socket the shim depends on was exercised for real. The run grant covered `remember`/`recall` only. This is evidence for the tool channel alone: it is not Telegram evidence, not an isolation gate, and not a production qualification. See [live-testing.md](../live-testing.md#native-mcp-shim-probe) to reproduce.
+
+## Companion activation — 10 September 2026
+
+[companion-fpl0-2026-09-10.json](companion-fpl0-2026-09-10.json) records the
+`a168268` target release, matching installed environments, real sandbox checks,
+standing full-host authority, quiet goal-batch completion, recovery of a held
+promised update with one Telegram receipt, and the next durable checkpoint. It
+contains aggregate operational evidence only. The future checkpoint was not yet
+executed at capture time. See the [review](../companion-baseline-2026-09-10.md) for
+failed harness attempts, corrections, and qualification limits.
