@@ -22,7 +22,10 @@ def launch_options(
     command: list[str],
     *,
     generated: bool = False,
+    command_scratch: bool = False,
 ) -> tuple[list[str], Json]:
+    if command_scratch and not generated:
+        raise ValueError("Command scratch is limited to generated-code execution")
     if not settings.isolation_verified or settings.worker_home is None:
         raise Denied(
             "Native execution requires a verified isolated runner; run theo isolation verify"
@@ -49,7 +52,18 @@ def launch_options(
             runtime_executable=executable,
             worker_runtime=settings.worker_python.parent.parent if settings.worker_python else None,
         )
-        return ["/usr/bin/sandbox-exec", "-p", profile, str(executable), *command[1:]], {}
+        arguments = [str(executable), *command[1:]]
+        if command_scratch:
+            # Create caches only after entering the sandbox. Candidate-created
+            # scratch symlinks must never redirect writes by the core itself.
+            arguments = [
+                "/bin/sh",
+                "-c",
+                'umask 007; /bin/mkdir -p "$HOME" "$TMPDIR" "$XDG_CACHE_HOME" || exit; exec "$@"',
+                "theo-command",
+                *arguments,
+            ]
+        return ["/usr/bin/sandbox-exec", "-p", profile, *arguments], {}
     raise Denied("No qualified OS execution boundary on this host")
 
 
@@ -86,6 +100,12 @@ def sandbox_profile(
     )
     if generated:
         profile += f"(deny network*)(deny file-read* file-write* (require-all (subpath {quote(runner)}) (require-not (subpath {quote(work)}))))"
+        # Offline broker/protocol tests need IPC within their own workspace.
+        # No Internet, loopback TCP, or external Unix endpoint is authorized.
+        profile += (
+            f"(allow network-bind (local unix-socket (subpath {quote(work)})))"
+            f"(allow network-outbound (remote unix-socket (subpath {quote(work)})))"
+        )
     # SQLite and native runtimes resolve every parent directory before opening
     # state files. Permit only ancestor metadata, never listing or file contents.
     for ancestor in work.resolve().parents:

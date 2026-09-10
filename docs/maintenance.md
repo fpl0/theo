@@ -73,6 +73,8 @@ as guest UID 622. The installed-wheel canary is supplied by the controller and r
 outside the candidate checkout. See the original
 [builder proof](evidence/self-maintenance-builder-2026-09-10.json) and subsequent
 [driver integration evidence](evidence/self-maintenance-vm-integration-2026-09-10.json).
+The subsequent [bundle and development proof](evidence/self-maintenance-bundles-2026-09-10.json)
+records the successful combined component pipeline and the failures that preceded it.
 
 The proof VM has no host directory shares, clipboard, audio or routed network.
 `packet_sink.py` discards its virtual Ethernet traffic without elevated host
@@ -131,6 +133,14 @@ the installed project for editable imports, and the job's shared workspace group
 receives a writable environment. Repair patch evidence is preserved. This path
 does not execute an installation hook on the controller or accept the development
 environment as a deployment bundle.
+
+Generated commands use writable home, temporary and cache directories inside
+their job workspace. Directory creation happens after sandbox entry, so a
+candidate-created scratch symlink cannot redirect core writes. Executable lookup
+includes the job's development environment. Unix sockets within that workspace
+support offline broker and protocol tests; external Unix endpoints, IPv4 and IPv6
+remain denied. Native account files stay outside command access. Use a short
+workspace root at installation because macOS limits Unix socket path length.
 
 This remains an incomplete deployment installation. Minimum-gate preservation,
 all retained staging/cache budgets, separate host service identities and the live
