@@ -9,12 +9,17 @@ from theo.backends.base import NativeBackend
 from theo.backends.claude import ClaudeBackend
 from theo.backends.codex import CodexBackend
 from theo.config import Settings
+from theo.domain import AuthWait
 from theo.storage import Database
 
 
 def backend_for(
     name: str, *, db: Database, settings: Settings, binary: str | None = None
 ) -> NativeBackend:
+    if settings.bundle_native is not None:
+        if name not in settings.bundle_native:
+            raise AuthWait("The selected application bundle does not contain this native runtime")
+        binary = str(settings.bundle_native[name])
     if name == "claude":
         return ClaudeBackend(db, settings, binary)
     if name == "codex":

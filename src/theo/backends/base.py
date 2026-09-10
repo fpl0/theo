@@ -118,7 +118,10 @@ class NativeBackend:
         env = worker_environment(home, runner_uid=self.settings.runner_uid)
         version = await self.version()
         configuration = inspect_configuration(configuration_files(home, self.name))
-        fingerprint = digest({"backend": self.name, "version": version, "transport": "theo-v1"})
+        runtime: Json = {"backend": self.name, "version": version, "transport": "theo-v1"}
+        if self.settings.bundle_native_fingerprint:
+            runtime["native_bundle"] = self.settings.bundle_native_fingerprint
+        fingerprint = digest(runtime)
         return env, {
             "runtime_version": version,
             "fingerprint": fingerprint,

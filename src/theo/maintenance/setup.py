@@ -52,8 +52,17 @@ def service_definition(module: str, executable: Path, config: Path, logs: Path) 
 async def check(config: ControllerConfig, host: HostConfig) -> Json:
     policy = load_policy(config.policy)
     core = load_settings(host.root)
-    if not config.package_checks:
-        raise Denied("Installed-package verification cannot be disabled for an installation")
+    if not config.package_checks or not config.vm:
+        raise Denied("An installation requires VM isolation and installed-package verification")
+    if not config.bundle_root:
+        raise Denied("Install shared read-only bundles outside private controller state")
+    if (
+        config.bundles.is_symlink()
+        or config.bundles.stat().st_uid != host.controller_uid
+        or config.bundles.stat().st_gid != config.core_gid
+        or config.bundles.stat().st_mode & 0o022
+    ):
+        raise Denied("Shared bundle storage must be controller-owned with read-only peer access")
     if (
         config.root.stat().st_uid != host.controller_uid
         or host.controller_uid in (0, config.core_uid)
@@ -80,10 +89,7 @@ async def check(config: ControllerConfig, host: HostConfig) -> Json:
         )
     if config.host_socket != host.socket or config.host_token_file != host.token_file:
         raise Denied("Controller and host endpoints do not match")
-    if (
-        host.bundles.resolve() != (config.root / "bundles").resolve()
-        or host.policy != config.policy
-    ):
+    if host.bundles.resolve() != config.bundles.resolve() or host.policy != config.policy:
         raise Denied("Host bundle storage and standing policy must match the controller")
     for path in (config.token_file, config.host_token_file):
         if len(read_protected(path).strip()) < 32 or path.stat().st_mode & 0o007:

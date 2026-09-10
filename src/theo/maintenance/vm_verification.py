@@ -31,6 +31,7 @@ class VmVerifier:
         self.config = config
         self.vm_settings = config.vm
         self.receipts: list[Json] = []
+        self.wheel: Json | None = None
 
     async def command(self, vm: VmDriver, recipe: CheckRecipe, *, cwd: str = GUEST_SOURCE) -> Json:
         values = {"python": PYTHON, "uv": UV, "workspace": GUEST_SOURCE}
@@ -181,6 +182,7 @@ class VmVerifier:
             or not wheel["name"].endswith(".whl")
         ):
             raise Denied("The guest did not report one bounded wheel")
+        self.wheel = wheel
         copy = (
             "from pathlib import Path; import shutil; "
             f"p=Path({INSTALLED!r}); p.mkdir(); "
@@ -252,6 +254,7 @@ class VmVerifier:
             for recipe in self.config.checks:
                 await self.command(vm, recipe)
             await self.installed_checks(vm)
+            await vm.source_check(candidate.snapshot_sha256)
             directory = vm.directory
         if source_digest(source) != candidate.snapshot_sha256:
             raise Denied("Immutable candidate was modified during verification")

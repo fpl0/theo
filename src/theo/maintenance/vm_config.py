@@ -31,6 +31,7 @@ class VmSettings(StrictModel):
     max_virtual_disk_bytes: int = Field(default=150_000_000_000, ge=50_000_000_000)
     min_free_disk_bytes: int = Field(default=20_000_000_000, ge=10_000_000_000)
     max_input_bytes: int = Field(default=3_000_000_000, ge=100_000_000, le=5_000_000_000)
+    max_export_bytes: int = Field(default=2_000_000_000, ge=10_000_000, le=4_100_000_000)
 
     @model_validator(mode="after")
     def paths(self) -> VmSettings:

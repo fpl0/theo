@@ -27,7 +27,7 @@ from theo.backends.process import stop_process
 from theo.domain import Denied, Json
 from theo.execution.processes import terminate_tree
 from theo.maintenance.dependencies import wheel_requests
-from theo.maintenance.source import files_digest, read_source
+from theo.maintenance.source import IGNORED, files_digest, read_source
 from theo.maintenance.vm_config import VmSettings
 
 GUEST_ROOT = "/private/var/theo-builder"
@@ -147,12 +147,18 @@ class VmDriver:
                 await stop_process(process)
 
     async def guest(
-        self, argv: list[str], *, input_file: Path | None = None, timeout: int = 30
+        self,
+        argv: list[str],
+        *,
+        input_file: Path | None = None,
+        timeout: int = 30,
+        maximum: int = 256 * 1024,
     ) -> bytes:
         return await self.host(
             [str(self.settings.tart), "exec", *(["-i"] if input_file else []), self.name, *argv],
             input_file=input_file,
             timeout=timeout,
+            maximum=maximum,
         )
 
     def validate(self) -> None:
@@ -185,7 +191,10 @@ class VmDriver:
         if disk_bytes + (base / "disk.img").stat().st_size > config.max_virtual_disk_bytes:
             raise Denied("Retained VM disks exceed the installation budget")
         if shutil.disk_usage(config.tart_home).free < (
-            config.min_free_disk_bytes + (base / "disk.img").stat().st_size + config.max_input_bytes
+            config.min_free_disk_bytes
+            + (base / "disk.img").stat().st_size
+            + config.max_input_bytes
+            + config.max_export_bytes
         ):
             raise Denied("Insufficient reserved disk space for a disposable builder")
 
@@ -346,6 +355,8 @@ class VmDriver:
             ("tart-guest-agent", config.agent),
             ("vm_guest.py", Path(__file__).with_name("vm_guest.py")),
             ("vm_bootstrap.py", Path(__file__).with_name("vm_bootstrap.py")),
+            ("vm_bundle.py", Path(__file__).with_name("vm_bundle.py")),
+            ("vm_exports.py", Path(__file__).with_name("vm_exports.py")),
             ("installed_check.py", Path(__file__).with_name("installed_check.txt")),
         ):
             shutil.copyfile(path, inputs / name)
@@ -355,6 +366,11 @@ class VmDriver:
             json.dumps(
                 {
                     "source_sha256": files_digest(files),
+                    "source_ignored": sorted(IGNORED),
+                    "source_files": {
+                        name: [hashlib.sha256(body).hexdigest(), mode]
+                        for name, (body, mode) in files.items()
+                    },
                     "files": {
                         path.name: checksum(path, maximum=config.max_input_bytes)
                         for path in inputs.iterdir()
@@ -497,6 +513,43 @@ class VmDriver:
                 {"name": self.name, "base": self.settings.base_name, "admitted": self.admitted}
             )
         )
+
+    async def source_check(self, expected: str) -> None:
+        result = response(
+            await self.guest([GUEST_PYTHON, "-I", GUEST_ROOT + "/tools/vm_exports.py", "source"])
+        )
+        if result.get("source_sha256") != expected:
+            raise Denied("The guest's source no longer matches the accepted candidate")
+
+    async def seal_bundle(self, expected_source: str) -> Json:
+        helper = [GUEST_PYTHON, "-I", GUEST_ROOT + "/tools/vm_exports.py"]
+        receipt = response(await self.guest([*helper, "seal"], timeout=300))
+        size = receipt.get("archive_bytes")
+        if (
+            type(size) is not int
+            or not 0 < size <= self.settings.max_export_bytes
+            or receipt.get("source_sha256") != expected_source
+            or not isinstance(receipt.get("archive_sha256"), str)
+        ):
+            raise Denied("Sealed guest bundle exceeds its size or source boundary")
+        (self.directory / "export-seal.json").write_text(json.dumps(receipt))
+        return receipt
+
+    async def export_bundle(self, expected_source: str) -> tuple[Path, Json]:
+        from theo.maintenance.vm_transfer import transfer
+
+        receipt = await self.seal_bundle(expected_source)
+        archive = self.directory / "bundle.tar.gz"
+        helper = [GUEST_PYTHON, "-I", GUEST_ROOT + "/tools/vm_exports.py"]
+        await transfer(
+            [str(self.settings.tart), "exec", "-i", self.name, *helper, "stream"],
+            self.environment,
+            self.auxiliary,
+            receipt,
+            archive,
+        )
+        (self.directory / "export-receipt.json").write_text(json.dumps(receipt))
+        return archive, receipt
 
     async def close(self, *, retain: bool = False) -> None:
         if self.lock is None:

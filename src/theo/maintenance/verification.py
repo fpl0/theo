@@ -193,6 +193,10 @@ class Verifier:
             await stop_process(process)
 
     async def prepare_environment(self, workspace: Path) -> Path:
+        if self.config.vm:
+            from theo.maintenance.vm_development import prepare_environment
+
+            return await prepare_environment(self.config, workspace)
         scratch = workspace / ".theo"
         scratch.mkdir(exist_ok=True)
         wheels = scratch / "wheels"
@@ -409,7 +413,9 @@ class Verifier:
         from theo.maintenance.bundles import Bundle, inventory, verify
 
         if self.config.vm:
-            raise Denied("VM bundle packaging requires a qualified relocatable runtime")
+            from theo.maintenance.vm_packaging import VmPackager
+
+            return await VmPackager(self.config).package(candidate, source, verification)
         workspace = self.config.workspaces / (candidate.change_id + "-package")
         if workspace.exists():
             shutil.rmtree(workspace)
@@ -580,7 +586,7 @@ class Verifier:
             verification_hash=digest(verification),
         )
         (bundle_root / "bundle.json").write_text(bundle.model_dump_json(indent=2))
-        target = self.config.root / "bundles" / bundle.bundle_id
+        target = self.config.bundles / bundle.bundle_id
         target.parent.mkdir(parents=True, exist_ok=True)
         if target.exists():
             existing = verify(target)

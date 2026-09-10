@@ -193,14 +193,19 @@ class Controller:
             if not iteration["coding_job_id"]:
                 await self.journal.transition(lease, stage, status="waiting")
                 return
+            storage = (self.config.root,) + (
+                (self.config.bundle_root,) if self.config.bundle_root else ()
+            )
             used = sum(
                 path.stat().st_size
-                for path in self.config.root.rglob("*")
+                for root in storage
+                for path in root.rglob("*")
                 if path.is_file() and not path.is_symlink()
             )
-            if (
-                used >= self.config.max_disk_bytes
-                or shutil.disk_usage(self.config.root).free < 512 * 1024 * 1024
+            if used >= self.config.max_disk_bytes or any(
+                shutil.disk_usage(root).free < 512 * 1024 * 1024
+                for root in storage
+                if root.exists()
             ):
                 raise Denied("Maintenance storage budget or free-space reserve exhausted")
             await self.github.identity()

@@ -46,6 +46,9 @@ class Settings(StrictModel):
     quiet_end: int = Field(default=8, ge=0, le=23)
     worker_home: Path | None = None
     worker_python: Path | None = None
+    # Host-derived bundle selection; never persist paths back into operator settings.
+    bundle_native: dict[str, Path] | None = Field(default=None, exclude=True)
+    bundle_native_fingerprint: str | None = Field(default=None, exclude=True)
     runner_uid: int | None = None
     runner_gid: int | None = None
     isolation_verified: bool = False

@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from theo.config import Settings
 from theo.domain import Conflict, Denied, Outcome, ToolContext, uid
@@ -89,6 +90,16 @@ async def configured(tmp_path, repository):
     config.token_file.chmod(0o600)
     yield config, policy
     shutil.rmtree(sockets)
+
+
+async def test_shared_bundle_storage_is_separate_from_controller_secrets_and_jobs(configured):
+    config, _ = configured
+    shared = config.root.parent / "accepted-bundles"
+    selected = ControllerConfig.model_validate({**config.model_dump(), "bundle_root": shared})
+    assert selected.bundles == shared
+    for unsafe in (config.root / "bundles", config.workspaces / "bundles", config.root.parent):
+        with pytest.raises(ValidationError, match="Shared bundles"):
+            ControllerConfig.model_validate({**config.model_dump(), "bundle_root": unsafe})
 
 
 async def broker_context(db, settings, conversation, workspace, kind="conversation", job_id=None):

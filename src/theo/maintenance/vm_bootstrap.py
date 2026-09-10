@@ -58,7 +58,14 @@ def verify_inputs() -> dict[str, object]:
 
 def install_agent() -> None:
     verify_inputs()
-    for name in ("tart-guest-agent", "uv", "vm_guest.py", "vm_bootstrap.py"):
+    for name in (
+        "tart-guest-agent",
+        "uv",
+        "vm_guest.py",
+        "vm_bootstrap.py",
+        "vm_bundle.py",
+        "vm_exports.py",
+    ):
         shutil.copyfile(INPUTS / name, TOOLS / name)
         (TOOLS / name).chmod(0o755 if name in ("tart-guest-agent", "uv") else 0o644)
     checked("/usr/bin/codesign", "--verify", "--strict", str(TOOLS / "tart-guest-agent"))

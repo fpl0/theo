@@ -26,6 +26,7 @@ class ControllerConfig(StrictModel):
     core_uid: int = Field(default_factory=os.geteuid, ge=0)
     core_gid: int = Field(default_factory=os.getegid, ge=0)
     root: Path
+    bundle_root: Path | None = None
     policy: Path
     socket: Path
     token_file: Path
@@ -49,9 +50,17 @@ class ControllerConfig(StrictModel):
     github_key_file: Path | None = None
     dependency_wheels: Path
     native_files: dict[str, Path] = Field(default_factory=dict)
+    native_executables: dict[Literal["codex", "claude", "cursor", "grok"], str] = Field(
+        default_factory=lambda: {"codex": "bin/codex"}
+    )
+    runtime_extras: tuple[Literal["browser", "embeddings", "speech"], ...] = ()
     required_workflow: str = ".github/workflows/ci.yml"
     max_pending: int = Field(default=10, ge=1, le=50)
     max_disk_bytes: int = Field(default=10_000_000_000, ge=100_000_000)
+
+    @property
+    def bundles(self) -> Path:
+        return self.bundle_root or self.root / "bundles"
 
     @model_validator(mode="after")
     def paths(self) -> ControllerConfig:
@@ -71,7 +80,13 @@ class ControllerConfig(StrictModel):
         )
         credentials = tuple(
             path
-            for path in (self.github_key_file, self.github_cli, self.github_cli_config, self.node)
+            for path in (
+                self.github_key_file,
+                self.github_cli,
+                self.github_cli_config,
+                self.node,
+                self.bundle_root,
+            )
             if path is not None
         )
         if self.github_auth == "github_app" and not (
@@ -86,6 +101,13 @@ class ControllerConfig(StrictModel):
             raise ValueError("Installation paths must be absolute")
         if self.root.is_relative_to(self.workspaces) or self.workspaces.is_relative_to(self.root):
             raise ValueError("Controller and worker directories must be disjoint")
+        if self.bundle_root and any(
+            self.bundle_root.is_relative_to(path) or path.is_relative_to(self.bundle_root)
+            for path in (self.root, self.workspaces)
+        ):
+            raise ValueError(
+                "Shared bundles must be separate from private controller and job state"
+            )
         if any(
             self.root.is_relative_to(path)
             or path.is_relative_to(self.root)

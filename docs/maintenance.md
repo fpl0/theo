@@ -59,6 +59,10 @@ create an inference job. Recovery never restores an older database snapshot.
 The controller, builder and host service must have the documented OS ownership
 boundaries. The GitHub App key must remain controller-private. Native runners and
 candidate commands must not acquire controller, core or root-launcher authority.
+An installation sets `bundle_root` to separate controller-owned storage, outside
+both the private controller root and coding workspaces. Its group permits core
+and runner reads and execution, without writes. This avoids granting traversal
+into the controller's credential and journal directory to load application code.
 
 `ControllerConfig.vm` selects the disposable Mac verification driver. Its protected
 configuration pins the complete base image, Tart executable, standalone Python,
@@ -94,13 +98,45 @@ startup reconciles those records before resuming its journal. Successful checks
 stop and delete their VM; failed admitted candidates retain stopped images and
 private logs. Virtual disk capacity is bounded before another VM is admitted.
 
-This is verification integration, not a completed deployment installation. The VM
-path currently refuses release packaging until a relocatable standalone runtime is
-bundled and canaried on the physical host. Development workspace preparation,
-minimum-gate preservation, all retained staging/cache budgets, and separate host
-service identities still need final integration and qualification.
+The packaging path builds complete standalone Python prefixes for both core and
+worker, including standard and dynamic libraries. It installs locked dependencies
+and the candidate wheel in the guest, rewrites console scripts for relocation,
+and moves the prefixes away from their original build path.
+The independently rebuilt wheel must match the verified candidate's wheel hash.
+After stopping build processes, the root guest helper freezes the source and
+outputs beneath a protected parent and rechecks the complete source identity.
+Fixed permission canaries require both prefixes to reject existing-file and
+directory writes. Functional checks then exercise those sealed copies, so the
+archive and the tested runtimes have the same immutable bytes.
 
-Remaining acceptance work includes relocatable packaging, bounded storage, old/new schema compatibility
+The controller receives a sealed archive through small, hash-checked responses on
+one interactive connection. Every offset, source identity, archive size and chunk
+hash must match; acceptance also requires the final archive hash and a successful
+transport exit. Extraction rejects links outside the bundle, path aliases,
+special files and excessive tar metadata before publishing any bundle. Both
+runtime inventories and the dependency lock must agree. The controller adds
+separately configured native inputs and records the whole bundle manifest before
+an atomic rename on the destination filesystem.
+
+`native_files` and `native_executables` bind the bundle's native programs. A Codex
+selection requires its adjacent `codex-code-mode-host`. The core resolves these
+programs from the verified bundle; missing programs wait for repair. Native asset
+hashes participate in the subscription eligibility fingerprint. `runtime_extras`
+selects the Python extras included in a deployment prefix; downloading browser or
+model assets remains a separate installation operation.
+
+Coding workspace preparation uses the same guest build and sealed transfer, with
+all locked development groups and Python extras. A literal source path replaces
+the installed project for editable imports, and the job's shared workspace group
+receives a writable environment. Repair patch evidence is preserved. This path
+does not execute an installation hook on the controller or accept the development
+environment as a deployment bundle.
+
+This remains an incomplete deployment installation. Minimum-gate preservation,
+all retained staging/cache budgets, separate host service identities and the live
+acceptance campaign below still need final integration and qualification.
+
+Remaining acceptance work includes final bundle qualification, bounded storage, old/new schema compatibility
 canaries, independent health and alert coverage, controller handover, GitHub App
 provisioning, and live activation/probation/rollback. Local tests use real SQLite,
 Git and Unix sockets, with synthetic GitHub and model outcomes where stated;

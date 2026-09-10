@@ -36,11 +36,11 @@ from theo.work.scheduling import Scheduler
 
 
 async def serve(db: Database, settings: Settings, token: str | None = None) -> None:
-    from theo.maintenance.bundles import selected_settings
+    from theo.maintenance.bundles import selected_configuration
 
-    selected = selected_settings(db.root)
+    selected = selected_configuration(db.root)
     if selected:
-        settings = settings.model_copy(update={"worker_python": selected[1]})
+        settings = settings.model_copy(update=selected)
     telemetry.configure(db.root)
     lock = (db.root / "daemon.lock").open("a")
     try:

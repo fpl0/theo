@@ -8,6 +8,7 @@ import hashlib
 import os
 import stat
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 
@@ -30,6 +31,41 @@ class Bundle(StrictModel):
     @property
     def fingerprint(self) -> str:
         return digest(self.model_dump(mode="json"))
+
+
+class NativeSelection(StrictModel):
+    version: Literal[1] = 1
+    executables: dict[Literal["codex", "claude", "cursor", "grok"], str] = Field(min_length=1)
+
+
+def native_settings(selected: Path, bundle: Bundle) -> tuple[dict[str, Path], str]:
+    """Resolve native programs from the same verified descriptor as both interpreters."""
+    manifest = selected / "native/runtime.json"
+    files = {name: value for name, value in bundle.files.items() if name.startswith("native/")}
+    if not manifest.exists():
+        # Legacy descriptors remain inspectable, but cannot silently obtain a
+        # missing native runtime from the machine's unrelated PATH.
+        return {}, digest(files)
+    if manifest.is_symlink() or manifest.stat().st_size > 65536:
+        raise Denied("Invalid native runtime selection")
+    selection = NativeSelection.model_validate_json(manifest.read_bytes())
+    paths: dict[str, Path] = {}
+    for name, relative in selection.executables.items():
+        path = selected / "native" / relative
+        if (
+            Path(relative).is_absolute()
+            or ".." in Path(relative).parts
+            or not path.resolve(strict=True).is_relative_to(selected.resolve())
+            or not path.is_file()
+            or not os.access(path, os.X_OK)
+        ):
+            raise Denied("Native runtime must be an executable within its selected bundle")
+        if name == "codex":
+            helper = path.with_name("codex-code-mode-host")
+            if not helper.is_file() or not os.access(helper, os.X_OK):
+                raise Denied("The selected Codex runtime is missing its matching code-mode host")
+        paths[name] = path
+    return paths, digest(files)
 
 
 def inventory(root: Path) -> dict[str, str]:
@@ -100,3 +136,17 @@ def selected_settings(root: Path) -> tuple[Path, Path] | None:
     selected = pointer.resolve(strict=True)
     bundle = verify(selected)
     return selected / bundle.core_python, selected / bundle.worker_python
+
+
+def selected_configuration(root: Path) -> dict[str, object]:
+    pointer = root / "releases/current"
+    if not (pointer / "bundle.json").exists():
+        return {}
+    selected = pointer.resolve(strict=True)
+    bundle = verify(selected)
+    native, fingerprint = native_settings(selected, bundle)
+    return {
+        "worker_python": selected / bundle.worker_python,
+        "bundle_native": native,
+        "bundle_native_fingerprint": fingerprint,
+    }
