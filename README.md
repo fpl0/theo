@@ -15,7 +15,7 @@ Theo keeps canonical memory and work state in SQLite on your machine, with large
 - **Use Telegram day to day.** Owner private chat and configured groups/topics; replies, edits, albums, typing and private answer drafts; rich messages, media, in-chat approvals, memory review, job controls and delivery reconciliation. Group context and tools enforce private-memory boundaries. [Telegram guide](docs/telegram.md).
 - **Chat locally.** An interactive terminal with Markdown, code highlighting, attachments, live drafts, named sessions and cancellation. Terminal conversations stay separate from Telegram and deliver locally. [Terminal guide](docs/terminal.md).
 - **Schedule reliably.** Requested reminders and recurring schedules use the owner's timezone and explicit daylight-saving rules. Due reminders can deliver while models or background autonomy are paused, provided the service and channel are available.
-- **Work through controlled tools.** Public-web reads, scoped files and commands, artifacts, local voice creation, goals and delegation. Cross-destination sends, forwards and deletions require approval. Outbound actions retain receipts; an ambiguous send requires reconciliation before retry. [All 52 tools](docs/tools.md).
+- **Work through controlled tools.** Public-web reads, scoped files and commands, artifacts, local voice creation, goals, delegation and maintenance. Cross-destination sends, forwards and deletions require approval. Outbound actions retain receipts; an ambiguous send requires reconciliation before retry. [All 60 tools](docs/tools.md).
 - **Operate and investigate.** Online backups, quarantined restores, structured export, staged releases, code rollback and a separate supervisor. Optional Grafana dashboards connect logs, traces, metrics and test-bot alerts. [Operations](docs/operations.md) · [Observability](docs/observability.md).
 
 Background autonomy, reflection and reviewed skills are implemented, with activation gated by production evidence. Generated commands require verified macOS isolation. Automatic provider failover, unlimited semantic history compaction and unattended self-patch deployment remain incomplete.
@@ -43,7 +43,7 @@ On macOS, state defaults to `~/Library/Application Support/Theo`; on Linux, `$XD
 
 1. Follow [installation and isolation](docs/operations.md#installation-and-isolation) to configure a separate native runner home and a readable worker environment for the MCP shim. Run `theo isolation verify` against that setup.
 2. Sign in through the selected vendor's subscription login under the runner identity. Verify included models and spending controls, with extra usage, on-demand charging and top-ups disabled.
-3. Record genuine [account evidence](docs/operations.md#account-evidence) using `theo accounts verify BACKEND --evidence /path/evidence.json`. Evidence must match the installed runtime and effective configuration; it expires after 24 hours or drift.
+3. Follow the [account workflow](docs/operations.md#account-evidence). Codex checks subscription identity, the model catalogue, included allowance and credit state live before each turn and during inference; it does not need daily manual attestation. Other backends require genuine evidence through `theo accounts verify BACKEND --evidence /path/evidence.json`, matching the installed runtime and configuration and expiring after 24 hours or drift.
 4. Start the daemon and open the client in separate terminals:
 
    ```sh
