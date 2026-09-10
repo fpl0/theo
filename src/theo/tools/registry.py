@@ -11,9 +11,15 @@ from theo.tools.contracts import ToolDefinition
 from theo.tools.handlers import feedback, host, maintenance, memory, outbound, work, workspace
 
 REGISTRY: dict[str, ToolDefinition] = {
+    "host_read": ToolDefinition(
+        schemas.HostReadArgs,
+        "Read text files or list directories on operator-granted host_read_roots without another approval. Use this for host archives instead of command_run, which is workspace-only. Results are paged: read next_offset until null before claiming full coverage. Cannot write or execute commands. get_status reports configured roots and the standing or approval host policy in private chat.",
+        host.read,
+        "read",
+    ),
     "host_command": ToolDefinition(
         schemas.HostCommandArgs,
-        "Run a command anywhere on the host. Fixed diagnostics use standing permission. All other commands, including file access, mutation, networking and privileged execution, require the owner's exact approval in /review. Never put credentials in arguments. Results appear in action_status; queued is not executed.",
+        "Run a command anywhere on the host, including as_root through the installed launcher. get_status.host_access reports the operator's command_policy: standing authorizes general and privileged commands without asking again; approval requires exact /review approval except fixed diagnostics. Do needed work under existing authority. Never put credentials in arguments. Inspect action_status until an actual result is recorded; queued is not executed.",
         host.command,
         "outbound",
     ),
@@ -147,11 +153,14 @@ REGISTRY: dict[str, ToolDefinition] = {
         "read",
     ),
     "schedule_task": ToolDefinition(
-        schemas.ScheduleArgs, "Persist a reminder before promising it.", work.schedule_task, "write"
+        schemas.ScheduleArgs,
+        "Persist future work or a reminder before promising it. mode='work' runs instructions with fresh conversation context and tools: use it for research, continuing a goal, checks and watchers. mode='reminder' sends text verbatim without reasoning: use only for a finished reminder the person should read. Never put internal work instructions in a reminder.",
+        work.schedule_task,
+        "write",
     ),
     "list_tasks": ToolDefinition(
         schemas.Empty,
-        "List persisted reminder schedules; use get_status for the job queue.",
+        "List persisted reminders and work schedules, including their mode; use get_status for the job queue.",
         work.list_tasks,
         "read",
     ),
@@ -260,6 +269,18 @@ REGISTRY: dict[str, ToolDefinition] = {
         schemas.GoalUpdateArgs,
         "Transition a goal with evidence and dependency checks.",
         work.goal_update,
+        "write",
+    ),
+    "goal_inspect": ToolDefinition(
+        schemas.IdArgs,
+        "Read a goal's actual plan, step IDs, next actions, progress and blocker before continuing or revising it.",
+        work.goal_inspect,
+        "read",
+    ),
+    "step_update": ToolDefinition(
+        schemas.StepUpdateArgs,
+        "Revise an unfinished plan step when new information makes its next action stale. Bind expected_next_action to the value from goal_inspect. Preserve completed work; use goal_update separately when a blocker clears.",
+        work.step_update,
         "write",
     ),
     "step_complete": ToolDefinition(

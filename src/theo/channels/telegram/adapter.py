@@ -1,6 +1,6 @@
 """Receive Telegram updates and coordinate their durable admission.
 
-Owns polling, event recovery and ephemeral previews. Delegates Bot API delivery,
+Owns polling, event recovery and ephemeral typing. Delegates Bot API delivery,
 attachment extraction, persisted state and owner controls to dedicated modules.
 """
 
@@ -34,7 +34,6 @@ class Telegram:
         self.state = TelegramState(db, settings, self.bot.id)
         self.username: str | None = None
         self._consumer_lock = asyncio.Lock()
-        self._preview_text: dict[str, str] = {}
         self._preview_at: dict[str, float] = {}
 
     async def setup(self) -> Json:
@@ -292,59 +291,37 @@ class Telegram:
                 return True
         return False
 
-    async def preview(self, job: Json, text: str = "") -> None:
+    async def typing(self, job: Json) -> None:
+        """Show presence without exposing partial answers or background instructions."""
+        if job["kind"] != "conversation":
+            return
         binding = await self.db.one(
             "SELECT * FROM telegram_destinations WHERE conversation_id=?", (job["conversation_id"],)
         )
         if not binding:
             return
-        preview = (self._preview_text.get(job["id"], "") + text)[-4000:]
-        # Telegram limits UTF-16 units, so emoji can consume two units each.
-        # Drop a cut surrogate pair at the beginning of the rolling preview.
-        self._preview_text[job["id"]] = preview.encode("utf-16-le")[-8000:].decode(
-            "utf-16-le", errors="ignore"
-        )
-        has_draft = bool(binding["private"] and self._preview_text[job["id"]])
         timestamp = self.db.clock()
-        if timestamp - self._preview_at.get(job["id"], 0) < (1 if has_draft else 4):
+        if timestamp < self._preview_at.get(job["id"], 0):
             return
         active = await self.db.one("SELECT status,generation FROM jobs WHERE id=?", (job["id"],))
         if not active or active["status"] != "running" or active["generation"] != job["generation"]:
             return
-        self._preview_at[job["id"]] = timestamp
-        from theo.domain import digest
-
-        draft = int(digest({"job": job["id"], "generation": job["generation"]})[:7], 16) + 1
-        await self.db.execute(
-            "INSERT INTO telegram_previews VALUES(?,?,?,?,?) ON CONFLICT(job_id) DO UPDATE SET generation=excluded.generation,draft_id=excluded.draft_id",
-            (job["id"], job["generation"], draft, binding["chat_id"], binding["topic_id"]),
-        )
+        self._preview_at[job["id"]] = timestamp + 4
         try:
-            if has_draft:
-                await self.bot.send_message_draft(
-                    chat_id=binding["chat_id"],
-                    message_thread_id=binding["topic_id"] or None,
-                    draft_id=draft,
-                    text=self._preview_text[job["id"]],
-                    can_stop=True,
-                    keep_on_stop=False,
-                    request_timeout=3,
-                )
-            else:
-                await self.bot.send_chat_action(
-                    chat_id=binding["chat_id"],
-                    message_thread_id=binding["topic_id"] or None,
-                    action="typing",
-                    request_timeout=3,
-                )
+            await self.bot.send_chat_action(
+                chat_id=binding["chat_id"],
+                message_thread_id=binding["topic_id"] or None,
+                action="typing",
+                request_timeout=3,
+            )
         except TelegramRetryAfter as exc:
             self._preview_at[job["id"]] = timestamp + float(exc.retry_after)
         except Exception:
             pass  # Presentation never controls the durable final obligation.
 
     async def end_preview(self, job_id: str) -> None:
-        self._preview_text.pop(job_id, None)
         self._preview_at.pop(job_id, None)
+        # Retain cleanup for drafts persisted by an older installed release.
         await self.db.execute("DELETE FROM telegram_previews WHERE job_id=?", (job_id,))
 
     async def close(self) -> None:

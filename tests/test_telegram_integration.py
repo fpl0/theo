@@ -601,9 +601,84 @@ def test_renderer_never_interprets_model_controls():
     assert rich_html("Status\nready\n\nNext") == "Status<br>ready<br><br>Next"
 
 
-async def test_private_preview_types_before_first_visible_text(db, telegram, clock):
-    await telegram.ingest(message())
+@pytest.mark.parametrize("chat,topic", [(123, None), (-456, 7)])
+async def test_typing_has_no_draft_or_message_and_stops_with_generation(
+    db, telegram, clock, chat, topic
+):
+    await telegram.ingest(message(text="@theobot hello", chat=chat, topic=topic))
     job = await Jobs(db, "owner").claim("interactive", "test")
+    calls = []
+
+    class FakeBot:
+        async def send_chat_action(self, **kwargs):
+            calls.append(kwargs)
+
+        async def send_message_draft(self, **kwargs):
+            pytest.fail("Partial answers must never replace Telegram bubbles")
+
+        async def send_message(self, **kwargs):
+            pytest.fail("Typing must not send messages outside the delivery ledger")
+
+    original = telegram.bot
+    telegram.bot = FakeBot()
+    try:
+        await telegram.typing(job)
+        await telegram.typing(job)
+        assert len(calls) == 1
+        assert calls[0]["action"] == "typing"
+        assert calls[0]["chat_id"] == chat
+        assert calls[0]["message_thread_id"] == topic
+        clock.advance(4)
+        await telegram.typing(job)
+        assert len(calls) == 2
+        stale = {**job, "generation": job["generation"] + 1}
+        clock.advance(4)
+        await telegram.typing(stale)
+        assert len(calls) == 2
+        await Jobs(db, "owner").cancel(job["id"])
+        await telegram.typing(job)
+        assert len(calls) == 2
+        assert not await db.read("SELECT * FROM telegram_previews")
+        await telegram.end_preview(job["id"])
+        assert not telegram._preview_at
+    finally:
+        telegram.bot = original
+
+
+@pytest.mark.parametrize("kind", ["deep_work", "proactive_scan", "reflection", "reminder"])
+async def test_background_work_does_not_keep_the_conversation_typing(db, telegram, kind):
+    conversation = await telegram.state.destination(123)
+    job_id = await Jobs(db, "owner").enqueue(conversation, kind, {"text": "Internal work"}, kind)
+    job = await db.one("SELECT * FROM jobs WHERE id=?", (job_id,))
+    await telegram.typing(job)
+    assert not telegram._preview_at
+    assert not await db.read("SELECT * FROM telegram_previews")
+
+
+async def test_streamed_backend_text_produces_one_stable_final_message(db, telegram, tmp_path):
+    from theo.application.coordinator import Coordinator
+    from theo.backends.base import NativeBackend
+    from theo.domain import ExecutionOutcome, Outcome
+
+    class Backend(NativeBackend):
+        async def execute(self, request, emit):
+            await emit("text_delta", {"text": "Partial thought that must not appear"})
+            await emit("text_delta", {"text": "A second draft that replaces the first"})
+            return ExecutionOutcome(status=Outcome.COMPLETED, text="Found it. The notes are ready.")
+
+    settings = telegram.settings.model_copy(
+        update={"primary_backend": "claude", "primary_model": "fixture"}
+    )
+    broker = ToolBroker(db, settings)
+    coordinator = Coordinator(
+        db,
+        settings,
+        broker,
+        tmp_path / "socket",
+        factory=lambda name: Backend(db, settings),
+        telegram=telegram,
+    )
+    original = telegram.bot
     calls = []
 
     class FakeBot:
@@ -611,71 +686,30 @@ async def test_private_preview_types_before_first_visible_text(db, telegram, clo
             calls.append(("typing", kwargs))
 
         async def send_message_draft(self, **kwargs):
-            assert kwargs["text"]
-            calls.append(("draft", kwargs))
+            pytest.fail("Text deltas must not reach Telegram")
 
-    original = telegram.bot
     telegram.bot = FakeBot()
     try:
-        await telegram.preview(job)
-        assert calls[0][0] == "typing"
-        await telegram.preview(job)
-        assert len(calls) == 1
-        clock.advance(1.1)
-        await telegram.preview(job, "First visible text")
-        assert calls[-1][0] == "draft"
-        assert len(calls) == 2
+        await telegram.ingest(message())
+        job = await Jobs(db, "owner").claim("interactive", "fixture")
+        await coordinator.run_job(job)
+        assert calls and all(kind == "typing" for kind, _ in calls)
+        sent = []
+
+        async def sender(operation, payload):
+            sent.append((operation, payload["text"]))
+            return {"message_id": 201}
+
+        assert await Delivery(db, settings).dispatch_one(sender)
+        assert not await Delivery(db, settings).dispatch_one(sender)
+        assert sent == [("send_message", "Found it. The notes are ready.")]
+        assert not await db.read("SELECT * FROM telegram_previews")
+        history = await db.read("SELECT content FROM messages WHERE role='assistant'")
+        assert history == [{"content": "Found it. The notes are ready."}]
+        assert "Partial thought" not in str(await db.read("SELECT payload FROM run_events"))
     finally:
         telegram.bot = original
-
-
-async def test_preview_is_throttled_and_stale_generation_stops(db, telegram, clock):
-    await telegram.ingest(message())
-    job = await Jobs(db, "owner").claim("interactive", "test")
-    calls = []
-
-    class FakeBot:
-        async def send_message_draft(self, **kwargs):
-            calls.append(kwargs)
-
-    original = telegram.bot
-    telegram.bot = FakeBot()
-    try:
-        await telegram.preview(job, "one")
-        await telegram.preview(job, "two")
-        assert len(calls) == 1
-        clock.advance(1.1)
-        await telegram.preview(job, "three")
-        assert calls[-1]["text"] == "onetwothree"
-        await Jobs(db, "owner").cancel(job["id"])
-        clock.advance(1.1)
-        await telegram.preview(job, "stale")
-        assert len(calls) == 2
-    finally:
-        telegram.bot = original
-
-
-async def test_preview_bounds_unicode_without_breaking_emoji(db, telegram, clock):
-    await telegram.ingest(message())
-    job = await Jobs(db, "owner").claim("interactive", "test")
-    calls = []
-
-    class FakeBot:
-        async def send_message_draft(self, **kwargs):
-            assert len(kwargs["text"].encode("utf-16-le")) // 2 <= 4096
-            calls.append(kwargs)
-
-    original = telegram.bot
-    telegram.bot = FakeBot()
-    try:
-        await telegram.preview(job, "🛰" * 4000 + "x")
-        assert calls[-1]["text"] == "🛰" * 1999 + "x"
-        clock.advance(1.1)
-        await telegram.preview(job, " Done.")
-        assert calls[-1]["text"].endswith("🛰x Done.")
-        assert "�" not in calls[-1]["text"]
-    finally:
-        telegram.bot = original
+        await broker.close()
 
 
 async def test_bad_update_does_not_block_later_work(db, telegram, clock, monkeypatch):

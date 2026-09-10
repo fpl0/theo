@@ -1,8 +1,8 @@
 """Owner-authorized host commands with bounded output and explicit identity.
 
-The action ledger dispatches general commands only after exact approval. A fixed
-set of diagnostics uses standing permission; candidates cannot classify risk or
-inherit the core environment.
+The operator selects exact approvals or standing authority for general commands.
+The ledger rechecks that policy at dispatch; candidates cannot grant themselves
+authority or inherit the core environment.
 """
 
 import asyncio
@@ -39,9 +39,9 @@ def validate(request: Json) -> None:
         raise Denied("Host commands require absolute executable and working-directory paths")
 
 
-def needs_approval(request: Json) -> bool:
+def needs_approval(request: Json, *, standing: bool = False) -> bool:
     validate(request)
-    return (
+    return not standing and (
         tuple(request["argv"]) not in DIAGNOSTICS
         or request["cwd"] != "/"
         or request.get("as_root", False)

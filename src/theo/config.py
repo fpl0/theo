@@ -69,7 +69,16 @@ class Settings(StrictModel):
     maintenance_token_file: Path | None = None
     maintenance_installation_id: str | None = None
     host_access_enabled: bool = False
+    host_command_policy: Literal["approval", "standing"] = "approval"
     host_root_launcher: Path | None = None
+    host_read_roots: tuple[Path, ...] = ()
+
+    @field_validator("host_read_roots")
+    @classmethod
+    def absolute_host_read_roots(cls, value: tuple[Path, ...]) -> tuple[Path, ...]:
+        if any(not path.is_absolute() for path in value):
+            raise ValueError("Host read roots must be absolute operator-selected paths")
+        return tuple(path.resolve() for path in value)
 
     @field_validator("required_backends")
     @classmethod

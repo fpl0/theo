@@ -14,6 +14,54 @@ class Goals:
     def __init__(self, db: Database, owner: str):
         self.db, self.owner = db, owner
 
+    async def inspect(self, goal_id: str) -> Json:
+        def snapshot(db: sqlite3.Connection) -> Json:
+            goal = db.execute(
+                "SELECT * FROM goals WHERE id=? AND owner_id=?", (goal_id, self.owner)
+            ).fetchone()
+            if goal is None:
+                raise Denied("Goal unavailable")
+            return {
+                **dict(goal),
+                "steps": [
+                    dict(row)
+                    for row in db.execute(
+                        "SELECT * FROM plan_steps WHERE goal_id=? ORDER BY ordinal", (goal_id,)
+                    )
+                ],
+            }
+
+        return await self.db.write(snapshot)
+
+    async def revise_step(self, step_id: str, expected: str, next_action: str) -> None:
+        """Replace a stale next action without discarding progress or dependencies."""
+        if not next_action.strip():
+            raise ValueError("A plan step needs an executable next action")
+
+        def revise(db: sqlite3.Connection) -> None:
+            step = db.execute(
+                "SELECT s.*,g.status goal_status FROM plan_steps s JOIN goals g ON g.id=s.goal_id WHERE s.id=? AND s.owner_id=?",
+                (step_id, self.owner),
+            ).fetchone()
+            if step is None:
+                raise Denied("Step unavailable")
+            if step["next_action"] != expected:
+                raise Conflict("Plan changed; inspect the current goal before revising it")
+            if step["status"] == "completed" or step["goal_status"] in (
+                "completed",
+                "abandoned",
+                "paused",
+            ):
+                raise Conflict("Do not revise completed or inactive work")
+            if expected == next_action:
+                return
+            db.execute("UPDATE plan_steps SET next_action=? WHERE id=?", (next_action, step_id))
+            db.execute(
+                "UPDATE goals SET updated_at=? WHERE id=?", (self.db.clock(), step["goal_id"])
+            )
+
+        await self.db.write(revise)
+
     async def create(self, title: str, criteria: str, conversation: str, steps: list[Json]) -> str:
         if not title.strip() or not criteria.strip():
             raise ValueError("Goal needs a title and explicit outcome criteria")

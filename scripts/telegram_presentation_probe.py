@@ -48,17 +48,17 @@ async def presentation_probe(db: Database, settings: Settings, token: str) -> No
 
         await final(
             "Live Telegram transport check — synthetic text.\n"
-            "First a typing indicator, then a growing draft. No model is being called.",
+            "A typing indicator followed by one stable message. No model is being called.",
             ":intro",
         )
         job_id = await jobs.enqueue(
             conversation,
-            "reminder",
+            "conversation",
             {"text": "Synthetic presentation probe", "diagnostic": True},
             key,
             lane="interactive",
         )
-        job = await jobs.claim("interactive", str(os.getpid()), reminders_only=True)
+        job = await jobs.claim("interactive", str(os.getpid()))
         if not job or job["id"] != job_id:
             if job:
                 await jobs.finish(
@@ -74,32 +74,21 @@ async def presentation_probe(db: Database, settings: Settings, token: str) -> No
 
         poll_task = asyncio.create_task(poll())
         for _ in range(12):
-            await telegram.preview(job)
-            await asyncio.sleep(1)
-        fragments = [
-            "Synthetic streaming check.\n\n",
-            "This text is arriving in a native Telegram draft. ",
-            "It should grow inside one temporary message. ",
-            "The final message uses Theo's delivery ledger.\n\n",
-            "You can use Telegram's Stop control while this draft is active. ",
-            "This is transport evidence only; native model qualification remains pending. ",
-        ]
-        for fragment in fragments:
             current = await db.one("SELECT status FROM jobs WHERE id=?", (job_id,))
             if current and current["status"] == "cancelled":
                 break
+            await telegram.typing(job)
             await jobs.heartbeat(job_id, job["generation"])
-            await telegram.preview(job, fragment)
-            await asyncio.sleep(4)
+            await asyncio.sleep(1)
         current = await db.one("SELECT status FROM jobs WHERE id=?", (job_id,))
         cancelled = bool(current and current["status"] == "cancelled")
         if not cancelled:
             await jobs.finish(job_id, job["generation"], Outcome.COMPLETED, {"synthetic": True})
         await telegram.end_preview(job_id)
         await final(
-            "Synthetic stream cancelled through Telegram. No model was called."
+            "Synthetic presentation check cancelled. No model was called."
             if cancelled
-            else "".join(fragments) + "\n\nTransport check finished.",
+            else "The typing indicator has finished. This complete message stays as it was sent.\n\nTransport check finished; no model was called.",
             ":result",
         )
         print(f"Presentation probe finished: cancelled={cancelled}; job={job_id}", flush=True)

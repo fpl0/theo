@@ -94,6 +94,20 @@ uv run --no-sync python scripts/complex_e2e.py --live --backend claude --model c
 
 Use `--sections memory reasoning` to select an independent subset. Handoff requires `--sections autonomy handoff` so it uses an artifact actually produced by the primary model. A positive `--timeout` of at most 600 seconds bounds each turn; the default is 240. Remove any forbidden environment keys the script reports (for example `env -u NODE_OPTIONS …` on this development host). The script does not change native login or production configuration.
 
+The separate six-turn companion batch tests grounded conversational continuity,
+standing preferences across topics, completing a requested artifact, repairing a
+stale blocked plan, and scheduling actual work rather than sending its instructions
+as a reminder. It is opt-in so the default batch remains within twenty turns:
+
+```sh
+uv run --no-sync python scripts/complex_e2e.py --live --backend codex --model gpt-5.6-sol \
+  --sections companion --output /tmp/theo-companion-codex.json
+```
+
+This batch verifies committed tool effects and reads the delivered replies. It
+does not exercise a production Telegram session or establish long-term companion
+quality. Review its transcripts separately from the automated pass count.
+
 The suite covers memory correction/revision preservation, archive/restore, an optimal resource schedule with a known answer, conflicting and malicious source evidence, unknown facts and unperformed actions, autonomous invoice reconciliation, a durable delegated calculation, relative and recurring reminders, cancellation, model pause, empathetic responses, listening without advice, a clearer second explanation, and canonical continuity between models. Reminder checks advance the application clock; they are not a real-time soak or Telegram delivery test. Native capabilities that bypass Theo's broker are disabled in the Codex adapter, just as the Claude adapter disables built-in tools.
 
 The raw report's `automated_pass` checks state and output oracles. It deliberately leaves `quality_review` unscored. A reviewer must inspect every native transcript against the fixed five-dimension rubric: correctness, evidence, completion, voice and judgment, each from 1 to 5. Acceptance requires every dimension to score at least 4, zero critical violations, and all automated checks to pass. These are subjective judgments about a small synthetic sample, not a general guarantee of model quality. Preserve failed reports and review notes when fixing a failure.
@@ -157,7 +171,7 @@ Example:
 ]
 ```
 
-Before qualification, collect separate evidence for outgoing media and albums, approved/rejected/expired callbacks, poll answers/reactions, native draft rendering and Stop, notification pause, malformed-file handling, restart/ambiguous-send drills, and seven days of actual service observation. These remain explicit live gates; offline fixtures and the transport suite do not substitute for them.
+Before qualification, collect separate evidence for outgoing media and albums, approved/rejected/expired callbacks, poll answers/reactions, stable final messages with typing and `/cancel`, notification pause, malformed-file handling, restart/ambiguous-send drills, and seven days of actual service observation. These remain explicit live gates; offline fixtures and the transport suite do not substitute for them. Draft/Stop observations below describe the older implementation; current replies do not use native drafts.
 
 ## Actual client checks — 9 September 2026
 

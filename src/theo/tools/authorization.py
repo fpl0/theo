@@ -49,6 +49,7 @@ async def authorize(db: Database, ctx: ToolContext, name: str, args: Json) -> st
             "skill_propose",
             "runtime_control",
             "host_command",
+            "host_read",
         }:
             raise Denied("Use the owner private chat for this capability")
         for argument, kind in (("artifact_id", "artifact"), ("source_message_id", "message")):
@@ -61,12 +62,21 @@ async def authorize(db: Database, ctx: ToolContext, name: str, args: Json) -> st
                         raise Denied("Source is not in this conversation")
                 else:
                     await require_resource(db, kind, args[argument], scope)
-        if name in ("action_status", "delete_task", "goal_update", "step_complete"):
+        if name in (
+            "action_status",
+            "delete_task",
+            "goal_update",
+            "goal_inspect",
+            "step_complete",
+            "step_update",
+        ):
             table = {
                 "action_status": "actions",
                 "delete_task": "schedules",
                 "goal_update": "goals",
+                "goal_inspect": "goals",
                 "step_complete": "plan_steps",
+                "step_update": "plan_steps",
             }[name]
             sql = (
                 f"SELECT 1 FROM {table} WHERE id=? AND conversation_id=?"

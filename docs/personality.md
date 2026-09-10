@@ -28,6 +28,24 @@ the jokes" or "give me the detail". Model, conversation history and the saved
 persona all affect the result; these instructions describe intended behaviour,
 not a guarantee that every reply will land.
 
+Theo should carry accepted work forward without making you manage every step.
+Work that spans sessions needs an executable goal and a durable continuation.
+When new information clears a blocker, Theo should inspect and revise the old
+plan, then resume it. An access error calls for checking the available permitted
+route before asking you to solve it. Routine preparation, research and drafting
+within an established direction should produce something useful, not another offer.
+
+Presence includes life outside work: following up on something you shared,
+noticing a meaningful change, or offering a useful connection. It does not mean
+scheduled small talk, repeated nudges, or polishing finished work without a new
+reason. Background evaluations read current conversation state before deciding
+to speak. They send an explicit message only for something worth your attention;
+their internal result stays out of chat. Requested results still need delivery.
+
+Private Telegram replies show a typing indicator while Theo works, followed by a
+stable finished message. Partial model text never appears in a draft bubble.
+Long replies may use multiple final chunks when Telegram's size limit requires it.
+
 ## Where the voice comes from
 
 The default persona is `PERSONA` in `src/theo/storage.py`. Initialization seeds
@@ -42,6 +60,25 @@ both through its instruction channel, separately from retrieved material and
 user input. Group conversations use the source default rather than the owner's
 private saved persona. Changing source instructions requires the normal code
 update and daemon restart before an installed service uses them.
+
+Recent active `preference` memories receive a bounded standing place in context,
+so a greeting or topic change does not hide a saved correction. They remain
+source-attributed evidence with revision and conversation-scope checks; they
+cannot grant tools or override trusted instructions. Archive imports should
+distil dated, supported preferences and resolve later corrections, rather than
+copying another assistant's prompt, old tasks or operational permissions.
+
+Autonomy scans changing conversation, attention and blocked-goal evidence every
+15 minutes, after a two-minute conversational pause. Goal-step admission checks
+every minute. These are opportunities to enqueue work, not promises to message:
+unchanged evidence is deduplicated, pending runs are not duplicated, and the
+existing operating, account, capacity and delivery controls still apply.
+
+Use `schedule_task` with `mode="work"` for a later investigation or context-aware
+watcher. Its instructions run through a native worker and are never sent as a
+reminder. `mode="reminder"` sends its finished text verbatim and keeps reminders
+deliverable during model pauses. Existing schedules retain reminder behavior;
+an operator must review any older schedule containing internal work instructions.
 
 The more expressive default and shared voice guidance do not import conversation
 history from another assistant, grant tools or change delivery permissions.

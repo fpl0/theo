@@ -14,6 +14,7 @@ from theo.config import Settings
 from theo.delivery.chunking import split_text
 from theo.delivery.contracts import NoEffect, Sender
 from theo.domain import Conflict, Denied, Json, digest, encode, uid
+from theo.execution.host import needs_approval as host_needs_approval
 from theo.observability import telemetry
 from theo.storage import Database
 from theo.work.jobs import Jobs
@@ -276,8 +277,13 @@ class Delivery:
         explicit_approval = db.execute(
             "SELECT 1 FROM approvals WHERE action_id=?", (row["action_id"],)
         ).fetchone()
-        if row["operation"] == "host_command" and not settings.host_access_enabled:
-            return "authorization_missing"
+        if row["operation"] == "host_command":
+            if not settings.host_access_enabled:
+                return "authorization_missing"
+            if not explicit_approval and host_needs_approval(
+                json.loads(row["request"]), standing=settings.host_command_policy == "standing"
+            ):
+                return "authorization_missing"
         if row["target"] != conv["target"] or explicit_approval:
             approval = db.execute(
                 "SELECT 1 FROM approvals WHERE action_id=? AND owner_id=? AND request_hash=? AND target=? AND expires_at>? AND decision='approved'",

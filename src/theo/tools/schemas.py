@@ -36,6 +36,12 @@ class HostCommandArgs(StrictModel):
     reason: str = Field(min_length=1, max_length=1000)
 
 
+class HostReadArgs(StrictModel):
+    path: str = Field(min_length=1, max_length=4096)
+    offset: int = Field(default=0, ge=0, le=1_000_000_000)
+    limit: int = Field(default=32768, ge=1, le=65536)
+
+
 class MessageArgs(StrictModel):
     text: str = Field(min_length=1, max_length=100000)
     reply_to: int | None = None
@@ -122,6 +128,10 @@ class VenueArgs(LocationArgs):
 
 class ScheduleArgs(StrictModel):
     text: str = Field(min_length=1)
+    mode: Literal["reminder", "work"] = Field(
+        default="reminder",
+        description="reminder sends finished text verbatim; work executes these instructions with fresh context and tools before deciding whether to notify.",
+    )
     due_at: float | None = None
     cron: str | None = None
     interval_seconds: int | None = None
@@ -205,6 +215,11 @@ class GoalUpdateArgs(IdArgs):
 
 class StepArgs(IdArgs):
     evidence: str
+
+
+class StepUpdateArgs(IdArgs):
+    expected_next_action: str
+    next_action: str = Field(min_length=1, max_length=10000)
 
 
 class FactArgs(StrictModel):

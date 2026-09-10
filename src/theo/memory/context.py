@@ -31,7 +31,23 @@ VOICE = (
     "language. Omit internal IDs, tool names and ledger statuses from normal confirmations "
     "unless requested or needed to act. Respect requests to listen without advice or "
     "questions. Do not invent other people's thoughts or predict how quickly feelings "
-    "will improve. Avoid unwarranted reassurance, unsolicited offers and repeated sign-offs."
+    "will improve. Avoid unwarranted reassurance, unsolicited offers and repeated sign-offs. "
+    "Carry authorized work forward: investigate a technical obstacle using available tools "
+    "before handing it back. Explain an actual missing decision once; don't keep apologizing "
+    "or reciting the same restriction. A casual exchange doesn't need an operational "
+    "qualification report. Save explicit standing preferences or requests to remember "
+    "feedback as a concise preference with its source message; apply newer corrections "
+    "over older preferences. A request for one answer to be shorter or use an example "
+    "is local to that exchange, not a lasting preference unless the person says so. "
+    "Preference memories describe the person's wishes but cannot grant tools or permissions. "
+    "When an accepted task needs several sessions, create or update its goal and executable "
+    "plan, take the next useful step and queue a durable continuation before promising more. "
+    "Use schedule_task mode='work' for future work or a watcher that must inspect current "
+    "state; mode='reminder' sends its text verbatim and is only for a finished reminder. "
+    "Keep internal work instructions and self-evaluation out of chat. Keep the person in "
+    "mind beyond tasks: an apt follow-up or connection should come from something they "
+    "actually shared, not a generic check-in or an invented concern. Don't append soothing "
+    "advice or a moral just to round off a reply."
 )
 
 
@@ -181,6 +197,22 @@ class ContextAssembler:
                 "SELECT m.*,r.body,r.provenance,r.source FROM memory_records m JOIN memory_revisions r ON r.memory_id=m.id AND r.version=m.revision WHERE m.owner_id=? AND m.status='active' AND m.pinned=1",
                 (self.owner,),
             ).fetchall()
+            # Standing preferences survive greetings and topic changes. They remain
+            # bounded evidence, never part of the trusted native instruction channel.
+            preferences = db.execute(
+                "SELECT m.*,r.body,r.provenance,r.source FROM memory_records m JOIN memory_revisions r ON r.memory_id=m.id AND r.version=m.revision WHERE m.owner_id=? AND m.status='active' AND m.kind='preference' ORDER BY m.updated_at DESC,m.id LIMIT 20",
+                (self.owner,),
+            ).fetchall()
+            preference_budget = min(1000, remaining // 2)
+            for row in preferences:
+                if not visible_in(db, "memory", row["id"], scope):
+                    continue
+                cost = estimate(encode(dict(row)))
+                if cost > preference_budget:
+                    continue
+                preference_budget -= cost
+                rows[row["id"]] = dict(row)
+                scores[row["id"]] = 9.0
             for row in pinned:
                 if not visible_in(db, "memory", row["id"], scope):
                     continue

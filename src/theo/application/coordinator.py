@@ -40,6 +40,20 @@ from theo.work.autonomy import CADENCES
 from theo.work.improvement import Critic
 from theo.work.jobs import Jobs
 
+BACKGROUND_INSTRUCTIONS = (
+    "This is background work, not a new message from the person. Read current conversation "
+    "and goal state before acting; later corrections, completion, cancellation and requests "
+    "for space take precedence over an older task prompt. Do useful work within existing "
+    "authority. Your terminal response is an internal execution note and is not sent to "
+    "chat. Use send_message with role='final' to deliver a requested result, a meaningful "
+    "development, a timely personal follow-up grounded in what was actually shared, or a "
+    "specific decision needed to proceed. Check recent messages to avoid repeating news or "
+    "interrupting an active exchange. If nothing changed or no useful action is possible, "
+    "record that internally and stay quiet. Never send the task prompt, tool instructions, "
+    "IDs, or a routine no-change report. An explicit deliverable still needs delivery; "
+    "silence is not completion of a request to produce something."
+)
+
 
 class Coordinator:
     def __init__(
@@ -217,6 +231,11 @@ class Coordinator:
                     else frozenset(REGISTRY),
                 )
                 token = self.broker.grant(tool_context)
+                instructions = context.get("instructions", "")
+                if job["kind"] == "scheduled_work" or (
+                    job["kind"] in CADENCES and job["kind"] != "deep_work"
+                ):
+                    instructions += "\n" + BACKGROUND_INSTRUCTIONS
                 request = ExecutionRequest(
                     run_id=run_id,
                     job_id=job["id"],
@@ -226,7 +245,7 @@ class Coordinator:
                     model=model,
                     lane=job["lane"],
                     context=context["rendered"],
-                    instructions=context.get("instructions", ""),
+                    instructions=instructions,
                     parts=tuple(InputPart.model_validate(x) for x in parts),
                     workspace=workspace,
                     deadline=min(job["deadline"], self.db.clock() + 60)
@@ -243,14 +262,8 @@ class Coordinator:
                 )
                 preview_remaining = 100000
                 if self.telegram and conversation["channel"] == "telegram":
-                    await self.telegram.preview(job)
+                    await self.telegram.typing(job)
                 async for event in backend.events(request):
-                    if (
-                        self.telegram
-                        and conversation["channel"] == "telegram"
-                        and event.kind == "text_delta"
-                    ):
-                        await self.telegram.preview(job, str(event.payload.get("text", "")))
                     if event.kind == "terminal":
                         outcome = ExecutionOutcome.model_validate(event.payload)
                     # Preserve event type and bounded observable data; no hidden reasoning or raw secrets.
@@ -333,7 +346,7 @@ class Coordinator:
         assert self.telegram
         while True:
             with contextlib.suppress(Exception):
-                await self.telegram.preview(job)
+                await self.telegram.typing(job)
             await asyncio.sleep(1)
 
     async def _heartbeat(self, job: Json) -> None:
@@ -353,10 +366,10 @@ class Coordinator:
             ).fetchone()
             status = outcome.status
             text = outcome.text.strip()
-            if status == Outcome.COMPLETED and not text and not existing:
+            final_required = job["kind"] in ("conversation", "delegated", "reminder", "deep_work")
+            if status == Outcome.COMPLETED and not text and not existing and final_required:
                 status = Outcome.FAILED
                 text = "Theo finished this attempt without a useful result. The job remains visible for inspection."
-            final_required = job["kind"] in ("conversation", "delegated", "reminder", "deep_work")
             if status in (Outcome.AUTH, Outcome.QUOTA):
                 text = outcome.error or "Work is waiting for an eligible subscription account."
             elif status == Outcome.FAILED and not text:

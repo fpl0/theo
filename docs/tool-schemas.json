@@ -1,8 +1,43 @@
 [
   {
+    "name": "host_read",
+    "baseline": false,
+    "description": "Read text files or list directories on operator-granted host_read_roots without another approval. Use this for host archives instead of command_run, which is workspace-only. Results are paged: read next_offset until null before claiming full coverage. Cannot write or execute commands. get_status reports configured roots and the standing or approval host policy in private chat.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "offset": {
+          "default": 0,
+          "maximum": 1000000000,
+          "minimum": 0,
+          "title": "Offset",
+          "type": "integer"
+        },
+        "limit": {
+          "default": 32768,
+          "maximum": 65536,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "HostReadArgs",
+      "type": "object"
+    }
+  },
+  {
     "name": "host_command",
     "baseline": false,
-    "description": "Run a command anywhere on the host. Fixed diagnostics use standing permission. All other commands, including file access, mutation, networking and privileged execution, require the owner's exact approval in /review. Never put credentials in arguments. Results appear in action_status; queued is not executed.",
+    "description": "Run a command anywhere on the host, including as_root through the installed launcher. get_status.host_access reports the operator's command_policy: standing authorizes general and privileged commands without asking again; approval requires exact /review approval except fixed diagnostics. Do needed work under existing authority. Never put credentials in arguments. Inspect action_status until an actual result is recorded; queued is not executed.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1173,13 +1208,23 @@
   {
     "name": "schedule_task",
     "baseline": true,
-    "description": "Persist a reminder before promising it.",
+    "description": "Persist future work or a reminder before promising it. mode='work' runs instructions with fresh conversation context and tools: use it for research, continuing a goal, checks and watchers. mode='reminder' sends text verbatim without reasoning: use only for a finished reminder the person should read. Never put internal work instructions in a reminder.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
         "text": {
           "minLength": 1,
           "title": "Text",
+          "type": "string"
+        },
+        "mode": {
+          "default": "reminder",
+          "description": "reminder sends finished text verbatim; work executes these instructions with fresh context and tools before deciding whether to notify.",
+          "enum": [
+            "reminder",
+            "work"
+          ],
+          "title": "Mode",
           "type": "string"
         },
         "due_at": {
@@ -1243,7 +1288,7 @@
   {
     "name": "list_tasks",
     "baseline": true,
-    "description": "List persisted reminder schedules; use get_status for the job queue.",
+    "description": "List persisted reminders and work schedules, including their mode; use get_status for the job queue.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {},
@@ -1910,6 +1955,56 @@
         "status"
       ],
       "title": "GoalUpdateArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "goal_inspect",
+    "baseline": false,
+    "description": "Read a goal's actual plan, step IDs, next actions, progress and blocker before continuing or revising it.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "IdArgs",
+      "type": "object"
+    }
+  },
+  {
+    "name": "step_update",
+    "baseline": false,
+    "description": "Revise an unfinished plan step when new information makes its next action stale. Bind expected_next_action to the value from goal_inspect. Preserve completed work; use goal_update separately when a blocker clears.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "expected_next_action": {
+          "title": "Expected Next Action",
+          "type": "string"
+        },
+        "next_action": {
+          "maxLength": 10000,
+          "minLength": 1,
+          "title": "Next Action",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "expected_next_action",
+        "next_action"
+      ],
+      "title": "StepUpdateArgs",
       "type": "object"
     }
   },

@@ -5,12 +5,13 @@ and explicit no-op reasons; it does not run a continuous inference loop.
 """
 
 from theo.domain import Json, digest, encode, uid
+from theo.privacy import group_scope
 from theo.storage import Database
 from theo.work.jobs import Jobs
 
 CADENCES = {
-    "proactive_scan": 3 * 3600,
-    "deep_work": 2 * 3600,
+    "proactive_scan": 15 * 60,
+    "deep_work": 60,
     "reflection": 7 * 86400,
     "reflexion": 6 * 3600,
     "dream": 6 * 3600,
@@ -23,6 +24,7 @@ CADENCES = {
 }
 
 INSTRUCTIONS = {
+    "proactive_scan": "Review the person's recent conversation, current goals and attention items. Notice an unfinished request, a meaningful personal development, a useful connection, a changed blocker or timely preparation you can do on their behalf. Recheck current state and prior work before acting. Advance accepted goals, repair stale next actions, and persist useful preferences or insights with sources. A technical uncertainty calls for investigation through available permitted tools, not another request to repeat permission. You may take a small reversible next step within an established direction; a new major goal needs the person's direction. Do not revive completed work or create duplicate tasks. Care extends beyond work, but never invent a personal concern, treat silence as assent, or contact the person just to solicit engagement. If no worthwhile action is supported, stay quiet.",
     "reflection": "Find a specific repeated outcome pattern and propose one evidence-backed improvement with a regression check.",
     "reflexion": "Explain this unaddressed failure mechanism and propose a narrow guard/test. Retrieve existing lessons first. Do not duplicate them.",
     "dream": "Suggest a useful speculative connection between these memories. Label it speculation; save a proposal, never a fact. Do not contact the owner merely to ask for attention.",
@@ -45,27 +47,19 @@ class Autonomy:
             return {"status": "noop", "reason": "background_paused"}
         if kind == "deep_work":
             goals = await self.db.read(
-                "SELECT g.id goal_id,g.title,g.criteria,s.id step_id,s.next_action FROM goals g JOIN plan_steps s ON s.goal_id=g.id WHERE g.owner_id=? AND g.status='active' AND s.status IN ('pending','active') AND NOT EXISTS(SELECT 1 FROM step_dependencies d JOIN plan_steps p ON p.id=d.depends_on WHERE d.step_id=s.id AND p.status<>'completed') ORDER BY g.updated_at,s.ordinal LIMIT 1",
+                "SELECT g.id goal_id,g.conversation_id,g.title,g.criteria,s.id step_id,s.next_action FROM goals g JOIN plan_steps s ON s.goal_id=g.id WHERE g.owner_id=? AND g.status='active' AND s.status IN ('pending','active') AND NOT EXISTS(SELECT 1 FROM step_dependencies d JOIN plan_steps p ON p.id=d.depends_on WHERE d.step_id=s.id AND p.status<>'completed') ORDER BY g.updated_at,s.ordinal LIMIT 20",
                 (self.owner,),
             )
-            return (
-                self._work(kind, goals)
-                if goals
-                else {"status": "noop", "reason": "no_executable_goal"}
-            )
+            for goal in goals:
+                key = f"autonomy:{kind}:{digest([goal])}"
+                if not await self.db.one(
+                    "SELECT 1 FROM jobs WHERE owner_id=? AND semantic_key=?",
+                    (self.owner, key),
+                ):
+                    return self._work(kind, [goal])
+            return {"status": "noop", "reason": "no_new_executable_goal_step"}
         if kind == "proactive_scan":
-            commitments = await self.db.read(
-                "SELECT * FROM commitments WHERE owner_id=? AND status='active' AND due_at<=?",
-                (self.owner, self.db.clock() + 86400),
-            )
-            if not commitments:
-                return {"status": "noop", "reason": "no_actionable_commitment"}
-            return {
-                "status": "proposal",
-                "kind": kind,
-                "evidence": commitments,
-                "body": "Review these due commitments and prepare their next concrete action.",
-            }
+            return await self._proactive()
         if kind == "plan_momentum":
             goals = await self.db.read(
                 "SELECT * FROM goals WHERE owner_id=? AND status='active'", (self.owner,)
@@ -161,7 +155,52 @@ class Autonomy:
             "text": INSTRUCTIONS[kind] + "\nEvidence: " + encode(evidence),
         }
 
+    async def _proactive(self) -> Json:
+        """Use changing personal context, not an unwritten commitments table alone."""
+        recent = await self.db.read(
+            "SELECT m.id,m.conversation_id,m.sequence,substr(m.content,1,1500) content,substr(m.parts,1,1500) parts,m.created_at FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE m.owner_id=? AND m.role='user' AND m.content NOT LIKE '/%' AND m.created_at>=? AND (c.channel='local' OR EXISTS(SELECT 1 FROM telegram_destinations t WHERE t.conversation_id=c.id AND t.private=1)) ORDER BY m.created_at DESC,m.id DESC LIMIT 12",
+            (self.owner, self.db.clock() - 7 * 86400),
+        )
+        if recent and self.db.clock() - recent[0]["created_at"] < 120:
+            return {"status": "noop", "reason": "conversation_in_progress"}
+        commitments = await self.db.read(
+            "SELECT * FROM commitments WHERE owner_id=? AND status='active' AND due_at<=? ORDER BY due_at,id LIMIT 20",
+            (self.owner, self.db.clock() + 86400),
+        )
+        pins = await self.db.read(
+            "SELECT id,substr(body,1,1000) body,expires_at FROM attention_pins WHERE owner_id=? AND (expires_at IS NULL OR expires_at>?) ORDER BY created_at DESC,id LIMIT 20",
+            (self.owner, self.db.clock()),
+        )
+        # New user messages or completed host actions can resolve a recorded blocker.
+        # Include their identities so an unchanged failure never produces an endless retry.
+        blocked = await self.db.read(
+            "SELECT id,conversation_id,title,blocker,updated_at FROM goals WHERE owner_id=? AND status='blocked' ORDER BY updated_at DESC,id LIMIT 10",
+            (self.owner,),
+        )
+        receipts = (
+            await self.db.read(
+                "SELECT id,conversation_id,operation,status,updated_at FROM actions WHERE owner_id=? AND operation='host_command' AND status='succeeded' AND updated_at>=? ORDER BY updated_at DESC,id LIMIT 10",
+                (self.owner, self.db.clock() - 86400),
+            )
+            if blocked
+            else []
+        )
+        evidence = [
+            {
+                "recent_messages": recent,
+                "commitments": commitments,
+                "attention": pins,
+                "blocked_goals": blocked,
+                "completed_host_actions": receipts,
+            }
+        ]
+        if not any((recent, commitments, pins, blocked)):
+            return {"status": "noop", "reason": "no_actionable_context"}
+        return self._work("proactive_scan", evidence)
+
     async def tick(self, conversation: str) -> list[Json]:
+        if await group_scope(self.db, conversation):
+            return []  # Owner-wide evidence must never be assembled in a group.
         if await self.db.control(self.owner, "autonomy_paused") == "true":
             return []
         reports: list[Json] = []
@@ -194,10 +233,17 @@ class Autonomy:
                     ),
                 )
             else:
+                if await self.db.one(
+                    "SELECT 1 FROM jobs WHERE owner_id=? AND kind=? AND status IN ('queued','running','waiting_for_auth','waiting_for_quota','interrupted') LIMIT 1",
+                    (self.owner, kind),
+                ):
+                    continue
                 # Evidence identity deduplicates already-addressed failures and repeated scans.
                 key = f"autonomy:{kind}:{source_key}"
                 await Jobs(self.db, self.owner).enqueue(
-                    conversation,
+                    result["evidence"][0]["conversation_id"]
+                    if kind == "deep_work"
+                    else conversation,
                     kind,
                     {"text": result["text"], "evidence": result["evidence"]},
                     key,

@@ -302,7 +302,7 @@ async def test_real_verifier_denies_private_reads_and_network(configured, tmp_pa
     assert secret.read_text() == "secret"
 
 
-def create_bundle(root, name, source="a" * 40, schema=8):
+def create_bundle(root, name, source="a" * 40, schema=9):
     target = root / name
     for part in ("core", "worker"):
         (target / part / "bin").mkdir(parents=True)
@@ -492,7 +492,7 @@ async def test_host_recovers_pointer_switch_without_controller(db, configured, m
     await recovered.tick()
     assert recovered.state["stage"] == "rolled_back"
     assert await db.control("owner", "models_paused") == "true"
-    assert (await db.one("SELECT max(version) n FROM schema_migrations"))["n"] == 8
+    assert (await db.one("SELECT max(version) n FROM schema_migrations"))["n"] == 9
 
 
 async def test_ambiguous_effect_is_reconciled_without_repeating_mutation(configured):

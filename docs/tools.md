@@ -2,11 +2,12 @@
 
 All handlers pass through owner/run/generation grants in `tools/broker.py` and lease/privacy checks in `tools/authorization.py`. `tools/registry.py` binds each strict schema to a capability handler and an explicit read/write/outbound receipt policy. Implementations live in `tools/handlers/`; they receive an authorized invocation rather than the broker.
 
-The current catalogue contains **60 tools: 33 baseline tools and 27 additions**. Schema JSON is generated from the Pydantic catalog in [tool-schemas.json](tool-schemas.json). Run `uv run --no-sync python scripts/export_tool_schemas.py` after intentionally changing a tool contract; the architecture tests detect stale documentation. All 33 baseline handlers are exercised by the contract fixture; live channel/provider operation remains a separate gate.
+The current catalogue contains **63 tools: 33 baseline tools and 30 additions**. Schema JSON is generated from the Pydantic catalog in [tool-schemas.json](tool-schemas.json). Run `uv run --no-sync python scripts/export_tool_schemas.py` after intentionally changing a tool contract; the architecture tests detect stale documentation. All 33 baseline handlers are exercised by the contract fixture; live channel/provider operation remains a separate gate.
 
 | Tool | Baseline | Behaviour |
 |---|---|---|
-| `host_command` | Additional | Request a command anywhere on the host, including optional privileged execution. Fixed diagnostics use standing permission; general commands require exact private-owner approval. Inspect `action_status` for the exit code and output. |
+| `host_read` | Additional | Read bounded text pages or directory listings from operator-granted host paths in private chat, without repeated command approvals. |
+| `host_command` | Additional | Run a command anywhere on the host, including optional privileged execution. The operator selects standing authority or exact approvals; inspect `get_status.host_access` and use the existing grant without asking again. Inspect `action_status` for the exit code and output. |
 | `maintenance_begin` | Additional | Commit a maintenance intent and durable coding/review jobs for the configured repository and installation. |
 | `maintenance_submit` | Additional | Freeze the calling coding job's source revision and queue independent verification. |
 | `maintenance_review` | Additional | Submit independent review evidence from the host-created review job for the exact candidate. |
@@ -35,8 +36,8 @@ The current catalogue contains **60 tools: 33 baseline tools and 27 additions**.
 | `send_buttons` | Yes | Send URL buttons; approval callbacks are host-owned. |
 | `react` | Yes | React to a specific message. |
 | `get_reactions` | Yes | Read reactions observed by the bot; absence is unknown. |
-| `schedule_task` | Yes | Persist a reminder before promising it; an omitted timezone uses the owner's configured timezone. |
-| `list_tasks` | Yes | List persisted reminder schedules; use `get_status` for the job queue. |
+| `schedule_task` | Yes | Persist a finished reminder (`mode="reminder"`) or future model work (`mode="work"`); an omitted timezone uses the owner's configured timezone. |
+| `list_tasks` | Yes | List persisted reminders and work schedules; use `get_status` for the job queue. |
 | `get_status` | Additional | Read current job counts, unfinished work and pause controls, excluding the reporting request. Private chat sees owner work; groups see only their topic. |
 | `runtime_control` | Additional | Pause/resume a granted operational scope in private owner-requested work. Requires the current control revision from `get_status`; cannot change standing policy or qualification. |
 | `delete_task` | Yes | Cancel a schedule without deleting its history. |
@@ -56,6 +57,8 @@ The current catalogue contains **60 tools: 33 baseline tools and 27 additions**.
 | `browse` | Yes | Read a public web source as untrusted evidence. |
 | `delegate` | Yes | Create a durable child job with a final-report obligation. |
 | `goal_create` | Additional | Create a structured outcome and executable plan. |
+| `goal_inspect` | Additional | Read the goal, full plan, next actions, step IDs and actual progress. |
+| `step_update` | Additional | Revise an unfinished step using the expected current next action; preserve completion and dependencies. |
 | `goal_update` | Additional | Transition a goal with evidence and dependency checks. |
 | `step_complete` | Additional | Complete one plan step with outcome evidence. |
 | `fact_propose` | Additional | Propose a fact revision for explicit owner review. |
@@ -67,7 +70,7 @@ The current catalogue contains **60 tools: 33 baseline tools and 27 additions**.
 | `voice_create` | Additional | Create a voice artifact using local macOS speech and FFmpeg. |
 | `skill_propose` | Additional | Propose a versioned skill without activating it or expanding grants. |
 
-Mutating tools report committed, ready, awaiting approval, pending review, failed or uncertain outcomes; queued delivery is not a successful remote send. `get_reactions` reports only observed feedback and marks completeness false. Generated commands require the verified Mac boundary. Model-facing tools do not activate skills, review their own corrections, edit billing/isolation configuration or promote production releases.
+Mutating tools report committed, ready, awaiting approval, pending review, failed or uncertain outcomes; queued delivery is not a successful remote send. `get_reactions` reports only observed feedback and marks completeness false. Workspace commands require the verified Mac boundary. Structured tools do not activate skills, review their own corrections, edit billing/isolation configuration or promote production releases. A separately granted standing host-command policy is broad computer authority; it does not constitute billing evidence or production qualification.
 
 Outbound schemas accept `destination_id` for an explicitly registered destination; legacy `target` resolves through the same routing checks. Cross-destination sends retain approval requirements. Polls default to non-anonymous so owner answers can be observed where Telegram permits them. See [Telegram](telegram.md) for visibility and review behavior.
 

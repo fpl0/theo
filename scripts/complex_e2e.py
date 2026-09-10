@@ -37,7 +37,7 @@ from theo.work.autonomy import CADENCES, Autonomy
 from theo.work.jobs import Jobs
 from theo.work.scheduling import Scheduler
 
-SECTIONS = ("memory", "reasoning", "autonomy", "scheduling", "personality", "handoff")
+SECTIONS = ("memory", "reasoning", "autonomy", "scheduling", "personality", "handoff", "companion")
 SAFE_TOOLS = frozenset(
     {
         "remember",
@@ -53,11 +53,14 @@ SAFE_TOOLS = frozenset(
         "delegate",
         "goal_create",
         "goal_update",
+        "goal_inspect",
+        "step_update",
         "step_complete",
         "file_read",
         "file_write",
         "artifact_register",
         "action_status",
+        "send_message",
     }
 )
 RUBRIC = {
@@ -76,6 +79,7 @@ READ_ONLY_TOOLS = frozenset(
         "list_tasks",
         "file_read",
         "action_status",
+        "goal_inspect",
     }
 )
 
@@ -685,6 +689,101 @@ async def personality_cases(h):
     )
 
 
+async def companion_cases(h):
+    """Synthetic conversation continuity and follow-through, separate from private history."""
+    conversation = await h.conversation("companion-pottery")
+    await h.db.message(
+        "owner",
+        conversation,
+        "user",
+        "I finally signed up for that pottery class. My first class is tomorrow; I'm excited and a bit nervous.",
+    )
+    case = await h.turn("companion_greeting", "hey", conversation=conversation)
+    h.finish(
+        case,
+        {
+            "brief": len(case["output"].split()) <= 65,
+            "grounded_continuity": any(
+                word in case["output"].casefold() for word in ("pottery", "class")
+            ),
+            "no_unsolicited_tasks": not any(
+                used(case, tool) for tool in ("schedule_task", "goal_create", "delegate")
+            ),
+        },
+    )
+    case = await h.turn(
+        "companion_standing_preference",
+        "Please remember this as a standing preference: keep ordinary replies short, skip report headings, and don't end with offers to help.",
+        conversation=conversation,
+    )
+    saved = [
+        call for call in used(case, "remember") if call["arguments"].get("kind") == "preference"
+    ]
+    h.finish(
+        case, {"preference_committed": bool(saved), "brief": len(case["output"].split()) <= 65}
+    )
+    preference = saved[0]["result"]["data"]["id"] if saved else "missing"
+    case = await h.turn("companion_new_topic", "What makes a project name memorable?")
+    h.finish(
+        case,
+        {
+            "standing_preference_recalled": saw_memory(case, preference, 1),
+            "brief": len(case["output"].split()) <= 100,
+            "no_report_headings": not re.search(r"(?m)^#{1,6} ", case["output"]),
+        },
+    )
+    case = await h.turn(
+        "companion_do_the_work",
+        "I need a short outline for a five-minute talk to my local astronomy club on why the Moon has phases. Please write it as a Markdown file and register the artifact now. Make routine decisions yourself; don't ask if I want you to do it.",
+    )
+    h.finish(
+        case,
+        {
+            "file_written": bool(used(case, "file_write")),
+            "artifact_registered": bool(used(case, "artifact_register")),
+        },
+    )
+    from theo.work.goals import Goals
+
+    conversation = await h.conversation("companion-unblock")
+    goals = Goals(h.db, "owner")
+    goal = await goals.create(
+        "Review source notes",
+        "A useful short summary of the source",
+        conversation,
+        [{"title": "Read notes", "next_action": "Ask the owner for readable source notes"}],
+    )
+    await goals.update(goal, "blocked", blocker="Source notes unavailable")
+    case = await h.turn(
+        "companion_repair_stale_plan",
+        f"The notes for goal {goal} are here now: the garden group meets Saturday at 10, bring gloves, and the north bed needs compost. Please fix the stale next action and unblock the goal, then begin the review. No more asking me for a source link.",
+        conversation=conversation,
+    )
+    state = await goals.inspect(goal)
+    h.finish(
+        case,
+        {
+            "goal_unblocked": state["status"] in ("active", "completed"),
+            "stale_next_action_replaced": state["steps"][0]["next_action"]
+            != "Ask the owner for readable source notes",
+            "plan_inspected": bool(used(case, "goal_inspect")),
+        },
+    )
+    case = await h.turn(
+        "companion_schedule_real_work",
+        "Tomorrow at 18:00, review our latest conversation about my garden plans and prepare any useful next steps. Only message me if something needs my attention. Schedule the actual review, not a reminder telling me to do it.",
+        conversation=conversation,
+    )
+    scheduled = used(case, "schedule_task")
+    h.finish(
+        case,
+        {
+            "work_not_verbatim_reminder": bool(scheduled)
+            and all(call["arguments"].get("mode") == "work" for call in scheduled)
+        },
+    )
+
+
 async def handoff_cases(h):
     # Switch the actual autonomous artifact conversation between real runtimes.
     # Its prior tool messages and output were produced by the primary model.
@@ -818,7 +917,7 @@ def main():
     parser.add_argument(
         "--peer-model", help="Other backend's subscription model for the handoff tests"
     )
-    parser.add_argument("--sections", choices=SECTIONS, nargs="+", default=list(SECTIONS))
+    parser.add_argument("--sections", choices=SECTIONS, nargs="+", default=list(SECTIONS[:-1]))
     parser.add_argument("--timeout", type=float, default=240)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()

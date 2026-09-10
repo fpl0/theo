@@ -88,11 +88,36 @@ The owner can enable `host_access_enabled` for private host administration. The
 timeout and explanation. It can operate outside job workspaces. The native model
 and maintenance test processes retain their existing isolation.
 
+For repeated read-only work, configure `host_read_roots` once with absolute paths,
+for example an archive's memory directory and a reviewed text export. The private
+`host_read` tool reads text in bounded byte pages or lists directory entries,
+without a shell or per-file command approval. Follow `next_offset` until null;
+a partial page is not full review coverage. `get_status.host_access` reports the
+active roots and distinguishes workspace commands from host access.
+
+Resolved paths must stay under a granted root; descriptor traversal rejects symlink
+races. In the default approval policy, protected core data and credential paths
+are excluded. Binary databases need a text export or a host command. Special files
+and multiply-linked files are excluded from the bounded text reader. Updating these
+settings needs the normal configuration save and daemon restart.
+
 Exact built-in diagnostics (`id`, `uname -a`, `df -h`, `uptime`, `sw_vers` and
 `vm_stat`, with the executable paths advertised by the tool) run under standing
 permission. General commands can read private data, modify files, make network
-requests or execute code, so they require a private `/review` approval bound to the
-exact command, identity and expiry. Theo cannot mark its own command as safe.
+requests or execute code. With `host_command_policy="approval"` (the default), they
+require a private `/review` approval bound to the exact command, identity and expiry.
+
+When the owner grants standing authority to operate the whole computer, configure
+`host_access_enabled=true`, `host_command_policy="standing"` and
+`host_read_roots=["/"]`. General and privileged commands then execute without a
+new confirmation; the bounded text reader also honors the full-host grant.
+This is broad host authority, including access to private data and changes outside
+workspaces. It is supplied by the operator, never inferred from retrieved content.
+Theo should investigate and act within the owner's direction instead of repeatedly
+asking for access. Commands still use the broker and durable ledger; group chats
+cannot use this authority, and revocation is checked before queued commands run.
+An existing explicitly rejected command remains rejected under either policy.
+
 Arguments must not contain credentials. The result records the exit code and bounded
 output; a queued action does not establish execution and a nonzero exit does not
 establish that nothing changed. Uncertain commands are not replayed automatically.

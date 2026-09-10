@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 from croniter import croniter
 
-from theo.domain import Conflict, digest, uid
+from theo.domain import Conflict, WorkOrigin, digest, uid
 from theo.storage import Database
 from theo.work.jobs import Jobs
 
@@ -45,8 +45,12 @@ class Scheduler:
         interval: int | None = None,
         timezone: str = "Europe/Dublin",
         idempotency_key: str | None = None,
+        mode: str = "reminder",
+        origin: WorkOrigin = "requested",
     ) -> str:
         ZoneInfo(timezone)
+        if mode not in ("reminder", "work") or origin not in ("requested", "autonomous", "system"):
+            raise ValueError("Unknown schedule mode or origin")
         if sum(value is not None for value in (due, cron, interval)) != 1 or not body.strip():
             raise ValueError("Specify exactly one due time, cron expression or interval")
         if interval is not None and interval < 60:
@@ -67,19 +71,19 @@ class Scheduler:
 
         def insert(db: sqlite3.Connection) -> None:
             existing = db.execute(
-                "SELECT body,kind,cron,interval_seconds,timezone FROM schedules WHERE id=?",
+                "SELECT body,kind,cron,interval_seconds,timezone,mode,origin FROM schedules WHERE id=?",
                 (schedule_id,),
             ).fetchone()
             if existing:
-                if tuple(existing) != (body, kind, cron, interval, timezone):
-                    raise Conflict("Reminder identity binds different content")
+                if tuple(existing) != (body, kind, cron, interval, timezone, mode, origin):
+                    raise Conflict("Schedule identity binds different content or behavior")
                 return
             if not db.execute(
                 "SELECT 1 FROM conversations WHERE id=? AND owner_id=?", (conversation, self.owner)
             ).fetchone():
                 raise ValueError("Conversation unavailable")
             db.execute(
-                "INSERT INTO schedules(id,owner_id,conversation_id,body,kind,cron,interval_seconds,timezone,next_due,active,grace_seconds,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO schedules(id,owner_id,conversation_id,body,kind,cron,interval_seconds,timezone,next_due,active,grace_seconds,created_at,mode,origin) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     schedule_id,
                     self.owner,
@@ -93,6 +97,8 @@ class Scheduler:
                     1,
                     3600,
                     self.db.clock(),
+                    mode,
+                    origin,
                 ),
             )
 
@@ -197,7 +203,7 @@ class Scheduler:
                 job = self.jobs.insert(
                     db,
                     row["conversation_id"],
-                    "reminder",
+                    "scheduled_work" if row["mode"] == "work" else "reminder",
                     {
                         "text": row["body"],
                         "nominal_due": nominal,
@@ -205,7 +211,8 @@ class Scheduler:
                         "late_seconds": max(0, self.db.clock() - nominal),
                     },
                     key,
-                    deadline=self.db.clock() + 7 * 86400,
+                    deadline=self.db.clock() + (5400 if row["mode"] == "work" else 7 * 86400),
+                    origin=row["origin"],
                 )
                 db.execute(
                     "INSERT OR IGNORE INTO occurrences VALUES(?,?,?,?,?)",
