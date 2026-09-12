@@ -4,6 +4,8 @@ Coalesces source changes into durable work or review proposals with deduplicatio
 and explicit no-op reasons; it does not run a continuous inference loop.
 """
 
+import sqlite3
+
 from theo.domain import Json, digest, encode, uid
 from theo.privacy import group_scope
 from theo.storage import Database
@@ -240,17 +242,31 @@ class Autonomy:
                     continue
                 # Evidence identity deduplicates already-addressed failures and repeated scans.
                 key = f"autonomy:{kind}:{source_key}"
-                await Jobs(self.db, self.owner).enqueue(
-                    result["evidence"][0]["conversation_id"]
-                    if kind == "deep_work"
-                    else conversation,
-                    kind,
-                    {"text": result["text"], "evidence": result["evidence"]},
-                    key,
-                    deadline=self.db.clock() + (5400 if kind == "deep_work" else 1800),
-                    origin="autonomous",
-                )
+                await self._admit_work(conversation, kind, result, key)
         return reports
+
+    async def _admit_work(self, conversation: str, kind: str, result: Json, key: str) -> None:
+        """Consume evidence once, including jobs hydrated by older runtimes."""
+
+        def admit(db: sqlite3.Connection) -> None:
+            # Admission and the evidence check share the writer transaction. Execution
+            # may enrich a payload; it must not make consumed evidence a new request.
+            if db.execute(
+                "SELECT 1 FROM jobs WHERE owner_id=? AND semantic_key=?",
+                (self.owner, key),
+            ).fetchone():
+                return
+            Jobs(self.db, self.owner).insert(
+                db,
+                result["evidence"][0]["conversation_id"] if kind == "deep_work" else conversation,
+                kind,
+                {"text": result["text"], "evidence": result["evidence"]},
+                key,
+                deadline=self.db.clock() + (5400 if kind == "deep_work" else 1800),
+                origin="autonomous",
+            )
+
+        await self.db.write(admit)
 
     async def record_proposal(self, kind: str, evidence: Json, body: str) -> str:
         proposal_id = uid()

@@ -268,3 +268,11 @@ Useful diagnostics: `doctor --json`, `status`, `jobs/runs/actions inspect`, `hea
 ## Telegram integration setup
 
 The expanded [Telegram interface](telegram.md) includes owner-only group/topic bindings, in-chat reviews and diagnostics. Use `uv run --no-sync python scripts/telegram_setup.py --bot YOUR_TEST_BOT` for a dedicated token-in-memory test session; it leaves native qualification gates unchanged. Current implementation and validation status is recorded in [telegram-implementation.md](telegram-implementation.md).
+
+### Repeated background evidence
+
+Autonomy consumes each evidence identity once, including terminal jobs whose input
+was enriched by an older runtime. Identical evidence does not restart completed,
+failed or cancelled work; changed evidence can admit a new job. Job identity checks
+remain strict for other callers. Telegram execution only hydrates actual media
+parts, leaving media-free admission payloads unchanged.

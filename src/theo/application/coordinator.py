@@ -157,7 +157,7 @@ class Coordinator:
                 )
             else:
                 parts = payload.get("parts", [])
-                if self.telegram:
+                if self.telegram and parts:
                     parts = [
                         await self.telegram.hydrate(part, job["conversation_id"]) for part in parts
                     ]
